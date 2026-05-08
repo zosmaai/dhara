@@ -2,11 +2,26 @@
   "name": "dhara",
   "version": "0.1.0",
   "description": "The Agent Protocol Standard — minimal, secure, language-agnostic coding agent harness",
+  "type": "module",
   "keywords": ["coding-agent", "agent-harness", "protocol", "llm", "ai", "developer-tools"],
   "homepage": "https://github.com/zosmaai/dhara",
   "bugs": { "url": "https://github.com/zosmaai/dhara/issues" },
   "license": "MIT",
   "author": { "name": "Zosma AI", "url": "https://zosma.ai" },
   "repository": { "type": "git", "url": "git+https://github.com/zosmaai/dhara.git" },
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fmt": "biome format --write .",
+    "lint": "biome lint ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {}
 }
