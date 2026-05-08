@@ -320,5 +320,5 @@ The name comes from Sanskrit **धारा** (dhārā) — the continuous strea
 <p align="center">
   <strong>Dhara</strong> — The Agent Protocol Standard<br>
   Built by <a href="https://zosma.ai">Zosma AI</a><br>
-  Built from India 🇮🇳
+  Built from India 🇮🇳 for the World 🌏
 </p>
