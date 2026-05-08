@@ -1,10 +1,4 @@
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -187,9 +181,7 @@ export class ConfigManager {
    * List all configured providers, sorted alphabetically by name.
    */
   listProviders(): ProviderConfig[] {
-    return this.deepClone(
-      [...this.data.providers].sort((a, b) => a.name.localeCompare(b.name)),
-    );
+    return this.deepClone([...this.data.providers].sort((a, b) => a.name.localeCompare(b.name)));
   }
 
   /**
@@ -278,9 +270,7 @@ export class ConfigManager {
       throw new ConfigError(`Provider not configured: ${providerId}`);
     }
     if (provider.auth.type !== "api_key") {
-      throw new ConfigError(
-        `Provider "${providerId}" uses OAuth auth, not API key`,
-      );
+      throw new ConfigError(`Provider "${providerId}" uses OAuth auth, not API key`);
     }
 
     provider.auth.apiKey = apiKey;

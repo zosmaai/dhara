@@ -3,7 +3,7 @@ import type {
   ProviderMessage,
   AssistantMessage,
   CompleteParams,
-} from "./provider.js";
+} from "../../core/provider.js";
 
 /**
  * Configuration for creating an Anthropic provider adapter.

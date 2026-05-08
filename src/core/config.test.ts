@@ -1,13 +1,8 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  ConfigManager,
-  ConfigCorruptError,
-  ConfigError,
-  DEFAULT_CONFIG,
-} from "./config.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ConfigCorruptError, ConfigError, ConfigManager, DEFAULT_CONFIG } from "./config.js";
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "dhara-config-"));
