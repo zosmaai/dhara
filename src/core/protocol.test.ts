@@ -1,18 +1,30 @@
-import { describe, it, expect, vi } from "vitest";
-import { EventEmitter } from "events";
-import { createExtensionProtocol, type JsonRpcMessage } from "./protocol.js";
+import { EventEmitter } from "node:events";
+import { describe, expect, it, vi } from "vitest";
+import { type JsonRpcMessage, createExtensionProtocol } from "./protocol.js";
+
+interface MockStdin extends NodeJS.ReadableStream {
+  receive(msg: JsonRpcMessage): void;
+}
+
+interface MockStdout extends NodeJS.WritableStream {
+  chunks: string[];
+}
 
 // Mock stdin/stdout for testing
-function createMockStreams() {
-  const stdin = new EventEmitter() as NodeJS.ReadableStream;
-  const stdout = {
-    chunks: [] as string[],
-    write(chunk: string) { this.chunks.push(chunk); return true; },
-  } as unknown as NodeJS.WritableStream;
+function createMockStreams(): { stdin: MockStdin; stdout: MockStdout } {
+  const emitter = new EventEmitter();
+  const chunks: string[] = [];
 
-  // Add a helper to simulate receiving messages from the extension
-  (stdin as any).receive = (msg: JsonRpcMessage) => {
-    (stdin as EventEmitter).emit("data", Buffer.from(JSON.stringify(msg) + "\n"));
+  const stdin: MockStdin = Object.create(emitter);
+  stdin.receive = (msg: JsonRpcMessage) => {
+    emitter.emit("data", Buffer.from(`${JSON.stringify(msg)}\n`));
+  };
+
+  const stdout: MockStdout = Object.create(new EventEmitter());
+  stdout.chunks = chunks;
+  stdout.write = (chunk: string) => {
+    chunks.push(chunk);
+    return true;
   };
 
   return { stdin, stdout };
@@ -26,8 +38,8 @@ describe("ExtensionProtocol", () => {
     const responsePromise = protocol.sendRequest("initialize", { protocolVersion: "0.1.0" });
 
     // Simulate extension responding
-    const requestLine = JSON.parse((stdout as any).chunks[0]);
-    (stdin as any).receive({
+    const requestLine = JSON.parse(stdout.chunks[0]);
+    stdin.receive({
       jsonrpc: "2.0",
       result: { protocolVersion: "0.1.0", name: "test-ext" },
       id: requestLine.id,
@@ -43,7 +55,7 @@ describe("ExtensionProtocol", () => {
 
     protocol.sendNotification("shutdown", {});
 
-    const lines = (stdout as any).chunks.map((s: string) => JSON.parse(s));
+    const lines = stdout.chunks.map((s: string) => JSON.parse(s));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({
       jsonrpc: "2.0",
@@ -60,7 +72,7 @@ describe("ExtensionProtocol", () => {
     const handler = vi.fn();
     protocol.onNotification("tools/progress", handler);
 
-    (stdin as any).receive({
+    stdin.receive({
       jsonrpc: "2.0",
       method: "tools/progress",
       params: { toolCallId: "tc1", update: { type: "text_delta", delta: "..." } },
@@ -79,8 +91,8 @@ describe("ExtensionProtocol", () => {
 
     const responsePromise = protocol.sendRequest("tools/execute", { toolName: "grep" });
 
-    const requestLine = JSON.parse((stdout as any).chunks[0]);
-    (stdin as any).receive({
+    const requestLine = JSON.parse(stdout.chunks[0]);
+    stdin.receive({
       jsonrpc: "2.0",
       error: { code: -32001, message: "Tool not found" },
       id: requestLine.id,
@@ -96,13 +108,13 @@ describe("ExtensionProtocol", () => {
     const p1 = protocol.sendRequest("tools/execute", { toolName: "read" });
     const p2 = protocol.sendRequest("tools/execute", { toolName: "write" });
 
-    const requestLines = (stdout as any).chunks.map((s: string) => JSON.parse(s));
+    const requestLines = stdout.chunks.map((s: string) => JSON.parse(s));
     const id1 = requestLines[0].id;
     const id2 = requestLines[1].id;
 
     // Respond out of order
-    (stdin as any).receive({ jsonrpc: "2.0", result: "write-ok", id: id2 });
-    (stdin as any).receive({ jsonrpc: "2.0", result: "read-ok", id: id1 });
+    stdin.receive({ jsonrpc: "2.0", result: "write-ok", id: id2 });
+    stdin.receive({ jsonrpc: "2.0", result: "read-ok", id: id1 });
 
     const [r1, r2] = await Promise.all([p1, p2]);
     expect(r1).toBe("read-ok");
@@ -117,9 +129,9 @@ describe("ExtensionProtocol", () => {
     protocol.sendNotification("event", {});
 
     // Extension sends a response with unknown id
-    (stdin as any).receive({ jsonrpc: "2.0", result: "orphan", id: 999 });
+    stdin.receive({ jsonrpc: "2.0", result: "orphan", id: 999 });
 
     // Should not throw or crash
-    expect((stdout as any).chunks).toHaveLength(1);
+    expect(stdout.chunks).toHaveLength(1);
   });
 });

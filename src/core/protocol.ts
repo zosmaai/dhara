@@ -1,5 +1,5 @@
-import { EventEmitter } from "events";
-import type { Readable, Writable } from "stream";
+import { EventEmitter } from "node:events";
+import type { Readable, Writable } from "node:stream";
 
 export interface JsonRpcMessage {
   jsonrpc: "2.0";
@@ -37,7 +37,7 @@ export function createExtensionProtocol({
 
   function sendMessage(msg: JsonRpcMessage) {
     if (closed) return;
-    stdout.write(JSON.stringify(msg) + "\n");
+    stdout.write(`${JSON.stringify(msg)}\n`);
   }
 
   function onData(chunk: Buffer) {
@@ -59,7 +59,8 @@ export function createExtensionProtocol({
   function handleMessage(msg: JsonRpcMessage) {
     // Response to a request
     if (msg.id !== undefined && pending.has(msg.id)) {
-      const req = pending.get(msg.id)!;
+      const req = pending.get(msg.id);
+      if (!req) return;
       pending.delete(msg.id);
       if (msg.error) {
         req.reject(new Error(msg.error.message));

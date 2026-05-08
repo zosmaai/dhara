@@ -1,14 +1,14 @@
 export interface EventBus {
   subscribe<T>(
     event: string,
-    handler: (payload: T) => void | { block: boolean; reason?: string },
-    options?: { blocking?: boolean }
+    handler: (payload: T) => undefined | { block: boolean; reason?: string },
+    options?: { blocking?: boolean },
   ): () => void;
   emit<T>(event: string, payload: T): { blocked: boolean; reason?: string };
 }
 
 interface Listener<T> {
-  handler: (payload: T) => void | { block: boolean; reason?: string };
+  handler: (payload: T) => undefined | { block: boolean; reason?: string };
   blocking: boolean;
 }
 
@@ -36,7 +36,13 @@ export function createEventBus(): EventBus {
 
       for (const listener of list) {
         const result = listener.handler(payload);
-        if (listener.blocking && result && typeof result === "object" && "block" in result && result.block) {
+        if (
+          listener.blocking &&
+          result &&
+          typeof result === "object" &&
+          "block" in result &&
+          result.block
+        ) {
           return { blocked: true, reason: result.reason };
         }
       }
