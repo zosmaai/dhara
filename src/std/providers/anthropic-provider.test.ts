@@ -1,23 +1,16 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { createOpenAIProvider } from "./openai-provider.js";
-import type { CompleteParams, ProviderMessage } from "./provider.js";
+import { createAnthropicProvider } from "./anthropic-provider.js";
+import type { CompleteParams } from "../../core/provider.js";
 
-describe("OpenAI Provider", () => {
+describe("Anthropic Provider", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
       return new Response(
         JSON.stringify({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: "Hello!",
-              },
-            },
-          ],
-          usage: { prompt_tokens: 10, completion_tokens: 5 },
+          content: [{ type: "text", text: "Hello!" }],
+          usage: { input_tokens: 10, output_tokens: 5 },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -28,78 +21,77 @@ describe("OpenAI Provider", () => {
     fetchSpy.mockRestore();
   });
 
-  it("sends request to OpenAI chat completions endpoint", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+  it("sends request to Anthropic messages endpoint", async () => {
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url] = fetchSpy.mock.calls[0];
-    expect(url).toBe("https://api.openai.com/v1/chat/completions");
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
   });
 
-  it("includes Authorization header with API key", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-secret" });
+  it("includes x-api-key header", async () => {
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-secret" });
     await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     expect(init?.headers).toMatchObject({
-      Authorization: "Bearer sk-secret",
+      "x-api-key": "sk-ant-secret",
+      "anthropic-version": "2023-06-01",
     });
   });
 
   it("includes model in request body", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4o", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
-    expect(body.model).toBe("gpt-4o");
+    expect(body.model).toBe("claude-sonnet-4");
   });
 
-  it("converts system prompt to system message", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+  it("converts system prompt to top-level system field", async () => {
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       systemPrompt: "You are helpful.",
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
-    expect(body.messages[0]).toEqual({
-      role: "system",
-      content: "You are helpful.",
-    });
+    expect(body.system).toBe("You are helpful.");
+    expect(body.messages[0].role).toBe("user");
   });
 
   it("converts user messages", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [
         { role: "user", content: [{ type: "text", text: "Hello there" }] },
       ],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
     expect(body.messages[0]).toEqual({
       role: "user",
-      content: "Hello there",
+      content: [{ type: "text", text: "Hello there" }],
     });
   });
 
-  it("converts assistant messages", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+  it("converts assistant text messages", async () => {
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [
         {
@@ -107,19 +99,19 @@ describe("OpenAI Provider", () => {
           content: [{ type: "text", text: "Sure!" }],
         },
       ],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
     expect(body.messages[0]).toEqual({
       role: "assistant",
-      content: "Sure!",
+      content: [{ type: "text", text: "Sure!" }],
     });
   });
 
   it("converts assistant messages with tool calls", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [
         {
@@ -127,59 +119,62 @@ describe("OpenAI Provider", () => {
           content: [{ type: "text", text: "Let me check" }],
           toolCalls: [
             {
-              id: "call_1",
+              id: "toolu_1",
               name: "get_weather",
               input: { city: "London" },
             },
           ],
         },
       ],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
     expect(body.messages[0]).toEqual({
       role: "assistant",
-      content: "Let me check",
-      tool_calls: [
+      content: [
+        { type: "text", text: "Let me check" },
         {
-          id: "call_1",
-          type: "function",
-          function: {
-            name: "get_weather",
-            arguments: JSON.stringify({ city: "London" }),
-          },
+          type: "tool_use",
+          id: "toolu_1",
+          name: "get_weather",
+          input: { city: "London" },
         },
       ],
     });
   });
 
   it("converts tool result messages", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [
         {
           role: "tool",
           content: [{ type: "text", text: "Sunny, 22°C" }],
-          toolCallId: "call_1",
+          toolCallId: "toolu_1",
           toolName: "get_weather",
         },
       ],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
     expect(body.messages[0]).toEqual({
-      role: "tool",
-      tool_call_id: "call_1",
-      content: "Sunny, 22°C",
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "toolu_1",
+          content: "Sunny, 22°C",
+        },
+      ],
     });
   });
 
   it("includes tools in request body", async () => {
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
       tools: [
@@ -189,19 +184,16 @@ describe("OpenAI Provider", () => {
           parameters: { type: "object" },
         },
       ],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init?.body as string);
     expect(body.tools).toHaveLength(1);
     expect(body.tools[0]).toEqual({
-      type: "function",
-      function: {
-        name: "get_weather",
-        description: "Get weather",
-        parameters: { type: "object" },
-      },
+      name: "get_weather",
+      description: "Get weather",
+      input_schema: { type: "object" },
     });
   });
 
@@ -209,24 +201,17 @@ describe("OpenAI Provider", () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: "The answer is 42.",
-              },
-            },
-          ],
-          usage: { prompt_tokens: 8, completion_tokens: 6 },
+          content: [{ type: "text", text: "The answer is 42." }],
+          usage: { input_tokens: 8, output_tokens: 6 },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       ),
     );
 
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     const result = await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     expect(result.content).toEqual([
@@ -235,43 +220,37 @@ describe("OpenAI Provider", () => {
     expect(result.usage).toEqual({ input: 8, output: 6 });
   });
 
-  it("parses tool call response", async () => {
+  it("parses tool use response", async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          choices: [
+          content: [
+            { type: "text", text: "I'll read that" },
             {
-              message: {
-                role: "assistant",
-                content: null,
-                tool_calls: [
-                  {
-                    id: "call_abc",
-                    type: "function",
-                    function: {
-                      name: "read_file",
-                      arguments: JSON.stringify({ path: "/tmp/test" }),
-                    },
-                  },
-                ],
-              },
+              type: "tool_use",
+              id: "toolu_abc",
+              name: "read_file",
+              input: { path: "/tmp/test" },
             },
           ],
-          usage: { prompt_tokens: 10, completion_tokens: 15 },
+          usage: { input_tokens: 10, output_tokens: 15 },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       ),
     );
 
-    const provider = createOpenAIProvider({ apiKey: "sk-test" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     const result = await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
+    expect(result.content).toEqual([
+      { type: "text", text: "I'll read that" },
+    ]);
     expect(result.toolCalls).toHaveLength(1);
     expect(result.toolCalls?.[0]).toEqual({
-      id: "call_abc",
+      id: "toolu_abc",
       name: "read_file",
       input: { path: "/tmp/test" },
     });
@@ -280,31 +259,33 @@ describe("OpenAI Provider", () => {
   it("throws on API error", async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ error: { message: "Invalid API key" } }),
+        JSON.stringify({
+          error: { type: "authentication_error", message: "Invalid API key" },
+        }),
         { status: 401, headers: { "content-type": "application/json" } },
       ),
     );
 
-    const provider = createOpenAIProvider({ apiKey: "sk-bad" });
+    const provider = createAnthropicProvider({ apiKey: "sk-ant-bad" });
     await expect(
       provider.complete({
         messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-        model: { id: "gpt-4", provider: "openai" },
+        model: { id: "claude-sonnet-4", provider: "anthropic" },
       }),
     ).rejects.toThrow("Invalid API key");
   });
 
   it("uses custom baseUrl when provided", async () => {
-    const provider = createOpenAIProvider({
-      apiKey: "sk-test",
-      baseUrl: "https://custom.example.com/v1",
+    const provider = createAnthropicProvider({
+      apiKey: "sk-ant-test",
+      baseUrl: "https://custom.anthropic.com/v1",
     });
     await provider.complete({
       messages: [{ role: "user", content: [{ type: "text", text: "Hi" }] }],
-      model: { id: "gpt-4", provider: "openai" },
+      model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
     const [url] = fetchSpy.mock.calls[0];
-    expect(url).toBe("https://custom.example.com/v1/chat/completions");
+    expect(url).toBe("https://custom.anthropic.com/v1/messages");
   });
 });
