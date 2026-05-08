@@ -3,14 +3,7 @@
   "version": "0.1.0",
   "description": "The Agent Protocol Standard — minimal, secure, language-agnostic coding agent harness",
   "type": "module",
-  "keywords": [
-    "coding-agent",
-    "agent-harness",
-    "protocol",
-    "llm",
-    "ai",
-    "developer-tools"
-  ],
+  "keywords": ["coding-agent", "agent-harness", "protocol", "llm", "ai", "developer-tools"],
   "homepage": "https://github.com/zosmaai/dhara",
   "bugs": {
     "url": "https://github.com/zosmaai/dhara/issues"
