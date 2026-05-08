@@ -39,18 +39,13 @@
 
 ## Why
 
-Coding agents today are **products**, not **platforms**. Every major agent locks you in:
+Coding agents today are **products**, not **platforms**. They ship as bloated, all-in-one packages that force you into their way of working:
 
-### 🔒 Claude Code
-- 10,000-token system prompt you can't see or control
-- Hidden context injection that changes between releases
-- Anthropic-only, cloud-dependent
-- No extension ecosystem you own
-
-### 🔒 Codex
-- OpenAI-only, IDE-coupled
-- Cloud-dependent by design
-- No way to customize the loop
+### 🔒 Claude Code / Codex
+- **Heavy customization** — you need their bloated plugin/extension systems just to make basic workflow changes
+- **Vendor-defined defaults** — hidden context injection, opaque system prompts that change between releases
+- **Opinionated UX** — you adapt to their workflow, not the other way around
+- **Platform lock** — customization always happens within their walls
 
 ### 🔒 Pi
 - **TypeScript-only** extensions — locks out Python, Rust, Go ecosystems
@@ -66,6 +61,8 @@ These are all **vendor-owned harnesses** that inject hidden context, mutate beha
 Like **HTTP** standardized how web servers talk to browsers, like **LSP** standardized how editors talk to language servers — **Dhara standardizes how agents talk to tools.**
 
 The spec is the moat. Anyone can implement it.
+
+> The AI adapts to your workflow. Not the other way around.
 
 ---
 
