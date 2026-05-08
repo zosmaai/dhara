@@ -94,7 +94,10 @@ type Entry = SessionEntry | BranchEntry;
  */
 export interface Session {
   meta: SessionMeta;
-  append(partial: Omit<SessionEntry, "type" | "id" | "parentId" | "timestamp">, parentId?: string): SessionEntry;
+  append(
+    partial: Omit<SessionEntry, "type" | "id" | "parentId" | "timestamp">,
+    parentId?: string,
+  ): SessionEntry;
   fork(parentId: string, label?: string): BranchEntry;
   getEntry(id: string): Entry | undefined;
   getPath(branchId?: string): string[];
@@ -140,7 +143,7 @@ export function createSession(config: { cwd: string; model?: ModelRef; tags?: st
 
   function append(
     partial: Omit<SessionEntry, "type" | "id" | "parentId" | "timestamp">,
-    parentId?: string
+    parentId?: string,
   ): SessionEntry {
     const id = generateId();
     const resolvedParentId = parentId ?? headId;

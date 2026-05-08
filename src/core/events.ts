@@ -4,9 +4,7 @@
  * - `{ action: "allow" }` — permit the event to continue
  * - `{ action: "block", reason }` — veto the event, stop propagation
  */
-export type HookResult =
-  | { action: "allow" }
-  | { action: "block"; reason?: string };
+export type HookResult = { action: "allow" } | { action: "block"; reason?: string };
 
 /**
  * Result returned by {@link EventBus.emit}.
@@ -14,9 +12,7 @@ export type HookResult =
  * - `{ blocked: false }` — all handlers allowed the event
  * - `{ blocked: true, reason }` — a blocking hook vetoed the event
  */
-export type EmitResult =
-  | { blocked: false }
-  | { blocked: true; reason?: string };
+export type EmitResult = { blocked: false } | { blocked: true; reason?: string };
 
 /**
  * Internal representation of a subscribed listener.
@@ -51,7 +47,7 @@ export interface EventBus {
   subscribe<T>(
     event: string,
     handler: (payload: T) => HookResult,
-    options?: { blocking?: boolean }
+    options?: { blocking?: boolean },
   ): () => void;
 
   /**
@@ -83,7 +79,7 @@ export function createEventBus(): EventBus {
     subscribe<T>(
       event: string,
       handler: (payload: T) => HookResult,
-      options: { blocking?: boolean } = {}
+      options: { blocking?: boolean } = {},
     ): () => void {
       const list = listeners.get(event) ?? [];
       const listener: Listener<unknown> = {

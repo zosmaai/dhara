@@ -8,9 +8,7 @@ export type Capability = string;
 /**
  * Result of a sandbox permission check.
  */
-export type PermissionResult =
-  | { allowed: true }
-  | { allowed: false; reason: string };
+export type PermissionResult = { allowed: true } | { allowed: false; reason: string };
 
 /**
  * Audit log entry for every sandbox check.
@@ -131,7 +129,7 @@ export function createSandbox(config: SandboxConfig): Sandbox {
   function audit(
     capability: string,
     result: PermissionResult,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ): void {
     if (!onAudit) return;
     onAudit({

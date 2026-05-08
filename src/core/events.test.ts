@@ -27,8 +27,14 @@ describe("EventBus", () => {
       const bus = createEventBus();
       const order: number[] = [];
 
-      bus.subscribe("ev", () => { order.push(1); return allow(); });
-      bus.subscribe("ev", () => { order.push(2); return allow(); });
+      bus.subscribe("ev", () => {
+        order.push(1);
+        return allow();
+      });
+      bus.subscribe("ev", () => {
+        order.push(2);
+        return allow();
+      });
       bus.emit("ev", {});
 
       expect(order).toEqual([1, 2]);
@@ -102,9 +108,30 @@ describe("EventBus", () => {
       const bus = createEventBus();
       const order: string[] = [];
 
-      bus.subscribe("ev", () => { order.push("first"); return allow(); }, { blocking: true });
-      bus.subscribe("ev", () => { order.push("second"); return block("second"); }, { blocking: true });
-      bus.subscribe("ev", () => { order.push("third"); return allow(); }, { blocking: true });
+      bus.subscribe(
+        "ev",
+        () => {
+          order.push("first");
+          return allow();
+        },
+        { blocking: true },
+      );
+      bus.subscribe(
+        "ev",
+        () => {
+          order.push("second");
+          return block("second");
+        },
+        { blocking: true },
+      );
+      bus.subscribe(
+        "ev",
+        () => {
+          order.push("third");
+          return allow();
+        },
+        { blocking: true },
+      );
 
       bus.emit("ev", {});
 
@@ -116,7 +143,13 @@ describe("EventBus", () => {
       const bus = createEventBus();
       const normal = vi.fn(() => allow());
 
-      bus.subscribe("ev", () => { throw new Error("hook crashed"); }, { blocking: true });
+      bus.subscribe(
+        "ev",
+        () => {
+          throw new Error("hook crashed");
+        },
+        { blocking: true },
+      );
       bus.subscribe("ev", normal);
 
       const result = bus.emit("ev", {});
@@ -131,9 +164,17 @@ describe("EventBus", () => {
       const bus = createEventBus();
       const order: number[] = [];
 
-      bus.subscribe("ev", () => { order.push(1); return allow(); });
-      bus.subscribe("ev", () => { throw new Error("crash"); });
-      bus.subscribe("ev", () => { order.push(3); return allow(); });
+      bus.subscribe("ev", () => {
+        order.push(1);
+        return allow();
+      });
+      bus.subscribe("ev", () => {
+        throw new Error("crash");
+      });
+      bus.subscribe("ev", () => {
+        order.push(3);
+        return allow();
+      });
 
       bus.emit("ev", {});
 
@@ -143,7 +184,9 @@ describe("EventBus", () => {
     it("does not affect the emit result when a non-blocking listener crashes", () => {
       const bus = createEventBus();
 
-      bus.subscribe("ev", () => { throw new Error("crash"); });
+      bus.subscribe("ev", () => {
+        throw new Error("crash");
+      });
 
       const result = bus.emit("ev", {});
       expect(result).toEqual({ blocked: false });
