@@ -20,6 +20,9 @@
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "dhara": "./dist/cli/main.js"
+  },
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
