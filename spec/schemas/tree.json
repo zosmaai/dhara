@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/tree.json",
+  "title": "Dhara Session Tree",
+  "description": "Schema for the session tree structure (tree.json). Materializes the parent-child relationships from entries.jsonl for fast navigation.",
+  "type": "object",
+  "required": ["root", "heads", "branches"],
+  "properties": {
+    "root": {
+      "type": "string",
+      "description": "ID of the root entry of the session."
+    },
+    "heads": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z_][a-zA-Z0-9_-]*$": { "type": "string" }
+      },
+      "description": "Map of branch names to the ID of the head (latest) entry on that branch.",
+      "minProperties": 1
+    },
+    "branches": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z_][a-zA-Z0-9_-]*$": { "$ref": "#/$defs/BranchInfo" }
+      },
+      "description": "Map of branch names to their structural information.",
+      "minProperties": 1
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "BranchInfo": {
+      "oneOf": [
+        { "$ref": "#/$defs/LinearBranch" },
+        { "$ref": "#/$defs/ForkedBranch" }
+      ]
+    },
+    "LinearBranch": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Ordered array of entry IDs from root to head."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ForkedBranch": {
+      "type": "object",
+      "required": ["path", "branchPoint", "pathAfter"],
+      "properties": {
+        "path": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Shared path from root to branch point."
+        },
+        "branchPoint": {
+          "type": "string",
+          "description": "ID of the branch entry (type: 'branch') where divergence occurs."
+        },
+        "pathAfter": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Entry IDs after the branch point, exclusive."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

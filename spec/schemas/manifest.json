@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/manifest.json",
+  "title": "Dhara Package Manifest",
+  "description": "Schema for Dhara package manifests (manifest.yaml or manifest.json). Packages bundle extensions, skills, prompts, and themes. This schema validates the metadata, capabilities, and distribution info for registry publication.",
+  "type": "object",
+  "required": ["name", "version", "description", "author", "license"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^@[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$",
+      "description": "Scoped package name (e.g., '@zosmaai/code-search'). Must include scope."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version."
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of the package."
+    },
+    "author": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "email": { "type": "string", "format": "email" },
+            "url": { "type": "string", "format": "uri" }
+          },
+          "additionalProperties": false
+        },
+        { "type": "string" }
+      ]
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier (e.g., 'MIT', 'Apache-2.0')."
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Package homepage URL."
+    },
+    "repository": {
+      "type": "string",
+      "format": "uri",
+      "description": "Source repository URL."
+    },
+    "provides": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExtensionDef" },
+          "description": "Extensions provided by this package."
+        },
+        "skills": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SkillDef" },
+          "description": "Skills (prompts + context) provided by this package."
+        },
+        "prompts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PromptDef" },
+          "description": "Prompt templates provided by this package."
+        },
+        "themes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "UI theme identifiers."
+        }
+      },
+      "additionalProperties": false,
+      "description": "What this package provides to the agent."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Union of all capabilities needed across all extensions in this package.",
+      "minItems": 0
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "outbound": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["domain", "purpose"],
+            "properties": {
+              "domain": { "type": "string" },
+              "purpose": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "description": "Domains the package connects to."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Network access details for user review."
+    },
+    "config": {
+      "type": "object",
+      "description": "User-configurable settings as a JSON Schema object."
+    },
+    "compatibility": {
+      "type": "object",
+      "properties": {
+        "coreVersion": {
+          "type": "string",
+          "description": "Required core version range (e.g., '>=0.1.0')."
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["linux", "macos", "windows"]
+          }
+        },
+        "runtimes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "description": "Runtime name (e.g., 'python', 'node')." },
+              "version": { "type": "string", "description": "Version requirement (e.g., '>=3.9')." }
+            },
+            "additionalProperties": false
+          },
+          "description": "Required language runtimes."
+        }
+      },
+      "additionalProperties": false
+    },
+    "gallery": {
+      "type": "object",
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "category": { "type": "string" },
+        "video": { "type": "string", "format": "uri" },
+        "image": { "type": "string", "format": "uri" },
+        "readme": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "description": "Gallery display metadata for the registry."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ExtensionDef": {
+      "type": "object",
+      "required": ["runtime"],
+      "properties": {
+        "runtime": {
+          "type": "object",
+          "required": ["type", "protocol"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["subprocess", "wasm", "socket"]
+            },
+            "command": {
+              "type": "string",
+              "description": "Command to launch the extension (for subprocess type)."
+            },
+            "wasmFile": {
+              "type": "string",
+              "description": "Path to WASM binary (for wasm type)."
+            },
+            "socket": {
+              "type": "string",
+              "description": "Unix socket path or TCP address (for socket type)."
+            },
+            "protocol": {
+              "type": "string",
+              "const": "json-rpc",
+              "description": "Protocol identifier. Always 'json-rpc'."
+            }
+          },
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "array",
+          "items": { "$ref": "tool.json" },
+          "description": "Tools provided by this extension."
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["event"],
+            "properties": {
+              "event": { "type": "string" },
+              "blocking": { "type": "boolean", "default": false }
+            },
+            "additionalProperties": false
+          },
+          "description": "Events this extension subscribes to."
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "description": "Slash commands provided by this extension."
+        }
+      },
+      "additionalProperties": false
+    },
+    "SkillDef": {
+      "type": "object",
+      "required": ["name", "description", "prompt"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "prompt": { "type": "string", "description": "System prompt or context prepended when the skill is activated." }
+      },
+      "additionalProperties": false
+    },
+    "PromptDef": {
+      "type": "object",
+      "required": ["name", "description", "template"],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "template": { "type": "string", "description": "Prompt template with {{placeholder}} interpolation syntax." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

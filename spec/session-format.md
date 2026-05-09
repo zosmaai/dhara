@@ -236,19 +236,17 @@ project replay --from e003        # Replay from a specific entry
 
 ## Schema Validation
 
-The session format is defined in JSON Schema:
+The session format is defined in formal JSON Schema (draft 2020-12) files:
 
-```
-spec/
-├── schemas/
-│   ├── meta.json          # meta.json schema
-│   ├── entry.json         # Entry schema
-│   ├── branch.json        # Branch schema
-│   ├── compaction.json    # Compaction summary schema
-│   └── tree.json          # Tree schema
-```
+| File | Validates |
+|---|---|
+| [`schemas/meta.json`](./schemas/meta.json) | Session metadata (`meta.json`) |
+| [`schemas/entry.json`](./schemas/entry.json) | Session entries (`entries.jsonl`) |
+| [`schemas/branch.json`](./schemas/branch.json) | Branch markers |
+| [`schemas/tree.json`](./schemas/tree.json) | Branch/merge structure (`tree.json`) |
+| [`schemas/compaction.json`](./schemas/compaction.json) | Compaction summaries |
 
-Any implementation validates against these schemas. If it validates, it's a valid session.
+Any implementation validates against these schemas. If it validates, it's a valid Dhara session.
 
 ## Comparison with Pi's Session Format
 

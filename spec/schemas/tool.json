@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/tool.json",
+  "title": "Dhara Tool Definition",
+  "description": "Schema for defining a tool in the Dhara agent protocol. Tools are declared by extensions and consumed by LLMs. Parameters and returns use JSON Schema draft 2020-12.",
+  "type": "object",
+  "required": ["name", "version", "description", "parameters", "returns", "capabilities"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9_]*$",
+      "description": "Unique tool name (e.g., 'fs_read', 'shell_exec'). Lowercase start, snake_case."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of this tool definition."
+    },
+    "description": {
+      "type": "string",
+      "description": "Description of what this tool does. Shown to the LLM for tool selection."
+    },
+    "parameters": {
+      "$ref": "#/$defs/JSONSchemaObject",
+      "description": "Input schema following JSON Schema draft 2020-12."
+    },
+    "returns": {
+      "$ref": "#/$defs/JSONSchemaObject",
+      "description": "Output schema following JSON Schema draft 2020-12."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of capabilities this tool requires (e.g., 'filesystem:read', 'process:spawn').",
+      "minItems": 1
+    },
+    "display": {
+      "type": "object",
+      "properties": {
+        "icon": { "type": "string", "description": "Icon name for UI display." },
+        "category": { "type": "string", "description": "Category for grouping in UI." },
+        "color": { "type": "string", "description": "Display color hint." },
+        "progressIndicator": { "type": "boolean", "description": "Show progress while executing." }
+      },
+      "additionalProperties": false,
+      "description": "UI display hints."
+    },
+    "destructive": {
+      "type": "boolean",
+      "description": "Whether this tool modifies state. Users may be prompted for confirmation."
+    },
+    "streaming": {
+      "type": "boolean",
+      "description": "Whether this tool supports streaming partial output."
+    },
+    "timeout": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600,
+      "description": "Default timeout in seconds."
+    },
+    "cacheable": {
+      "type": "boolean",
+      "description": "If true, identical inputs produce identical outputs and results may be cached."
+    },
+    "hints": {
+      "type": "object",
+      "properties": {
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Higher = preferred when the LLM is ambiguous about which tool to use."
+        },
+        "examples": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ToolExample" },
+          "description": "Example inputs and outputs for the LLM."
+        },
+        "whenToUse": {
+          "type": "string",
+          "description": "Natural language guidance on when to use this tool."
+        },
+        "whenNotToUse": {
+          "type": "string",
+          "description": "Natural language guidance on when NOT to use this tool."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Hints for LLM tool selection."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "JSONSchemaObject": {
+      "type": "object",
+      "description": "A JSON Schema draft 2020-12 object. Referenced here as a minimal shape; in practice any valid draft 2020-12 schema is accepted.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["object", "string", "number", "integer", "boolean", "array", "null"]
+        },
+        "properties": {
+          "type": "object",
+          "description": "Property definitions for object types.",
+          "additionalProperties": { "$ref": "#/$defs/JSONSchemaObject" }
+        },
+        "items": { "$ref": "#/$defs/JSONSchemaObject" },
+        "required": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "description": { "type": "string" },
+        "enum": { "type": "array" },
+        "const": {},
+        "default": {},
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "pattern": { "type": "string" },
+        "format": { "type": "string" },
+        "additionalProperties": { "oneOf": [
+          { "type": "boolean" },
+          { "$ref": "#/$defs/JSONSchemaObject" }
+        ]},
+        "oneOf": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/JSONSchemaObject" }
+        },
+        "anyOf": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/JSONSchemaObject" }
+        },
+        "allOf": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/JSONSchemaObject" }
+        },
+        "if": { "$ref": "#/$defs/JSONSchemaObject" },
+        "then": { "$ref": "#/$defs/JSONSchemaObject" },
+        "else": { "$ref": "#/$defs/JSONSchemaObject" },
+        "not": { "$ref": "#/$defs/JSONSchemaObject" }
+      },
+      "additionalProperties": true,
+      "minProperties": 1
+    },
+    "ToolExample": {
+      "type": "object",
+      "required": ["input", "output"],
+      "properties": {
+        "name": { "type": "string", "description": "Example name." },
+        "description": { "type": "string", "description": "Description of what this example demonstrates." },
+        "input": { "type": "object", "description": "Example input parameters." },
+        "output": { "type": "object", "description": "Example output." }
+      },
+      "additionalProperties": false
+    }
+  }
+}
