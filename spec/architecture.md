@@ -179,6 +179,42 @@ Pi bundles the LLM API (`pi-ai`) into a core package. We make it an extension. P
 
 The result: a core that's genuinely minimal (under 2K lines) and genuinely language-agnostic.
 
+## Permission Model Gaps (Post-MVP)
+
+The current sandbox implementation (`src/core/sandbox.ts`) covers capability checking and path traversal, but has known gaps that must be addressed before production use.
+
+### Implemented ✅
+| Feature | Status | Details |
+|---|---|---|
+| Capability matching | Done | Exact + wildcard (`filesystem:*`) |
+| Path traversal protection | Done | `../` detection, cwd prefix enforcement |
+| Domain allowlisting | Done | Per-command allowed domains |
+| Command allowlisting | Done | Per-command allowed executables |
+| Audit callback | Done | In-memory callback per check |
+
+### Gaps (Post-MVP) ❌
+
+| Gap | Impact | Priority |
+|---|---|---|
+| **Extension isolation** — Each extension should get its own sandbox with separate granted capabilities. Currently one sandbox for everything. | One malicious extension can use another extension's capabilities | **High** |
+| **User approval flow** — No mechanism to display a capability prompt during extension install and let users approve/deny | Extensions can't request capabilities; user has no visibility | **High** |
+| **Persistent permission store** — Approved capabilities aren't saved to disk. Every session starts fresh. | Users re-approve every time. No memory of trusted extensions. | **Medium** |
+| **File quarantine** — Can't block specific sensitive paths (`.env`, `credentials.json`, SSH keys) even within cwd. The current model only blocks *outside* cwd. | Sensitive files within the project are fully accessible | **Medium** |
+| **Resource limits** — No CPU, memory, or file descriptor limits per tool call or per extension. `bash` has optional timeout but core doesn't enforce it. | A runaway extension can DoS the agent or system | **Medium** |
+| **Capability revocation** — No way to revoke a capability from a running extension without restarting | Once approved, a capability can't be rescinded mid-session | **Low** |
+| **Audit persistence** — Audit callback exists but nothing writes it to disk. Logs are lost on restart. | No forensic trail for security incidents | **Low** |
+| **OS-level sandboxing** — seccomp-bpf (Linux), sandbox-exec (macOS), Job Objects (Windows) not implemented | Subprocess sandboxing relies on core interception, not OS enforcement | **Low** |
+
+### Design Notes
+
+These gaps are intentional for the MVP phase. The priority order above reflects:
+1. **Extension isolation** must come before any real extension ecosystem
+2. **Approval flow** is needed for any UX beyond developer-only
+3. **File quarantine** and **resource limits** are needed for production safety
+4. The rest can wait for v1
+
+The capability model in [capability-model.md](./capability-model.md) already specifies the ideal state. These gaps represent the delta between spec and implementation.
+
 ## Embedding
 
 The core can be embedded in:
