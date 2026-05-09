@@ -122,10 +122,9 @@
         "maxLength": { "type": "integer", "minimum": 0 },
         "pattern": { "type": "string" },
         "format": { "type": "string" },
-        "additionalProperties": { "oneOf": [
-          { "type": "boolean" },
-          { "$ref": "#/$defs/JSONSchemaObject" }
-        ]},
+        "additionalProperties": {
+          "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/JSONSchemaObject" }]
+        },
         "oneOf": {
           "type": "array",
           "items": { "$ref": "#/$defs/JSONSchemaObject" }
@@ -151,7 +150,10 @@
       "required": ["input", "output"],
       "properties": {
         "name": { "type": "string", "description": "Example name." },
-        "description": { "type": "string", "description": "Description of what this example demonstrates." },
+        "description": {
+          "type": "string",
+          "description": "Description of what this example demonstrates."
+        },
         "input": { "type": "object", "description": "Example input parameters." },
         "output": { "type": "object", "description": "Example output." }
       },

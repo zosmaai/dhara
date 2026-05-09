@@ -24,6 +24,7 @@ interface OpenAIMessage {
     function: { name: string; arguments: string };
   }>;
   tool_call_id?: string;
+  reasoning_content?: string;
 }
 
 interface OpenAITool {
@@ -41,6 +42,7 @@ interface OpenAIResponse {
       role: string;
       content: string | null;
       tool_calls?: OpenAIMessage["tool_calls"];
+      reasoning_content?: string;
     };
   }>;
   usage?: {
@@ -125,6 +127,7 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
     return {
       content,
       toolCalls,
+      reasoningContent: choice.message.reasoning_content,
       usage: data.usage
         ? {
             input: data.usage.prompt_tokens,
@@ -149,6 +152,7 @@ function convertMessage(msg: ProviderMessage): OpenAIMessage {
       return {
         role: "assistant",
         content: text || null,
+        reasoning_content: msg.reasoningContent,
         tool_calls: msg.toolCalls?.map((tc) => ({
           id: tc.id,
           type: "function" as const,

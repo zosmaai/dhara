@@ -30,10 +30,7 @@
   "additionalProperties": false,
   "$defs": {
     "BranchInfo": {
-      "oneOf": [
-        { "$ref": "#/$defs/LinearBranch" },
-        { "$ref": "#/$defs/ForkedBranch" }
-      ]
+      "oneOf": [{ "$ref": "#/$defs/LinearBranch" }, { "$ref": "#/$defs/ForkedBranch" }]
     },
     "LinearBranch": {
       "type": "object",

@@ -27,13 +27,7 @@
   "bin": {
     "dhara": "./dist/cli/main.js"
   },
-  "files": [
-    "dist",
-    "spec",
-    "README.md",
-    "LICENSE",
-    "LICENSE-SPEC.md"
-  ],
+  "files": ["dist", "spec", "README.md", "LICENSE", "LICENSE-SPEC.md"],
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",

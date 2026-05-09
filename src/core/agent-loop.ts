@@ -70,6 +70,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
         role: "assistant",
         content: response.content,
         toolCalls: response.toolCalls,
+        reasoningContent: response.reasoningContent,
         metadata: response.usage
           ? {
               tokenCount: {
@@ -140,6 +141,7 @@ function buildMessages(session: Session): ProviderMessage[] {
           role: "assistant",
           content: entry.content,
           toolCalls: entry.toolCalls,
+          reasoningContent: entry.reasoningContent,
         });
         break;
       case "tool_result":

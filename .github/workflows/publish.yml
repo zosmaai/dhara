@@ -1,21 +1,17 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to publish (leave empty for git tag version)'
-        required: false
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write       # Required for npm provenance
-
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +20,15 @@ jobs:
           node-version: "22"
           cache: "npm"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Inject version from tag
+        shell: bash
+        env:
+          TAG: "${{ github.ref_name }}"
+        run: |
+          VERSION="${TAG#v}"
+          echo "Publishing version: $VERSION"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - run: npm ci
 
@@ -40,10 +45,3 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        if: github.event_name == 'release'
-        with:
-          body: |
-            See [CHANGELOG](https://github.com/zosmaai/dhara/blob/main/CHANGELOG.md) for details.

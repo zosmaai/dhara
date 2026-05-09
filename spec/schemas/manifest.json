@@ -226,7 +226,10 @@
       "properties": {
         "name": { "type": "string" },
         "description": { "type": "string" },
-        "prompt": { "type": "string", "description": "System prompt or context prepended when the skill is activated." }
+        "prompt": {
+          "type": "string",
+          "description": "System prompt or context prepended when the skill is activated."
+        }
       },
       "additionalProperties": false
     },
@@ -236,7 +239,10 @@
       "properties": {
         "name": { "type": "string" },
         "description": { "type": "string" },
-        "template": { "type": "string", "description": "Prompt template with {{placeholder}} interpolation syntax." }
+        "template": {
+          "type": "string",
+          "description": "Prompt template with {{placeholder}} interpolation syntax."
+        }
       },
       "additionalProperties": false
     }

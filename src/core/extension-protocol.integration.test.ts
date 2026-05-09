@@ -1,6 +1,6 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createExtensionProtocol, type ExtensionProtocol } from "./protocol.js";
+import { type ExtensionProtocol, createExtensionProtocol } from "./protocol.js";
 
 describe("Extension Protocol Integration", () => {
   let echoExt: ChildProcess;
@@ -8,9 +8,7 @@ describe("Extension Protocol Integration", () => {
 
   beforeAll(async () => {
     // Spawn the echo extension as a subprocess
-    echoExt = spawn("node", [
-      "src/core/test-extensions/echo-extension.ts",
-    ], {
+    echoExt = spawn("node", ["src/core/test-extensions/echo-extension.ts"], {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
