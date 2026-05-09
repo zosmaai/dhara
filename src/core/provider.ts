@@ -18,6 +18,12 @@ export interface ProviderMessage {
   }>;
   toolCallId?: string;
   toolName?: string;
+  /**
+   * Provider-specific reasoning/thinking content (e.g. DeepSeek's
+   * `reasoning_content`). If present, provider adapters MUST pass it
+   * back to the API in subsequent requests.
+   */
+  reasoningContent?: string;
 }
 
 /**
@@ -53,6 +59,8 @@ export interface AssistantMessage {
     input: number;
     output: number;
   };
+  /** Provider-specific reasoning/thinking content from the response. */
+  reasoningContent?: string;
 }
 
 /**

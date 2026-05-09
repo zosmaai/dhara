@@ -60,6 +60,12 @@ export interface SessionEntry {
     cost?: { input: number; output: number; currency: string };
     capabilities?: string[];
   };
+  /**
+   * Provider-specific reasoning/thinking content (e.g. DeepSeek
+   * `reasoning_content`). Provider adapters MUST include this when
+   * converting session entries back to API messages.
+   */
+  reasoningContent?: string;
 }
 
 /**

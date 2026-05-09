@@ -18,12 +18,7 @@
         "jsonrpc": { "const": "2.0" },
         "method": {
           "type": "string",
-          "enum": [
-            "initialize",
-            "tools/execute",
-            "commands/execute",
-            "shutdown"
-          ]
+          "enum": ["initialize", "tools/execute", "commands/execute", "shutdown"]
         },
         "params": {
           "oneOf": [
@@ -86,14 +81,11 @@
         "jsonrpc": { "const": "2.0" },
         "method": {
           "type": "string",
-          "pattern": "^(tools/progress|event/)" ,
+          "pattern": "^(tools/progress|event/)",
           "description": "Notifications: tools/progress for streaming output, event/* for hook notifications."
         },
         "params": {
-          "oneOf": [
-            { "$ref": "#/$defs/ToolProgressParams" },
-            { "$ref": "#/$defs/EventHookParams" }
-          ]
+          "oneOf": [{ "$ref": "#/$defs/ToolProgressParams" }, { "$ref": "#/$defs/EventHookParams" }]
         }
       },
       "additionalProperties": false
