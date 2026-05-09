@@ -41,11 +41,17 @@
 
 Coding agents today are **products**, not **platforms**. They ship as bloated, all-in-one packages that force you into their way of working:
 
-### 🔒 Claude Code / Codex / Opencode
+### 🔒 Claude Code / Codex
 - **Heavy customization** — you need their bloated plugin/extension systems just to make basic workflow changes
 - **Vendor-defined defaults** — hidden context injection, opaque system prompts that change between releases
 - **Opinionated UX** — you adapt to their workflow, not the other way around
 - **Platform lock** — customization always happens within their walls
+
+### 🔒 Opencode
+- **Open source but bloated** — client/server architecture, MCP servers, custom agents, themes, keybindings, config files — it's a full platform before you even start
+- **Heavy feature surface** — built-in tools, LSP support, custom commands, agent system, plugin ecosystem — all shipped upfront whether you need them or not
+- **Opinionated defaults** — you spend time configuring instead of coding
+- **The AI adapts to its platform** — not to your workflow
 
 ### 🔒 Pi
 - **TypeScript-only** extensions — locks out Python, Rust, Go ecosystems
