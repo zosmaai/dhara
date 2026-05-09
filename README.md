@@ -54,7 +54,7 @@ Coding agents today are **products**, not **platforms**. They ship as bloated, a
 - **In-process extensions** — one crash kills your whole session
 - **Lossy compaction** — context is thrown away, never to be recovered
 
-These are all **vendor-owned harnesses** that inject hidden context, mutate behavior between releases, and give you limited visibility into what the model actually saw.
+Proprietary harnesses like Claude Code and Codex inject hidden context, mutate behavior between releases, and give you limited visibility into what the model actually saw.
 
 **Dhara exists because the agent harness should be a standard, not a product.**
 
