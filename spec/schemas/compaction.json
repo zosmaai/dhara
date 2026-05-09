@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/compaction.json",
+  "title": "Dhara Compaction Summary",
+  "description": "Schema for compaction summary files in a Dhara session. Compaction produces structured summaries that preserve key information without deleting original entries.",
+  "type": "object",
+  "required": ["id", "formatVersion", "createdAt", "sourceEntries", "summary"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique compaction summary identifier (e.g., 's001')."
+    },
+    "formatVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the compaction format."
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this summary was created."
+    },
+    "sourceEntries": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "IDs of the original entries being summarized. The originals are never deleted."
+    },
+    "model": {
+      "$ref": "#/$defs/ModelRef",
+      "description": "Model that produced this summary."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Natural language summary of the source entries."
+    },
+    "keyDecisions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Key decisions made during the summarized conversation."
+    },
+    "filesCreated": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Files that were created in the summarized entries."
+    },
+    "filesModified": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Files that were modified in the summarized entries."
+    },
+    "commandsRun": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Shell commands that were executed in the summarized entries."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ModelRef": {
+      "type": "object",
+      "required": ["id", "provider"],
+      "properties": {
+        "id": { "type": "string" },
+        "provider": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

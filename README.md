@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <code>npm install -g dhara</code>
+  <code>npm install -g @zosmaai/dhara</code>
 </p>
 
 <p align="center">
@@ -190,7 +190,7 @@ Everything else is an extension:
 
 ```bash
 # Install
-npm install -g dhara
+npm install -g @zosmaai/dhara
 
 # Use
 dhara "Refactor this module"

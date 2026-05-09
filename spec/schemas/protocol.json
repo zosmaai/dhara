@@ -1,0 +1,366 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/protocol.json",
+  "title": "Dhara Extension Protocol",
+  "description": "Schema for JSON-RPC 2.0 messages exchanged between the Dhara core and extension subprocesses. Defines all protocol methods: initialize, tools/execute, event/*, commands/execute, and shutdown.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/Request" },
+    { "$ref": "#/$defs/Response" },
+    { "$ref": "#/$defs/ErrorResponse" },
+    { "$ref": "#/$defs/Notification" }
+  ],
+  "$defs": {
+    "Request": {
+      "type": "object",
+      "required": ["jsonrpc", "method", "id"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "method": {
+          "type": "string",
+          "enum": [
+            "initialize",
+            "tools/execute",
+            "commands/execute",
+            "shutdown"
+          ]
+        },
+        "params": {
+          "oneOf": [
+            { "$ref": "#/$defs/InitializeParams" },
+            { "$ref": "#/$defs/ToolExecuteParams" },
+            { "$ref": "#/$defs/CommandExecuteParams" },
+            { "$ref": "#/$defs/ShutdownParams" }
+          ]
+        },
+        "id": { "type": ["integer", "string"] }
+      },
+      "additionalProperties": false
+    },
+    "Response": {
+      "type": "object",
+      "required": ["jsonrpc", "result", "id"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "result": {
+          "oneOf": [
+            { "$ref": "#/$defs/InitializeResult" },
+            { "$ref": "#/$defs/ToolExecuteResult" },
+            { "$ref": "#/$defs/CommandExecuteResult" },
+            { "$ref": "#/$defs/ShutdownResult" }
+          ]
+        },
+        "id": { "type": ["integer", "string"] }
+      },
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "required": ["jsonrpc", "error", "id"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": {
+              "type": "integer",
+              "enum": [-32700, -32600, -32601, -32602, -32001, -32002, -32003, -32010]
+            },
+            "message": { "type": "string" },
+            "data": {
+              "type": "object",
+              "description": "Optional additional error information."
+            }
+          },
+          "additionalProperties": false
+        },
+        "id": { "type": ["integer", "string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "Notification": {
+      "type": "object",
+      "required": ["jsonrpc", "method"],
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "method": {
+          "type": "string",
+          "pattern": "^(tools/progress|event/)" ,
+          "description": "Notifications: tools/progress for streaming output, event/* for hook notifications."
+        },
+        "params": {
+          "oneOf": [
+            { "$ref": "#/$defs/ToolProgressParams" },
+            { "$ref": "#/$defs/EventHookParams" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "InitializeParams": {
+      "type": "object",
+      "required": ["protocolVersion", "capabilities"],
+      "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "tools": { "type": "boolean" },
+            "hooks": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "commands": { "type": "boolean" }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        },
+        "config": {
+          "type": "object",
+          "description": "User-provided extension configuration."
+        }
+      },
+      "additionalProperties": false
+    },
+    "InitializeResult": {
+      "type": "object",
+      "required": ["protocolVersion", "name", "version", "tools"],
+      "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "name": { "type": "string" },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description", "parameters", "capabilities"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "parameters": { "type": "object" },
+              "returns": { "type": "object" },
+              "capabilities": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "hooks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Event hooks the extension subscribes to."
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolExecuteParams": {
+      "type": "object",
+      "required": ["toolCallId", "toolName", "input"],
+      "properties": {
+        "toolCallId": { "type": "string" },
+        "toolName": { "type": "string" },
+        "input": { "type": "object" },
+        "context": {
+          "type": "object",
+          "properties": {
+            "cwd": { "type": "string" },
+            "sessionId": { "type": "string" },
+            "turnNumber": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolExecuteResult": {
+      "type": "object",
+      "required": ["content"],
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": { "$ref": "entry.json#/$defs/ContentBlock" }
+        },
+        "display": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DisplayBlock" }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Machine-readable execution metadata."
+        },
+        "isError": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "CommandExecuteParams": {
+      "type": "object",
+      "required": ["commandName"],
+      "properties": {
+        "commandName": { "type": "string" },
+        "args": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "CommandExecuteResult": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": { "$ref": "entry.json#/$defs/ContentBlock" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShutdownParams": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "ShutdownResult": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "const": "ok" }
+      },
+      "additionalProperties": false
+    },
+    "ToolProgressParams": {
+      "type": "object",
+      "required": ["toolCallId", "update"],
+      "properties": {
+        "toolCallId": { "type": "string" },
+        "update": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "text_delta" },
+            "delta": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "EventHookParams": {
+      "type": "object",
+      "required": ["toolName", "input", "context"],
+      "properties": {
+        "toolName": { "type": "string" },
+        "input": { "type": "object" },
+        "context": {
+          "type": "object",
+          "properties": {
+            "cwd": { "type": "string" },
+            "sessionId": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "DisplayBlock": {
+      "oneOf": [
+        { "$ref": "#/$defs/TableDisplay" },
+        { "$ref": "#/$defs/DiffDisplay" },
+        { "$ref": "#/$defs/ProgressDisplay" },
+        { "$ref": "#/$defs/ChartDisplay" },
+        { "$ref": "#/$defs/CustomDisplay" }
+      ]
+    },
+    "TableDisplay": {
+      "type": "object",
+      "required": ["type", "columns", "rows"],
+      "properties": {
+        "type": { "const": "table" },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": { "type": "string" },
+              "label": { "type": "string" },
+              "width": { "type": "integer", "minimum": 1 }
+            },
+            "required": ["key", "label"]
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "DiffDisplay": {
+      "type": "object",
+      "required": ["type", "filePath", "hunks"],
+      "properties": {
+        "type": { "const": "diff" },
+        "filePath": { "type": "string" },
+        "hunks": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProgressDisplay": {
+      "type": "object",
+      "required": ["type", "current", "total", "label"],
+      "properties": {
+        "type": { "const": "progress" },
+        "current": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "ChartDisplay": {
+      "type": "object",
+      "required": ["type", "chartType", "data"],
+      "properties": {
+        "type": { "const": "chart" },
+        "chartType": {
+          "type": "string",
+          "enum": ["bar", "line", "pie"]
+        },
+        "data": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "CustomDisplay": {
+      "type": "object",
+      "required": ["type", "component", "props"],
+      "properties": {
+        "type": { "const": "custom" },
+        "component": { "type": "string" },
+        "props": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

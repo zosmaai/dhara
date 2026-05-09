@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/capability.json",
+  "title": "Dhara Capability Model",
+  "description": "Schema for capability declarations in the Dhara security model. Capabilities follow a resource:action naming convention. This schema validates capability declarations, permission files, and the audit log.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/CapabilityDeclaration" },
+    { "$ref": "#/$defs/PermissionsFile" },
+    { "$ref": "#/$defs/AuditEntry" }
+  ],
+  "$defs": {
+    "CapabilityDeclaration": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filesystem:read",
+          "filesystem:write",
+          "filesystem:watch",
+          "filesystem:*",
+          "network:outbound",
+          "network:inbound",
+          "network:dns",
+          "network:*",
+          "process:spawn",
+          "process:signal",
+          "process:system-info",
+          "process:*",
+          "secrets:read",
+          "secrets:write",
+          "secrets:env",
+          "secrets:*",
+          "session:read",
+          "session:write",
+          "session:fork",
+          "session:*",
+          "clipboard:read",
+          "clipboard:write",
+          "clipboard:*",
+          "ui:render",
+          "ui:notify",
+          "ui:*",
+          "agent:prompt",
+          "agent:tool-register",
+          "agent:model-switch",
+          "agent:*"
+        ]
+      },
+      "uniqueItems": true,
+      "minItems": 1,
+      "description": "An array of capability strings declared by an extension. Each capability follows the format 'resource:action' or 'resource:*' for wildcard."
+    },
+    "PermissionsFile": {
+      "type": "object",
+      "patternProperties": {
+        "^@[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "required": ["version", "approved", "capabilities"],
+          "properties": {
+            "version": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "description": "Package version for which permissions were granted."
+            },
+            "approved": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp of when permissions were approved."
+            },
+            "capabilities": {
+              "type": "object",
+              "patternProperties": {
+                "^[a-z]+:[a-z*-]+$": {
+                  "oneOf": [
+                    { "type": "boolean", "description": "Simple allow/deny." },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "allowed": { "type": "boolean" },
+                        "domains": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "Approved domains for network:outbound."
+                        },
+                        "commands": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "Approved commands for process:spawn."
+                        },
+                        "paths": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "Approved directory paths for filesystem:*."
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "minProperties": 1,
+              "description": "Map of capability to approval state and optional constraints."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "minProperties": 1,
+      "description": "Stored permissions for approved packages. Maps package names to their approved capabilities."
+    },
+    "AuditEntry": {
+      "type": "object",
+      "required": ["ts", "extension", "capability", "action"],
+      "properties": {
+        "ts": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of the audited action."
+        },
+        "extension": {
+          "type": "string",
+          "description": "Name of the extension that performed the action."
+        },
+        "capability": {
+          "type": "string",
+          "description": "Capability exercised (e.g., 'filesystem:read')."
+        },
+        "action": {
+          "type": "string",
+          "description": "Specific action taken (e.g., 'read', 'write', 'POST')."
+        },
+        "resource": {
+          "type": "string",
+          "description": "Target resource (e.g., file path, URL, command)."
+        },
+        "allowed": {
+          "type": "boolean",
+          "description": "Whether the action was allowed or blocked."
+        },
+        "reason": {
+          "type": "string",
+          "description": "If blocked, the reason (e.g., 'path traversal outside CWD')."
+        }
+      },
+      "additionalProperties": false,
+      "description": "A single entry in the audit log."
+    }
+  }
+}

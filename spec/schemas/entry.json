@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zosma.ai/dhara/schemas/entry.json",
+  "title": "Dhara Session Entry",
+  "description": "Schema for individual entries in a Dhara session log (entries.jsonl). Defines all roles: system, user, assistant, and tool_result.",
+  "type": "object",
+  "required": ["type", "id", "parentId", "role", "content", "timestamp"],
+  "properties": {
+    "type": {
+      "const": "entry",
+      "description": "Discriminator — this is a session entry, not a branch marker."
+    },
+    "id": {
+      "type": "string",
+      "description": "Globally unique, sortable entry identifier (e.g., 'e001')."
+    },
+    "parentId": {
+      "type": ["string", "null"],
+      "description": "ID of the parent entry, or null for the root entry."
+    },
+    "role": {
+      "type": "string",
+      "enum": ["system", "user", "assistant", "tool_result"],
+      "description": "Who produced this entry."
+    },
+    "content": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContentBlock" },
+      "description": "The message content, as an ordered list of content blocks."
+    },
+    "toolCalls": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ToolCall" },
+      "description": "Tool calls made by the assistant (assistant entries only)."
+    },
+    "toolCallId": {
+      "type": "string",
+      "description": "For tool_result entries: the ID of the tool call this result answers."
+    },
+    "toolName": {
+      "type": "string",
+      "description": "For tool_result entries: the name of the tool that produced this result."
+    },
+    "isError": {
+      "type": "boolean",
+      "description": "For tool_result entries: whether the tool execution failed."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when this entry was created."
+    },
+    "model": {
+      "$ref": "#/$defs/ModelRef",
+      "description": "For assistant entries: which model produced this response."
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock time in milliseconds to produce this entry."
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "tokenCount": {
+          "type": "object",
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 }
+          },
+          "description": "Token usage for this entry."
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "input": { "type": "number", "minimum": 0 },
+            "output": { "type": "number", "minimum": 0 },
+            "currency": { "type": "string", "minLength": 1 }
+          },
+          "description": "Monetary cost of this entry."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Capabilities exercised during this entry."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Optional machine-readable metadata."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "role": { "const": "assistant" } } },
+      "then": {
+        "properties": {
+          "toolCalls": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/ToolCall" }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "role": { "const": "tool_result" } } },
+      "then": {
+        "required": ["toolCallId", "toolName"],
+        "properties": {
+          "toolCallId": { "type": "string" },
+          "toolName": { "type": "string" },
+          "isError": { "type": "boolean" }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+
+  "$defs": {
+    "ContentBlock": {
+      "oneOf": [
+        { "$ref": "#/$defs/TextBlock" },
+        { "$ref": "#/$defs/ImageBlock" },
+        { "$ref": "#/$defs/FileBlock" },
+        { "$ref": "#/$defs/ThinkingBlock" }
+      ]
+    },
+    "TextBlock": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "text" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "ImageBlock": {
+      "type": "object",
+      "required": ["type", "data", "mimeType"],
+      "properties": {
+        "type": { "const": "image" },
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "description": "Base64-encoded image data."
+        },
+        "mimeType": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "FileBlock": {
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "const": "file" },
+        "path": { "type": "string", "description": "File path reference." },
+        "content": { "type": "string", "description": "Optional inline file content." },
+        "language": { "type": "string", "description": "Language hint for syntax highlighting." }
+      },
+      "additionalProperties": false
+    },
+    "ThinkingBlock": {
+      "type": "object",
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "const": "thinking" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "ToolCall": {
+      "type": "object",
+      "required": ["id", "name", "input"],
+      "properties": {
+        "id": { "type": "string", "description": "Tool call identifier." },
+        "name": { "type": "string", "description": "Tool name." },
+        "input": {
+          "type": "object",
+          "description": "Tool parameters as a JSON object."
+        },
+        "output": {
+          "$ref": "#/$defs/ToolResult",
+          "description": "Tool result filled in after execution."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolResult": {
+      "type": "object",
+      "required": ["content"],
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ContentBlock" }
+        },
+        "isError": { "type": "boolean" },
+        "durationMs": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "ModelRef": {
+      "type": "object",
+      "required": ["id", "provider"],
+      "properties": {
+        "id": { "type": "string", "description": "Model identifier (e.g., 'claude-sonnet-4-20250514')." },
+        "provider": { "type": "string", "description": "Provider identifier (e.g., 'anthropic')." },
+        "thinkingLevel": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
