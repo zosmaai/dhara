@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-import { createAgentLoop } from "../core/agent-loop.js";
 import type { Provider } from "../core/provider.js";
 import { createSandbox } from "../core/sandbox.js";
 import { createSession } from "../core/session.js";
+import { SessionManager } from "../core/session-manager.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createStandardToolMap } from "../std/tools/index.js";
+import { runRepl } from "./repl.js";
 
 /**
  * Known providers with their default model, base URL, and env var name.
@@ -34,7 +35,8 @@ function printUsage(): void {
   process.stdout.write(`dhara — The Agent Protocol Standard
 
 Usage:
-  dhara <prompt> [options]
+  dhara <prompt> [options]    One-shot: run a single prompt and exit
+  dhara [options]             REPL mode: interactive session (default)
 
 Options:
   --provider <name>   LLM provider.
@@ -43,6 +45,7 @@ Options:
   --model <id>        Model ID (e.g. "deepseek-v4-flash", "gpt-4o")
   --base-url <url>    Custom API base URL (e.g. "https://opencode.ai/zen/go/v1")
   --cwd <path>        Working directory (default: current directory)
+  --resume <id>       Resume a previous session by ID (REPL mode only)
   --help              Show this help message
 
 Environment:
@@ -53,9 +56,9 @@ Environment:
   For custom providers, set DHARA_API_KEY as fallback.
 
 Examples:
-  dhara "List the files in this project"
-  dhara --model deepseek-v4-pro "Review the code for bugs"
-  dhara --provider openai --model gpt-4o "Write a test"
+  dhara "List the files in this project"   One-shot
+  dhara                                     REPL mode
+  dhara --resume abc123                     Resume session
 `);
 }
 
@@ -71,48 +74,26 @@ const OPTION_NAMES = new Set([
   "model",
   "base-url",
   "cwd",
+  "resume",
 ]);
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
+interface ResolvedConfig {
+  providerName: string;
+  modelId: string;
+  baseUrl: string | undefined;
+  cwd: string;
+  apiKey: string;
+  provider: Provider;
+}
 
-  if (args.length === 0 || args.includes("--help")) {
-    printUsage();
-    process.exit(args.length === 0 ? 1 : 0);
-  }
-
+function resolveConfig(args: string[]): ResolvedConfig {
   const rawProvider = getArg(args, "provider") ?? "opencode-go";
   const providerName = rawProvider in KNOWN_PROVIDERS ? rawProvider : rawProvider;
-
   const providerInfo = KNOWN_PROVIDERS[providerName];
   const modelId = getArg(args, "model") ?? providerInfo?.defaultModel ?? "deepseek-v4-flash";
   const baseUrl = getArg(args, "base-url") ?? providerInfo?.defaultBaseUrl;
   const cwd = getArg(args, "cwd") ?? process.cwd();
 
-  // Gather the prompt (skip option flags and their values)
-  const promptParts: string[] = [];
-  for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith("--")) {
-      const optName = args[i].slice(2);
-      if (OPTION_NAMES.has(optName)) {
-        if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
-          i++;
-        }
-      }
-      continue;
-    }
-    promptParts.push(args[i]);
-  }
-
-  const prompt = promptParts.join(" ");
-  if (!prompt) {
-    process.stderr.write("Error: No prompt provided.\n");
-    printUsage();
-    process.exit(1);
-  }
-
-  // ── Resolve API key ────────────────────────────────────────────────
-  // Try provider-specific env var, then DHARA_API_KEY fallback
   const apiKey = providerInfo
     ? (process.env[providerInfo.envVar] ?? process.env.DHARA_API_KEY)
     : (process.env.DHARA_API_KEY ?? process.env.OPENAI_API_KEY);
@@ -125,7 +106,6 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ── Create provider ────────────────────────────────────────────────
   let provider: Provider;
   try {
     if (providerName === "anthropic") {
@@ -139,42 +119,84 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ── Create session ─────────────────────────────────────────────────
-  const session = createSession({
-    cwd,
-    model: { id: modelId, provider: providerName },
-  });
+  return { providerName, modelId, baseUrl, cwd, apiKey, provider };
+}
 
-  // ── Create sandbox with full capabilities (CLI is trusted) ─────────
+function extractPrompt(args: string[]): string | undefined {
+  const promptParts: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i].startsWith("--")) {
+      const optName = args[i].slice(2);
+      if (OPTION_NAMES.has(optName)) {
+        if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
+          i++;
+        }
+      }
+      continue;
+    }
+    promptParts.push(args[i]);
+  }
+  const prompt = promptParts.join(" ");
+  return prompt || undefined;
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+
+  if (args.includes("--help")) {
+    printUsage();
+    process.exit(0);
+  }
+
+  const prompt = extractPrompt(args);
+  const resumeSessionId = getArg(args, "resume");
+
+  // ── REPL mode (no prompt argument) ──────────────────────────────────
+  if (!prompt) {
+    const cfg = resolveConfig(args);
+    const sessionManager = new SessionManager();
+
+    await runRepl({
+      input: process.stdin,
+      output: process.stdout,
+      sessionManager,
+      provider: cfg.provider,
+      cwd: cfg.cwd,
+      modelId: cfg.modelId,
+      providerName: cfg.providerName,
+      resumeSessionId,
+    });
+
+    process.exit(0);
+  }
+
+  // ── One-shot mode ───────────────────────────────────────────────────
+  const cfg = resolveConfig(args);
+
   const sandbox = createSandbox({
-    granted: [
-      "filesystem:read",
-      "filesystem:write",
-      "filesystem:*",
-      "process:spawn",
-      "network:outbound",
-    ],
-    cwd,
+    granted: ["filesystem:read", "filesystem:write", "filesystem:*", "process:spawn", "network:outbound"],
+    cwd: cfg.cwd,
   });
 
-  // ── Create standard tools ──────────────────────────────────────────
-  const tools = createStandardToolMap({ cwd, sandbox });
+  const session = createSession({
+    cwd: cfg.cwd,
+    model: { id: cfg.modelId, provider: cfg.providerName },
+  });
 
-  // ── Create agent loop ──────────────────────────────────────────────
+  const tools = createStandardToolMap({ cwd: cfg.cwd, sandbox });
+
+  const { createAgentLoop } = await import("../core/agent-loop.js");
   const agent = createAgentLoop({
-    provider,
+    provider: cfg.provider,
     session,
     tools,
-    systemPrompt: `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`,
+    systemPrompt: `You are Dhara, an AI coding agent operating in ${cfg.cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`,
     maxIterations: 10,
   });
 
-  // ── Run the prompt ─────────────────────────────────────────────────
+  process.stderr.write(`\n  dhara  •  ${cfg.providerName}/${cfg.modelId}  •  ${cfg.cwd}\n`);
   process.stderr.write(
-    `\n  dhara  •  ${providerName}/${modelId}  •  ${cwd}\n`,
-  );
-  process.stderr.write(
-    `  ${"─".repeat(Math.max(providerName.length + modelId.length + cwd.length + 8, 30))}\n\n`,
+    `  ${"\u2500".repeat(Math.max(cfg.providerName.length + cfg.modelId.length + cfg.cwd.length + 8, 30))}\n\n`,
   );
 
   try {
@@ -185,7 +207,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // ── Print the response ─────────────────────────────────────────────
+  // Print the latest assistant response
   const path = session.getPath();
   for (let i = path.length - 1; i >= 0; i--) {
     const entry = session.getEntry(path[i]);
