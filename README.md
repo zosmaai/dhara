@@ -167,11 +167,14 @@ Everything else is an extension:
 
 | Module | Lines | What it does |
 |---|---|---|
-| `loop.ts` | ~300 | LLM → tool → LLM state machine |
-| `protocol.ts` | ~400 | JSON-RPC 2.0 extension communication |
-| `session.ts` | ~300 | Open session format (JSONL + JSON Schema) |
-| `events.ts` | ~150 | Standard event bus for extensions |
-| `sandbox.ts` | ~200 | Capability enforcement & audit |
+| `agent-loop.ts` | ~180 | LLM → tool → LLM state machine |
+| `protocol.ts` | ~125 | JSON-RPC 2.0 extension communication |
+| `session.ts` | ~305 | Open session format (JSONL + JSON Schema) |
+| `session-manager.ts` | ~260 | Atomic file persistence for sessions |
+| `events.ts` | ~140 | Standard event bus for extensions |
+| `sandbox.ts` | ~245 | Capability enforcement & audit |
+| `provider.ts` | ~95 | Provider interface (no implementations) |
+| `config.ts` | ~355 | Configuration management |
 
 ### What's NOT in the Core (it's an extension)
 
@@ -192,52 +195,65 @@ Everything else is an extension:
 # Install
 npm install -g @zosmaai/dhara
 
-# Use
+# REPL mode — interactive session (default)
+dhara
+
+# One-shot mode — single prompt and exit
 dhara "Refactor this module"
 dhara --model anthropic/claude-sonnet-4 "Write tests for auth.ts"
-dhara --mode rpc                           # Embed in your app
-cat README.md | dhara -p "Summarize this"  # Pipe mode
+
+# Resume a previous session
+dhara --resume <session-id>
 ```
 
-### Write your first extension
+### REPL mode
+
+When run with no arguments, `dhara` starts an interactive session:
+
+```
+$ dhara
+  dhara  •  opencode-go/deepseek-v4-flash  •  /home/arjun
+
+  Started session a1b2c3d4-e5f6-...
+
+> hello
+Hello! How can I help you today?
+> /exit
+Bye!
+```
+
+Every conversation is automatically saved to `~/.dhara/sessions/`. Use
+`/list` to see all sessions and `dhara --resume <id>` to pick up where
+you left off.
+
+| Command | Description |
+|---|---|
+| `/exit`, `/quit` | Exit the REPL |
+| `/save` | Explicitly save the current session |
+| `/list` | List all saved sessions |
+| `/resume <id>` | Load a previous session into context |
+| `/help` | Show available commands |
+
+### Supported providers
 
 ```bash
-dhara extension init my-tool
-# Creates: my-tool/manifest.yaml + my-tool/main.py
+dhara --provider anthropic --model claude-sonnet-4-20250514
 ```
 
-Edit `main.py`:
+| Provider | Default model | Env var |
+|---|---|---|
+| `opencode-go` | `deepseek-v4-flash` | `OPENCODE_API_KEY` |
+| `openai` | `gpt-4o` | `OPENAI_API_KEY` |
+| `anthropic` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
 
-```python
-from dhara_sdk import Extension, Tool
-
-ext = Extension("my-tool")
-
-@ext.tool(
-    name="list_deps",
-    description="List dependencies of a Python project",
-    capabilities=["filesystem:read"]
-)
-def list_deps(path: str = "."):
-    import subprocess
-    result = subprocess.run(["pip", "freeze"], capture_output=True, text=True)
-    return result.stdout
-
-ext.run()
-```
-
-Install and use:
-
-```bash
-dhara extension install ./my-tool
-dhara "What are the dependencies of this project?"
-```
+Pass `--base-url <url>` for any OpenAI-compatible endpoint. Fallback env
+var: `DHARA_API_KEY`.
 
 ---
 
 ## Ecosystem
 
-### Packages
+### Packages *(planned — registry coming in Phase 4)*
 
 ```
 dhara install @zosmaai/code-search        # Semantic search (Python)
@@ -246,20 +262,9 @@ dhara install @author/linter              # Fast linting (WASM)
 dhara install @author/terminal-theme      # Custom TUI theme
 ```
 
-### Registry
+### SDKs *(planned)*
 
-```
-dhara.sh/packages/                        # Curated package registry
-├── @zosmaai/                             # Official packages
-├── @verified/                            # Community-reviewed
-└── @{author}/                            # Author namespaces
-```
-
-Each package declares capabilities, is signed with sigstore, and passes automated quality gates.
-
-### SDKs (Optional Convenience)
-
-The protocol is the standard. SDKS are optional helpers:
+The protocol is the standard. SDKs are optional helpers:
 
 ```
 @zosmaai/dhara-sdk-typescript           # TypeScript
@@ -275,12 +280,14 @@ The spec lives in `spec/` and defines:
 
 | Document | Description |
 |---|---|
-| [Extension Protocol](spec/extension-protocol.md) | JSON-RPC 2.0 message schemas |
-| [Session Format](spec/session-format.md) | Open JSON Schema for conversations |
-| [Tool Schema](spec/tool-schema.md) | Declarative tool definitions |
-| [Capability Model](spec/capability-model.md) | Security capability declarations |
-| [Package Manifest](spec/package-manifest.md) | Package metadata & registry |
-| [Architecture](spec/architecture.md) | Three-layer design |
+| Document | Description | Schemas |
+|---|---|---|
+| [Extension Protocol](spec/extension-protocol.md) | JSON-RPC 2.0 message schemas | [`schemas/protocol.json`](spec/schemas/protocol.json) |
+| [Session Format](spec/session-format.md) | Open JSON Schema for conversations | [`schemas/entry.json`](spec/schemas/entry.json), [`schemas/meta.json`](spec/schemas/meta.json), [`schemas/branch.json`](spec/schemas/branch.json), [`schemas/tree.json`](spec/schemas/tree.json), [`schemas/compaction.json`](spec/schemas/compaction.json) |
+| [Tool Schema](spec/tool-schema.md) | Declarative tool definitions | [`schemas/tool.json`](spec/schemas/tool.json) |
+| [Capability Model](spec/capability-model.md) | Security capability declarations | [`schemas/capability.json`](spec/schemas/capability.json) |
+| [Package Manifest](spec/package-manifest.md) | Package metadata & registry | [`schemas/manifest.json`](spec/schemas/manifest.json) |
+| [Architecture](spec/architecture.md) | Three-layer design | — |
 
 Anyone can implement these specs. The reference implementation is MIT-licensed.
 
@@ -298,15 +305,15 @@ The name comes from Sanskrit **धारा** (dhārā) — the continuous strea
 
 ## Roadmap
 
-| Phase | Timeline | What |
+| Phase | Status | What |
 |---|---|---|
-| **0. Spec** | Now | Spec documents, JSON Schemas |
-| **1. Core** | Weeks 3-5 | Agent loop, protocol, session, sandbox |
-| **2. Std Library** | Weeks 5-6 | File tools, shell, LLM providers |
-| **3. CLI** | Week 7 | Interactive + pipe + RPC modes |
-| **4. Registry** | Weeks 8-9 | Package registry, publish, install |
-| **5. Showcase** | Weeks 10-11 | 5 showcase extensions, docs, website |
-| **6. Launch** | Week 12 | Open source, community onboarding |
+| **0. Spec** | ✅ Done | Spec documents, JSON Schemas in `spec/schemas/` |
+| **1. Core** | ✅ Done | Agent loop, protocol, session, sandbox, event bus |
+| **2. Std Library** | ✅ Done | File tools, shell, OpenAI/Anthropic/OpenCode providers |
+| **3. CLI** | ✅ Done | One-shot mode, REPL mode with session persistence |
+| **4. Registry** | 🔜 Next | Package registry, publish, install |
+| **5. TUI** | 📋 Planned | Rich terminal UI (`@zosmaai/dhara-tui`) |
+| **6. Launch** | 📋 Planned | Open source, community onboarding |
 
 ---
 
