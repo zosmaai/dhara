@@ -41,7 +41,7 @@
 
 Coding agents today are **products**, not **platforms**. They ship as bloated, all-in-one packages that force you into their way of working:
 
-### 🔒 Claude Code / Codex
+### 🔒 Claude Code / Codex / Opencode
 - **Heavy customization** — you need their bloated plugin/extension systems just to make basic workflow changes
 - **Vendor-defined defaults** — hidden context injection, opaque system prompts that change between releases
 - **Opinionated UX** — you adapt to their workflow, not the other way around
@@ -54,7 +54,7 @@ Coding agents today are **products**, not **platforms**. They ship as bloated, a
 - **In-process extensions** — one crash kills your whole session
 - **Lossy compaction** — context is thrown away, never to be recovered
 
-Proprietary harnesses like Claude Code and Codex inject hidden context, mutate behavior between releases, and give you limited visibility into what the model actually saw.
+Proprietary harnesses like Claude Code, Codex, and Opencode inject hidden context, mutate behavior between releases, and give you limited visibility into what the model actually saw.
 
 **Dhara exists because the agent harness should be a standard, not a product.**
 
