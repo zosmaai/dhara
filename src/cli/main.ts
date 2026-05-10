@@ -6,6 +6,7 @@ import type { Provider } from "../core/provider.js";
 import { createSandbox } from "../core/sandbox.js";
 import { SessionManager } from "../core/session-manager.js";
 import { createSession } from "../core/session.js";
+import { type Skill, discoverSkills, reloadSkills } from "../core/skills.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createStandardToolMap } from "../std/tools/index.js";
@@ -163,32 +164,48 @@ function extractPrompt(args: string[]): string | undefined {
 }
 
 /**
- * Build the final system prompt by prepending context files to the base prompt.
+ * Build the final system prompt by prepending context files and skills.
  */
-function buildSystemPrompt(cwd: string, contextFiles: ContextFile[]): string {
+function buildSystemPrompt(cwd: string, contextFiles: ContextFile[], skills: Skill[]): string {
   const basePrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
 
-  if (contextFiles.length === 0) return basePrompt;
+  const parts: string[] = [];
 
-  const contextParts = contextFiles.map(
-    (f) => `<context file="${f.path}" source="${f.source}">\n${f.content.trimEnd()}\n</context>`,
-  );
+  // Context files
+  if (contextFiles.length > 0) {
+    for (const f of contextFiles) {
+      parts.push(
+        `<context file="${f.path}" source="${f.source}">\n${f.content.trimEnd()}\n</context>`,
+      );
+    }
+  }
 
-  return `${contextParts.join("\n\n")}\n\n---\n\n${basePrompt}`;
+  // Skills
+  if (skills.length > 0) {
+    for (const s of skills) {
+      parts.push(`<skill name="${s.name}" source="${s.source}">\n${s.body.trimEnd()}\n</skill>`);
+    }
+  }
+
+  if (parts.length === 0) return basePrompt;
+
+  return `${parts.join("\n\n")}\n\n---\n\n${basePrompt}`;
 }
 
 /**
- * Load context files, build system prompt, return the result + reload function.
+ * Load context files and skills, build system prompt, return state + reload.
  */
 function createContextState(cwd: string, disableContextFiles: boolean) {
   let contextFiles: ContextFile[] = disableContextFiles ? [] : loadContextFiles(cwd).files;
+  let skills: Skill[] = discoverSkills(cwd).skills;
 
   function build(): string {
-    return buildSystemPrompt(cwd, contextFiles);
+    return buildSystemPrompt(cwd, contextFiles, skills);
   }
 
   function reload() {
     contextFiles = disableContextFiles ? [] : reloadContextFiles(cwd).files;
+    skills = reloadSkills(cwd).skills;
     return build();
   }
 
@@ -196,7 +213,11 @@ function createContextState(cwd: string, disableContextFiles: boolean) {
     return contextFiles;
   }
 
-  return { build, reload, getFiles };
+  function getSkills() {
+    return skills;
+  }
+
+  return { build, reload, getFiles, getSkills };
 }
 
 async function main(): Promise<void> {
@@ -232,6 +253,7 @@ async function main(): Promise<void> {
       maxIterations: cfg.projectSettings?.maxIterations ?? 10,
       resumeSessionId,
       contextFiles: ctxState.getFiles(),
+      skills: ctxState.getSkills(),
       projectConfigDir: projectConfig?.configDir,
       onReload: () => {
         const newPrompt = ctxState.reload();
@@ -239,6 +261,7 @@ async function main(): Promise<void> {
         return {
           systemPrompt: newPrompt,
           contextFiles: ctxState.getFiles(),
+          skills: ctxState.getSkills(),
           projectConfigDir: newProjectConfig?.configDir,
           maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
         };

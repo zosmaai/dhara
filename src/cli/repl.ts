@@ -5,6 +5,7 @@ import type { ContextFile } from "../core/context-loader.js";
 import type { Provider } from "../core/provider.js";
 import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
+import type { Skill } from "../core/skills.js";
 import { createStandardToolMap } from "../std/tools/index.js";
 
 /**
@@ -21,6 +22,7 @@ let currentAbortController: AbortController | null = null;
 export type ReloadHandler = () => {
   systemPrompt: string;
   contextFiles: ContextFile[];
+  skills: Skill[];
   projectConfigDir?: string;
   maxIterations: number;
 };
@@ -58,6 +60,8 @@ export interface ReplConfig {
   onReload?: ReloadHandler;
   /** Current context files for `/status` display. */
   contextFiles?: ContextFile[];
+  /** Current skills for `/skills` and `/status` display. */
+  skills?: Skill[];
   /** Current project config dir for `/status` display. */
   projectConfigDir?: string;
 }
@@ -111,6 +115,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
   let currentSystemPrompt = systemPrompt ?? defaultPrompt;
   let currentMaxIterations = maxIterations;
   let currentContextFiles = config.contextFiles ?? [];
+  let currentSkills = config.skills ?? [];
   let currentProjectConfigDir = config.projectConfigDir;
 
   // ── Create agent loop ──────────────────────────────────────────────
@@ -202,6 +207,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
             currentSystemPrompt = result.systemPrompt;
             currentMaxIterations = result.maxIterations;
             currentContextFiles = result.contextFiles;
+            currentSkills = result.skills;
             currentProjectConfigDir = result.projectConfigDir;
 
             // Re-create agent loop with new system prompt
@@ -213,7 +219,9 @@ export async function runRepl(config: ReplConfig): Promise<void> {
               maxIterations: currentMaxIterations,
             });
 
-            output.write(`Reloaded. Loaded ${result.contextFiles.length} context file(s).\n`);
+            output.write(
+              `Reloaded. ${result.contextFiles.length} context file(s), ${result.skills.length} skill(s).\n`,
+            );
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             output.write(`Reload error: ${msg}\n`);
@@ -221,6 +229,22 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         } else {
           output.write("Reload not available in this mode.\n");
         }
+        break;
+
+      case "skills":
+        output.write(`\nSkills (${currentSkills.length}):\n`);
+        if (currentSkills.length === 0) {
+          output.write("  (no skills loaded)\n");
+        } else {
+          for (const s of currentSkills) {
+            output.write(`  ${s.name}  — ${s.description}`);
+            if (s.source === "global") {
+              output.write("  [global]");
+            }
+            output.write("\n");
+          }
+        }
+        output.write("\n");
         break;
 
       case "status": {
@@ -246,6 +270,17 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           }
         }
 
+        output.write(`  Skills (${currentSkills.length}):\n`);
+        if (currentSkills.length === 0) {
+          output.write("    (none)\n");
+        } else {
+          for (const s of currentSkills) {
+            output.write(`    ${s.name}  — ${s.description}`);
+            if (s.source === "global") output.write("  [global]");
+            output.write("\n");
+          }
+        }
+
         output.write(`  Session: ${session.meta.sessionId}\n`);
         output.write("\n");
         break;
@@ -258,8 +293,11 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         output.write("  /save      Save the current session\n");
         output.write("  /list      List saved sessions\n");
         output.write("  /resume    Resume a session by ID\n");
-        output.write("  /reload    Reload AGENTS.md, CLAUDE.md, and .dhara/settings.json\n");
-        output.write("  /status    Show current configuration and context files\n");
+        output.write(
+          "  /reload    Reload AGENTS.md, CLAUDE.md, .dhara/settings.json, and skills\n",
+        );
+        output.write("  /skills    List available skills\n");
+        output.write("  /status    Show current configuration, context files, and skills\n");
         output.write("  /help      Show this help\n");
         output.write("\n");
         break;
@@ -315,7 +353,8 @@ export type ReplCommand =
   | { type: "help" }
   | { type: "resume"; sessionId: string }
   | { type: "reload" }
-  | { type: "status" };
+  | { type: "status" }
+  | { type: "skills" };
 
 const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   exit: () => ({ type: "exit" }),
@@ -326,6 +365,7 @@ const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   resume: (arg) => (arg ? { type: "resume", sessionId: arg } : null),
   reload: () => ({ type: "reload" }),
   status: () => ({ type: "status" }),
+  skills: () => ({ type: "skills" }),
 };
 
 /**

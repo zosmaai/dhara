@@ -407,6 +407,55 @@ Implementations MAY support alternative storage locations via
 `.dhara/sessions/` (project-level) or custom paths.
 
 
+## Skills Discovery
+
+Dhara implementations SHOULD support the Agent Skills open standard
+([agentskills.io](https://agentskills.io)). Skills are directories containing
+a `SKILL.md` file with YAML frontmatter and Markdown instructions.
+
+### Discovery Order
+
+Skills are discovered from multiple locations, with later locations having
+higher priority for name conflicts:
+
+1. `~/.dhara/skills/` — global skills directory
+2. `.agents/skills/` — industry standard location (walk-up from cwd)
+3. `.dhara/skills/` — Dhara-specific location (walk-up from cwd)
+
+The walk-up stops at the first ancestor that has any skill directory.
+
+### SKILL.md Format
+
+See the [Agent Skills specification](https://agentskills.io/specification) for
+the full format. Required fields:
+
+```markdown
+---
+name: my-skill           # Must match directory name
+ description: What it does
+ license: MIT            # Optional
+---
+
+Step-by-step instructions...
+```
+
+### Injection
+
+When skills are loaded, they are injected into the system prompt with
+delineation markers:
+
+```
+<skill name="code-review" source="project">
+Skill body here...
+</skill>
+```
+
+Implementations MAY implement progressive disclosure (loading only name
+and description at startup, full body on activation) to conserve context
+window. The Agent Skills standard recommends keeping `SKILL.md` under
+5000 tokens.
+
+
 ## Standard REPL Commands
 
 Every CLI implementation SHOULD support the following built-in slash commands.
@@ -419,8 +468,9 @@ Extensions may register additional commands via the extension protocol.
 | `/save` | — | Explicitly persist the current session |
 | `/list` | — | List all saved sessions |
 | `/resume` | `<session-id>` | Load a previous session into context |
-| `/reload` | — | Re-read context files and project config from disk. Re-creates the agent loop with updated settings without restarting the session. |
-| `/status` | — | Display current configuration: active provider/model, working directory, loaded context files (with source type, path, and line count), project config path, and current session ID. |
+| `/reload` | — | Re-read context files, project config, and skills from disk. Re-creates the agent loop with updated settings without restarting the session. |
+| `/skills` | — | List all discovered skills with their name, description, and source (global vs project). |
+| `/status` | — | Display current configuration: active provider/model, working directory, loaded context files, skills, project config path, and current session ID. |
 | `/help` | — | Show available commands |
 
 ### Implementation Notes
