@@ -195,6 +195,89 @@ Extension → Core (notification):
 }
 ```
 
+### Tool Cancellation
+
+When a user cancels an in-progress operation (e.g. Ctrl+C), the core
+sends a cancellation request to the extension. The extension SHOULD
+stop execution as soon as possible.
+
+**Cancellation flow:**
+
+```
+1. User triggers cancellation (Ctrl+C, UI button, etc.)
+2. Core sends tools/cancel notification to the extension
+3. Extension stops execution and MAY send a final progress update
+4. After a grace period (default 5s), core sends SIGTERM to subprocess
+5. Core does NOT wait for a result — the cancelled call is dropped
+```
+
+**Cancel notification:**
+
+```
+Core → Extension (notification, no response expected):
+{
+  "jsonrpc": "2.0",
+  "method": "tools/cancel",
+  "params": {
+    "toolCallId": "call_abc123"
+  }
+}
+```
+
+If `toolCallId` is omitted, all in-flight tool calls for this extension
+are cancelled:
+
+```
+Core → Extension:
+{
+  "jsonrpc": "2.0",
+  "method": "tools/cancel",
+  "params": {}   // Cancel all
+}
+```
+
+**Grace period and force-kill:**
+```
+Core sends tools/cancel notification
+  └→ Wait up to 5 seconds (configurable)
+      └→ If extension still running → SIGTERM (subprocess)
+          └→ If still running after 2s → SIGKILL (subprocess)
+```
+
+**Extension implementation pattern:**
+
+```python
+import signal
+import sys
+
+cancelled_calls = set()
+
+# Listen for cancellation notifications
+def handle_message(request):
+    if request["method"] == "tools/cancel":
+        tool_id = request["params"].get("toolCallId")
+        if tool_id:
+            cancelled_calls.add(tool_id)
+        else:
+            # Cancel all — mark everything as cancelled
+            cancelled_calls.clear()
+        return None  # Notifications don't get responses
+
+# Check cancellation in long-running operations
+def long_running_search(tool_call_id, query):
+    for chunk in search(query):
+        if tool_call_id in cancelled_calls:
+            return {"status": "cancelled", "partial": accumulated}
+        accumulated += chunk
+    return {"status": "completed", "result": accumulated}
+```
+
+**Error code for cancelled operations:**
+
+| Code | Meaning |
+|---|---|
+| -32004 | Operation cancelled by user |
+
 ### Event Hooks
 
 Extensions subscribe to events during initialization. The core sends events as notifications:
@@ -271,6 +354,7 @@ Standard error codes:
 | -32001 | Tool execution error (non-fatal) |
 | -32002 | Capability denied |
 | -32003 | Extension crashed |
+| -32004 | Operation cancelled by user |
 | -32010 | Provider error (rate limit, auth, etc.) |
 
 ### Shutdown

@@ -47,7 +47,7 @@ export function createWriteTool(config: WriteToolConfig): ToolRegistration {
       },
     },
 
-    async execute(input) {
+    async execute(input, _signal) {
       const { path: filePath, content } = input as {
         path: string;
         content: string;

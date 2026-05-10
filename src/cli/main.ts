@@ -1,18 +1,11 @@
 #!/usr/bin/env node
 
+import { type ContextFile, loadContextFiles, reloadContextFiles } from "../core/context-loader.js";
+import { type ProjectSettings, loadProjectConfig } from "../core/project-config.js";
 import type { Provider } from "../core/provider.js";
 import { createSandbox } from "../core/sandbox.js";
-import { createSession } from "../core/session.js";
 import { SessionManager } from "../core/session-manager.js";
-import {
-  loadContextFiles,
-  reloadContextFiles,
-  type ContextFile,
-} from "../core/context-loader.js";
-import {
-  loadProjectConfig,
-  type ProjectSettings,
-} from "../core/project-config.js";
+import { createSession } from "../core/session.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createStandardToolMap } from "../std/tools/index.js";
@@ -135,9 +128,7 @@ function resolveConfig(args: string[]): ResolvedConfig {
 
   // Load project-level config overrides
   const disableProjectConfig = args.includes("--no-project-config");
-  const projectConfig = disableProjectConfig
-    ? undefined
-    : loadProjectConfig(cwd);
+  const projectConfig = disableProjectConfig ? undefined : loadProjectConfig(cwd);
 
   const finalModelId = projectConfig?.settings.model ?? modelId;
   const finalBaseUrl = projectConfig?.settings.baseUrl ?? baseUrl;
@@ -174,10 +165,7 @@ function extractPrompt(args: string[]): string | undefined {
 /**
  * Build the final system prompt by prepending context files to the base prompt.
  */
-function buildSystemPrompt(
-  cwd: string,
-  contextFiles: ContextFile[],
-): string {
+function buildSystemPrompt(cwd: string, contextFiles: ContextFile[]): string {
   const basePrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
 
   if (contextFiles.length === 0) return basePrompt;
@@ -193,9 +181,7 @@ function buildSystemPrompt(
  * Load context files, build system prompt, return the result + reload function.
  */
 function createContextState(cwd: string, disableContextFiles: boolean) {
-  let contextFiles: ContextFile[] = disableContextFiles
-    ? []
-    : loadContextFiles(cwd).files;
+  let contextFiles: ContextFile[] = disableContextFiles ? [] : loadContextFiles(cwd).files;
 
   function build(): string {
     return buildSystemPrompt(cwd, contextFiles);
@@ -267,7 +253,13 @@ async function main(): Promise<void> {
   const ctxState = createContextState(cfg.cwd, disableContextFiles);
 
   const sandbox = createSandbox({
-    granted: ["filesystem:read", "filesystem:write", "filesystem:*", "process:spawn", "network:outbound"],
+    granted: [
+      "filesystem:read",
+      "filesystem:write",
+      "filesystem:*",
+      "process:spawn",
+      "network:outbound",
+    ],
     cwd: cfg.cwd,
   });
 

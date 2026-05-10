@@ -197,7 +197,7 @@ export function createEditTool(config: EditToolConfig): ToolRegistration {
       },
     },
 
-    async execute(input) {
+    async execute(input, _signal) {
       const { path: filePath, edits } = input as {
         path: string;
         edits: Edit[];

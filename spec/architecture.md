@@ -48,11 +48,16 @@ The state machine that drives LLM ↔ tool interaction:
 ```
 User prompt
   → Build context (system prompt + history + tools)
-  → Call LLM
-  → If tool call: execute tool, append result, loop
+  → Call LLM (with AbortSignal for cancellation)
+  → If tool call: execute tool (with AbortSignal), append result, loop
   → If text response: emit to user
   → If error: handle per policy
+  → If cancelled (signal.aborted): stop gracefully
 ```
+
+The loop accepts an **AbortSignal** that can cancel in-progress LLM calls
+and tool executions at any point. See [extension-protocol.md](./extension-protocol.md)
+for the cancellation protocol.
 
 The loop knows nothing about:
 - Which LLM provider to use (that's a provider extension)
@@ -83,16 +88,58 @@ interface ToolResult {
 An open, versioned, schema-validated format for conversation history. See [session-format.md](./session-format.md).
 
 ### 4. Event Bus (`events.ts`)
-Standard events that extensions subscribe to:
+Standard events that extensions subscribe to. Events follow a hierarchy
+from coarse (agent lifecycle) to fine-grained (tool execution progress).
 
 ```
-Lifecycle:   core:init, core:shutdown
-Session:     session:start, session:end, session:fork, session:resume
-Agent:       agent:prompt, agent:response, agent:error
-Tool:        tool:call_start, tool:call_end, tool:call_blocked
-Model:       model:switch, model:token_count, model:cost
-Extension:   extension:load, extension:error, extension:capability_request
+# Agent lifecycle
+agent:start              Agent loop begins processing a prompt
+agent:end                Agent loop finishes (all turns complete)
+agent:error              Agent loop encountered a non-recoverable error
+agent:cancelled          Agent loop was cancelled via AbortSignal
+
+# Turn lifecycle (one assistant response + optional tool batch)
+turn:start               New turn begins
+turn:end                 Turn completes (assistant text + tool results)
+
+# Message lifecycle (individual messages)
+message:start            A message (user, assistant, or tool result) begins
+message:delta            Streaming content delta for assistant messages
+tool:call_blocked        A tool call was blocked by a security hook
+message:end              Message fully processed
+
+# Tool execution lifecycle
+agent:prompt             User prompt received by agent
+agent:response           Assistant response received
+tool:call_start          Tool execution begins
+tool:execution_update    Partial tool result (streaming progress)
+tool:call_cancelled      Tool execution was cancelled
+session:start            Session created
+session:end              Session ended
+session:fork             Session forked (branch created)
+session:resume           Session resumed from disk
+model:switch             Model switched during session
+model:token_count        Token usage update
+model:cost               Cost accumulation update
+extension:load           Extension loaded
+extension:error          Extension error
+extension:capability_request Extension requested a capability
 ```
+
+### Streaming Events
+
+Implementations that support streaming (progressive output) MUST emit
+`message:delta` events during assistant message generation:
+
+```
+message:start            → Partial message available (empty content)
+message:delta (text)     → Text delta appended to message
+message:delta (toolCall) → Tool call delta (for streaming tool calls)
+message:end              → Message complete with all content
+```
+
+The `message:delta` event payload contains the partial message state at
+that point. Subscribers accumulate deltas to reconstruct the full message.
 
 ### 5. Sandbox (`sandbox.ts`)
 Capability enforcement. See [capability-model.md](./capability-model.md).

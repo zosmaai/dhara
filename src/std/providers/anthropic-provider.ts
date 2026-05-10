@@ -54,7 +54,10 @@ export function createAnthropicProvider(
   const baseUrl = config.baseUrl ?? "https://api.anthropic.com/v1";
   const apiKey = config.apiKey;
 
-  async function complete(params: CompleteParams): Promise<AssistantMessage> {
+  async function complete(
+    params: CompleteParams,
+    signal?: AbortSignal,
+  ): Promise<AssistantMessage> {
     const messages: AnthropicMessage[] = [];
 
     for (const msg of params.messages) {
@@ -92,6 +95,7 @@ export function createAnthropicProvider(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(body),
+      signal,
     });
 
     const data = (await response.json()) as AnthropicResponse;

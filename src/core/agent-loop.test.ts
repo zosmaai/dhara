@@ -350,7 +350,8 @@ describe("Agent Loop", () => {
       const session = createSession({ cwd: "/tmp" });
       const loop = createAgentLoop({ provider, session });
 
-      await expect(loop.run("Hi")).rejects.toThrow("Rate limited");
+      // The loop should not throw; it emits agent:error and resolves
+      await expect(loop.run("Hi")).resolves.toBeUndefined();
     });
   });
 
@@ -405,8 +406,8 @@ describe("Agent Loop", () => {
       const bus = createEventBus();
       const startHandler = vi.fn(() => ({ action: "allow" as const }));
       const endHandler = vi.fn(() => ({ action: "allow" as const }));
-      bus.subscribe("agent:tool_call_start", startHandler);
-      bus.subscribe("agent:tool_call_end", endHandler);
+      bus.subscribe("tool:call_start", startHandler);
+      bus.subscribe("tool:call_end", endHandler);
 
       const session = createSession({ cwd: "/tmp" });
       const tools = new Map([

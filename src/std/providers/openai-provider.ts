@@ -62,7 +62,10 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
   const baseUrl = config.baseUrl ?? "https://api.openai.com/v1";
   const apiKey = config.apiKey;
 
-  async function complete(params: CompleteParams): Promise<AssistantMessage> {
+  async function complete(
+    params: CompleteParams,
+    signal?: AbortSignal,
+  ): Promise<AssistantMessage> {
     const messages: OpenAIMessage[] = [];
 
     if (params.systemPrompt) {
@@ -98,6 +101,7 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
+      signal,
     });
 
     const data = (await response.json()) as OpenAIResponse;
