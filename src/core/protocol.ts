@@ -10,7 +10,16 @@ export interface JsonRpcMessage {
 }
 
 export interface ExtensionProtocol {
-  sendRequest<T>(method: string, params: unknown): Promise<T>;
+  /**
+   * Send a JSON-RPC request and wait for a response.
+   *
+   * @param method - JSON-RPC method name.
+   * @param params - Parameters to send.
+   * @param signal - Optional AbortSignal. When aborted, the pending
+   *   request is rejected with a cancellation error. The extension
+   *   should also receive a tools/cancel notification via separate path.
+   */
+  sendRequest<T>(method: string, params: unknown, signal?: AbortSignal): Promise<T>;
   sendNotification(method: string, params: unknown): void;
   onNotification<T>(method: string, handler: (params: T) => void): () => void;
   close(): void;
@@ -85,12 +94,49 @@ export function createExtensionProtocol({
   stdin.on("data", onData);
 
   return {
-    sendRequest<T>(method: string, params: unknown): Promise<T> {
+    sendRequest<T>(method: string, params: unknown, signal?: AbortSignal): Promise<T> {
       if (closed) return Promise.reject(new Error("Protocol closed"));
       const id = nextId++;
+
       sendMessage({ jsonrpc: "2.0", id, method, params });
+
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+        const request: PendingRequest = {
+          resolve: resolve as (v: unknown) => void,
+          reject,
+        };
+
+        pending.set(id, request);
+
+        // Handle abort signal
+        if (signal) {
+          if (signal.aborted) {
+            pending.delete(id);
+            reject(new Error("Request cancelled"));
+            return;
+          }
+
+          const onAbort = () => {
+            pending.delete(id);
+            reject(new Error("Request cancelled"));
+          };
+
+          signal.addEventListener("abort", onAbort, { once: true });
+
+          // Clean up the listener if the request completes normally
+          const originalResolve = request.resolve;
+          const originalReject = request.reject;
+
+          request.resolve = (value) => {
+            signal.removeEventListener("abort", onAbort);
+            originalResolve(value);
+          };
+
+          request.reject = (reason) => {
+            signal.removeEventListener("abort", onAbort);
+            originalReject(reason);
+          };
+        }
       });
     },
 

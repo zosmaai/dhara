@@ -4,6 +4,12 @@ import { join } from "node:path";
 import { type ExtensionProtocol, createExtensionProtocol } from "./protocol.js";
 import type { ContentBlock, ToolRegistration } from "./provider.js";
 
+/** Default grace period (ms) before sending SIGTERM after cancellation. */
+const CANCELLATION_GRACE_MS = 5_000;
+
+/** Default grace period (ms) between SIGTERM and SIGKILL. */
+const KILL_GRACE_MS = 2_000;
+
 /**
  * Extension manifest as declared in manifest.json.
  */
@@ -182,27 +188,43 @@ export class ExtensionManager {
       };
     }
 
-    // Set up cancellation forwarding
-    const cancelListener = signal
-      ? () => {
-          ext.protocol.sendNotification("tools/cancel", {
-            toolCallId: toolName,
-          });
-        }
-      : undefined;
+    // Create a cancellation controller that also handles grace period
+    const cancelController = new AbortController();
+    let cancelGraceTimer: ReturnType<typeof setTimeout> | undefined;
 
-    if (cancelListener && signal) {
-      signal.addEventListener("abort", cancelListener, { once: true });
+    // When the user aborts: send tools/cancel and start grace timer
+    const cancelHandler = () => {
+      // Send cancellation notification to extension
+      ext.protocol.sendNotification("tools/cancel", {
+        toolCallId: toolName,
+      });
+
+      // Start grace period timer — after this, abort the sendRequest
+      cancelGraceTimer = setTimeout(() => {
+        cancelController.abort();
+      }, CANCELLATION_GRACE_MS);
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        cancelHandler();
+      } else {
+        signal.addEventListener("abort", cancelHandler, { once: true });
+      }
     }
 
     try {
       const result = await ext.protocol.sendRequest<{
         content: Array<{ type: string; text?: string }>;
         isError?: boolean;
-      }>("tools/execute", {
-        toolName,
-        input,
-      });
+      }>(
+        "tools/execute",
+        {
+          toolName,
+          input,
+        },
+        cancelController.signal,
+      );
 
       return {
         content: (result.content ?? []).map(
@@ -224,10 +246,64 @@ export class ExtensionManager {
         isError: true,
       };
     } finally {
-      if (cancelListener && signal) {
-        signal.removeEventListener("abort", cancelListener);
+      if (cancelGraceTimer) {
+        clearTimeout(cancelGraceTimer);
+      }
+      if (signal) {
+        signal.removeEventListener("abort", cancelHandler);
+      }
+
+      // If cancellation was triggered, escalate to kill chain
+      if (cancelController.signal.aborted) {
+        await this.graceKill(ext.process, KILL_GRACE_MS, KILL_GRACE_MS);
       }
     }
+  }
+
+  /**
+   * Wait for a process to exit with a grace period, then escalate.
+   * Returns true if the process exited before escalation.
+   */
+  private async graceKill(
+    proc: ChildProcess,
+    cancelGraceMs: number,
+    killGraceMs: number,
+  ): Promise<boolean> {
+    // Process already dead
+    if (proc.exitCode !== null || proc.killed) return true;
+
+    // Wait for natural exit within grace period
+    const exited = await new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => resolve(false), cancelGraceMs);
+      proc.once("exit", () => {
+        clearTimeout(timer);
+        resolve(true);
+      });
+      proc.once("error", () => {
+        clearTimeout(timer);
+        resolve(true);
+      });
+    });
+
+    if (exited) return true;
+
+    // Grace period expired — send SIGTERM
+    proc.kill("SIGTERM");
+
+    // Wait for exit after SIGTERM
+    const sigtermExited = await new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => resolve(false), killGraceMs);
+      proc.once("exit", () => {
+        clearTimeout(timer);
+        resolve(true);
+      });
+    });
+
+    if (sigtermExited) return true;
+
+    // SIGKILL as last resort
+    proc.kill("SIGKILL");
+    return false;
   }
 
   /**
@@ -245,7 +321,9 @@ export class ExtensionManager {
 
   /**
    * Shut down all extensions cleanly.
-   * Sends shutdown request, then kills any that don't exit within 2 seconds.
+   *
+   * Sends shutdown request with a 5-second timeout.
+   * If the extension doesn't respond, escalates to SIGTERM → SIGKILL.
    */
   async shutdownAll(): Promise<void> {
     const shutdowns: Promise<void>[] = [];
@@ -253,12 +331,20 @@ export class ExtensionManager {
     for (const [, ext] of this.extensions) {
       shutdowns.push(
         (async () => {
+          // Create a timeout signal for shutdown request
+          const ac = new AbortController();
+          const timer = setTimeout(() => ac.abort(), CANCELLATION_GRACE_MS);
+
           try {
-            await ext.protocol.sendRequest("shutdown", {});
+            await ext.protocol.sendRequest("shutdown", {}, ac.signal);
           } catch {
-            // If shutdown request fails, kill the process
+            // Shutdown request failed or timed out — escalate
+          } finally {
+            clearTimeout(timer);
           }
-          ext.process.kill();
+
+          // Graceful kill chain
+          await this.graceKill(ext.process, KILL_GRACE_MS, KILL_GRACE_MS);
           ext.protocol.close();
         })(),
       );
