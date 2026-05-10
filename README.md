@@ -138,6 +138,57 @@ Everything else is an extension:
 
 ---
 
+## Context Files
+
+Dhara loads project-level instructions from `AGENTS.md` and `CLAUDE.md`
+files, following the industry-standard convention used by Claude Code,
+Copilot, pi, and Codex.
+
+### Discovery order
+
+1. `~/.dhara/AGENTS.md` — global instructions (applied to every project)
+2. `~/.dhara/CLAUDE.md` — global instructions, alias
+3. Walk up from current directory — finds the **closest** ancestor with
+   either `AGENTS.md` or `CLAUDE.md`
+
+Context files are injected into the agent's system prompt. Use `/reload`
+to re-read them after editing. Use `--no-context-files` to disable.
+
+See [Context Conventions](spec/architecture.md#context-conventions) in the
+spec for the full specification.
+
+## Project Configuration (`.dhara/`)
+
+Projects can override global defaults with a `.dhara/` directory in the
+project root:
+
+```
+project/
+└── .dhara/
+    ├── settings.json       Model, provider, maxIterations, tools
+    ├── skills/             Project-level skills (SKILL.md files)
+    ├── sessions/           Project-local sessions
+    └── extensions/         Project-level extensions
+```
+
+### `settings.json` example
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-20250514",
+  "maxIterations": 20,
+  "tools": { "bash": false }
+}
+```
+
+Precedence (highest to lowest): CLI flags → `.dhara/settings.json` →
+global `~/.dhara/config.json` → defaults. Use `/status` to see the
+resolved configuration. Use `--no-project-config` to disable.
+
+See [Project Configuration](spec/architecture.md#project-configuration-dhara)
+in the spec for the full schema.
+
 ## Architecture
 
 ```
@@ -232,13 +283,31 @@ you left off.
 | `/save` | Explicitly save the current session |
 | `/list` | List all saved sessions |
 | `/resume <id>` | Load a previous session into context |
+| `/reload` | Re-read context files (AGENTS.md, CLAUDE.md) and `.dhara/settings.json` |
+| `/status` | Show provider, model, loaded context files, project config, session info |
 | `/help` | Show available commands |
 
-### Supported providers
+**Cancellation**: Press `Ctrl+C` during a running prompt to cancel the
+in-progress LLM call or tool execution. Press `Ctrl+C` when idle to exit.
+
+### CLI Reference
 
 ```bash
-dhara --provider anthropic --model claude-sonnet-4-20250514
+dhara [options]              REPL mode (interactive, default)
+dhara <prompt> [options]     One-shot mode
+dhara --help                 Show usage
 ```
+
+| Option | Description |
+|---|---|
+| `--provider <name>` | LLM provider: `openai`, `anthropic`, `opencode-go` (default) |
+| `--model <id>` | Model ID (e.g. `claude-sonnet-4-20250514`, `gpt-4o`) |
+| `--base-url <url>` | Custom API base URL for any OpenAI-compatible endpoint |
+| `--cwd <path>` | Working directory (default: current directory) |
+| `--resume <id>` | Resume a previous session by ID |
+| `--no-context-files` | Disable AGENTS.md / CLAUDE.md context loading |
+| `--no-project-config` | Disable `.dhara/settings.json` loading |
+| `--help` | Show usage |
 
 | Provider | Default model | Env var |
 |---|---|---|
@@ -308,12 +377,14 @@ The name comes from Sanskrit **धारा** (dhārā) — the continuous strea
 | Phase | Status | What |
 |---|---|---|
 | **0. Spec** | ✅ Done | Spec documents, JSON Schemas in `spec/schemas/` |
-| **1. Core** | ✅ Done | Agent loop, protocol, session, sandbox, event bus |
+| **1. Core** | ✅ Done | Agent loop, protocol, session, sandbox, event bus, cancellation |
 | **2. Std Library** | ✅ Done | File tools, shell, OpenAI/Anthropic/OpenCode providers |
-| **3. CLI** | ✅ Done | One-shot mode, REPL mode with session persistence |
-| **4. Registry** | 🔜 Next | Package registry, publish, install |
-| **5. TUI** | 📋 Planned | Rich terminal UI (`@zosmaai/dhara-tui`) |
-| **6. Launch** | 📋 Planned | Open source, community onboarding |
+| **3. CLI** | ✅ Done | One-shot mode, REPL mode, session persistence, context files, `.dhara/` config |
+| **4. Cancellation** | ✅ Done | `tools/cancel` protocol, AbortSignal, Ctrl+C, richer events |
+| **5. Skills** | 🔜 Next | Agent Skills standard support (`.agents/skills/SKILL.md`) |
+| **6. Registry** | 📋 Planned | Package registry, publish, install |
+| **7. TUI** | 📋 Planned | Rich terminal UI (`@zosmaai/dhara-tui`) |
+| **8. Launch** | 📋 Planned | Open source, community onboarding |
 
 ---
 
