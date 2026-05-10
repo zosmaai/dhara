@@ -1,10 +1,22 @@
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { createAgentLoop } from "../core/agent-loop.js";
+import { createAgentLoop, type AgentLoop } from "../core/agent-loop.js";
 import type { Provider } from "../core/provider.js";
 import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
+import type { ContextFile } from "../core/context-loader.js";
 import { createStandardToolMap } from "../std/tools/index.js";
+
+/**
+ * Callback invoked when the user runs `/reload`.
+ * Returns the new system prompt and context file list.
+ */
+export type ReloadHandler = () => {
+  systemPrompt: string;
+  contextFiles: ContextFile[];
+  projectConfigDir?: string;
+  maxIterations: number;
+};
 
 /**
  * Configuration for starting a REPL session.
@@ -32,6 +44,15 @@ export interface ReplConfig {
   maxIterations?: number;
   /** Resume an existing session by ID */
   resumeSessionId?: string;
+  /**
+   * Handler for `/reload` command.
+   * If set, `/reload` calls this and re-creates the agent loop.
+   */
+  onReload?: ReloadHandler;
+  /** Current context files for `/status` display. */
+  contextFiles?: ContextFile[];
+  /** Current project config dir for `/status` display. */
+  projectConfigDir?: string;
 }
 
 /**
@@ -78,15 +99,20 @@ export async function runRepl(config: ReplConfig): Promise<void> {
   // ── Create tools ───────────────────────────────────────────────────
   const tools = createStandardToolMap({ cwd, sandbox });
 
+  // ── Create initial system prompt ───────────────────────────────────
+  const defaultPrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
+  let currentSystemPrompt = systemPrompt ?? defaultPrompt;
+  let currentMaxIterations = maxIterations;
+  let currentContextFiles = config.contextFiles ?? [];
+  let currentProjectConfigDir = config.projectConfigDir;
+
   // ── Create agent loop ──────────────────────────────────────────────
-  const agent = createAgentLoop({
+  let agent: AgentLoop = createAgentLoop({
     provider,
     session,
     tools,
-    systemPrompt:
-      systemPrompt ??
-      `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`,
-    maxIterations,
+    systemPrompt: currentSystemPrompt,
+    maxIterations: currentMaxIterations,
   });
 
   // ── Print header ───────────────────────────────────────────────────
@@ -146,6 +172,62 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         }
         break;
 
+      case "reload":
+        if (config.onReload) {
+          try {
+            const result = config.onReload();
+            currentSystemPrompt = result.systemPrompt;
+            currentMaxIterations = result.maxIterations;
+            currentContextFiles = result.contextFiles;
+            currentProjectConfigDir = result.projectConfigDir;
+
+            // Re-create agent loop with new system prompt
+            agent = createAgentLoop({
+              provider,
+              session,
+              tools,
+              systemPrompt: currentSystemPrompt,
+              maxIterations: currentMaxIterations,
+            });
+
+            output.write(`Reloaded. Loaded ${result.contextFiles.length} context file(s).\n`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            output.write(`Reload error: ${msg}\n`);
+          }
+        } else {
+          output.write("Reload not available in this mode.\n");
+        }
+        break;
+
+      case "status": {
+        output.write("\nDhara Status:\n");
+        output.write(`  Provider: ${providerName}/${modelId}\n`);
+        output.write(`  Working directory: ${cwd}\n`);
+        output.write(`  Max iterations: ${currentMaxIterations}\n`);
+
+        if (currentProjectConfigDir) {
+          output.write(`  Project config: ${currentProjectConfigDir}/settings.json\n`);
+        } else {
+          output.write("  Project config: none\n");
+        }
+
+        output.write(`  Context files (${currentContextFiles.length}):\n`);
+        if (currentContextFiles.length === 0) {
+          output.write("    (none)\n");
+        } else {
+          for (const file of currentContextFiles) {
+            const label = file.source === "global" ? "global ~/.dhara" : "project";
+            const lineCount = file.content.split("\n").length;
+            output.write(`    ${file.path}  (${label}, ${lineCount} lines)\n`);
+          }
+        }
+
+        output.write(`  Session: ${session.meta.sessionId}\n`);
+        output.write("\n");
+        break;
+      }
+
       case "help":
         output.write("\nCommands:\n");
         output.write("  /exit      Exit the REPL\n");
@@ -153,6 +235,8 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         output.write("  /save      Save the current session\n");
         output.write("  /list      List saved sessions\n");
         output.write("  /resume    Resume a session by ID\n");
+        output.write("  /reload    Reload AGENTS.md, CLAUDE.md, and .dhara/settings.json\n");
+        output.write("  /status    Show current configuration and context files\n");
         output.write("  /help      Show this help\n");
         output.write("\n");
         break;
@@ -196,7 +280,9 @@ export type ReplCommand =
   | { type: "save" }
   | { type: "list" }
   | { type: "help" }
-  | { type: "resume"; sessionId: string };
+  | { type: "resume"; sessionId: string }
+  | { type: "reload" }
+  | { type: "status" };
 
 const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   exit: () => ({ type: "exit" }),
@@ -205,6 +291,8 @@ const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   list: () => ({ type: "list" }),
   help: () => ({ type: "help" }),
   resume: (arg) => (arg ? { type: "resume", sessionId: arg } : null),
+  reload: () => ({ type: "reload" }),
+  status: () => ({ type: "status" }),
 };
 
 /**
