@@ -107,6 +107,8 @@ Capability enforcement. See [capability-model.md](./capability-model.md).
 | File operations | Tools are extensions, even "default" ones | `std/tools/` |
 | Package management | Registry is a service, not agent logic | `registry/` |
 | System prompt | User-controlled, project-specific | Configuration |
+| Context files | Project instructions, loaded at startup | AGENTS.md / CLAUDE.md walk-up |
+| Project config | Per-project settings (model, tools) | `.dhara/settings.json` |
 | Compaction | Strategy varies by use case | Extension hook |
 
 ## The Extension Layer
@@ -159,6 +161,232 @@ Packages bundle extensions, skills, prompts, and themes for sharing. See [packag
 @namespace/theme-name       # Visual theme
 @namespace/skill-pack       # Prompt + tools + context
 ```
+
+## Context Conventions
+
+Dhara implementations MUST load project-level instructions from context files,
+enabling users to configure agent behavior per-project without touching
+system prompts.
+
+### Discovery
+
+Implementations walk up from the working directory (`cwd`) towards the
+filesystem root, looking for context files. The walk stops at the **first**
+directory that contains either file — closest ancestor wins.
+
+| File | Scope | Priority |
+|---|---|---|
+| `~/.dhara/AGENTS.md` | Global (user home) | Loaded first |
+| `~/.dhara/CLAUDE.md` | Global (user home) | Loaded second |
+| `AGENTS.md` | Project (walk-up) | Closest ancestor wins |
+| `CLAUDE.md` | Project (walk-up) | Closest ancestor wins |
+
+**Global files** (`~/.dhara/`) are always loaded if they exist. Project files
+replace all parent-level config — the walk discovers the **closest** ancestor
+with context files, not all ancestors.
+
+### Format
+
+Context files are plain Markdown with YAML frontmatter (optional):
+
+```markdown
+# Project Instructions
+
+- Run `npm run check` before committing
+- Keep responses concise
+- Never modify production data
+```
+
+There is no required schema beyond Markdown. The content is injected verbatim
+into the system prompt.
+
+### Injection
+
+When context files are present, they are prepended to the system prompt with
+delineation markers so the agent can distinguish project instructions from its
+base system prompt:
+
+```
+<context file="/home/user/project/AGENTS.md" source="project">
+Project instructions here...
+</context>
+
+---
+
+[base system prompt follows]
+```
+
+### Reload
+
+Implementations SHOULD provide a reload mechanism that re-reads all context
+files from disk without restarting the session. In CLI implementations, this
+is exposed as a `/reload` command (see Standard REPL Commands).
+
+### Disabling
+
+Implementations SHOULD support a mechanism to disable context file loading
+(e.g. `--no-context-files` flag) for environments where automated context
+injection is undesirable.
+
+
+## Project Configuration (`.dhara/`)
+
+Implementations SHOULD support a `.dhara/` directory in the project root for
+per-project configuration. This is the Dhara equivalent of `.pi/` or `.vscode/`.
+
+### Discovery
+
+The `.dhara/` directory is discovered by walking up from `cwd` towards the
+filesystem root. The **closest** `.dhara/` directory to `cwd` wins. Unlike
+context files, multiple `.dhara/` directories MAY be inspected by
+implementations that support cascading config.
+
+### Directory Structure
+
+```
+project/
+└── .dhara/
+    ├── settings.json       Required: Project configuration (see schema below)
+    ├── skills/             Optional: Project-level skills (SKILL.md files)
+    ├── sessions/           Optional: Project-local session storage
+    └── extensions/         Optional: Project-level extensions (manifest.yaml)
+```
+
+### `settings.json` Schema
+
+```json
+{
+  "$schema": "dhara://schemas/settings.json",
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "Default LLM provider ID (e.g. \"anthropic\", \"openai\")"
+    },
+    "model": {
+      "type": "string",
+      "description": "Default model ID (e.g. \"claude-sonnet-4-20250514\")"
+    },
+    "baseUrl": {
+      "type": "string",
+      "description": "Custom API base URL for the provider"
+    },
+    "maxIterations": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 10,
+      "description": "Maximum agent loop iterations per prompt"
+    },
+    "autoSave": {
+      "type": "boolean",
+      "default": true,
+      "description": "Automatically save session state on every mutation"
+    },
+    "skillDirectories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Extra directories to search for skills"
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" },
+      "description": "Enable or disable specific tools by name"
+    }
+  }
+}
+```
+
+### Precedence (highest to lowest)
+
+1. CLI flags (`--model`, `--provider`, `--base-url`, etc.)
+2. `.dhara/settings.json`
+3. Global `~/.dhara/config.json`
+4. Built-in defaults
+
+
+## Global Directory (`~/.dhara/`)
+
+Dhara implementations MUST use `~/.dhara/` as the global configuration
+directory. This stores user-level settings that apply across all projects.
+
+### Structure
+
+```
+~/.dhara/
+├── config.json              Provider configurations, auth, defaults
+├── AGENTS.md                Global context file (optional)
+├── CLAUDE.md                Global context file, alias (optional)
+├── skills/                  Global skills (optional)
+├── sessions/                Default session storage location
+└── extensions/              Global extensions (optional)
+```
+
+### Global Context Files
+
+`~/.dhara/AGENTS.md` and `~/.dhara/CLAUDE.md` are loaded before project-level
+context files. They provide user-wide instructions that apply to every project.
+
+### Provider Configuration
+
+The global `config.json` uses the schema defined in the implementation's
+`ConfigManager`. A reference format is:
+
+```json
+{
+  "version": "1.0.0",
+  "activeProvider": "anthropic",
+  "providers": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "authType": "api_key",
+      "auth": { "type": "api_key", "apiKey": "..." },
+      "defaultModel": "claude-sonnet-4-20250514",
+      "enabled": true
+    }
+  ],
+  "session": {
+    "autoSave": true,
+    "maxIterations": 10
+  }
+}
+```
+
+### Session Storage
+
+By default, sessions are stored in `~/.dhara/sessions/` as JSONL files.
+Implementations MAY support alternative storage locations via
+`.dhara/sessions/` (project-level) or custom paths.
+
+
+## Standard REPL Commands
+
+Every CLI implementation SHOULD support the following built-in slash commands.
+Extensions may register additional commands via the extension protocol.
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/exit` | — | Exit the REPL |
+| `/quit` | — | Alias for `/exit` |
+| `/save` | — | Explicitly persist the current session |
+| `/list` | — | List all saved sessions |
+| `/resume` | `<session-id>` | Load a previous session into context |
+| `/reload` | — | Re-read context files and project config from disk. Re-creates the agent loop with updated settings without restarting the session. |
+| `/status` | — | Display current configuration: active provider/model, working directory, loaded context files (with source type, path, and line count), project config path, and current session ID. |
+| `/help` | — | Show available commands |
+
+### Implementation Notes
+
+- **`/reload`**: The agent loop MUST be re-created with the new system prompt
+  (containing updated context files). The existing session and its history
+  MUST be preserved.
+- **`/status`**: SHOULD show file paths for context files, their source
+  (`global` vs `project`), and their line counts to help users debug what
+  the agent sees.
+- Commands starting with `/` are consumed by the REPL and NOT sent to the
+  agent. Extensions can register additional commands.
+
 
 ## Comparison with Pi's Architecture
 
