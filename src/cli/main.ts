@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { type ContextFile, loadContextFiles, reloadContextFiles } from "../core/context-loader.js";
+import { createEventBus } from "../core/events.js";
 import { type ProjectSettings, loadProjectConfig } from "../core/project-config.js";
 import type { Provider } from "../core/provider.js";
 import { createSandbox } from "../core/sandbox.js";
@@ -10,6 +11,7 @@ import { type Skill, discoverSkills, reloadSkills } from "../core/skills.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createStandardToolMap } from "../std/tools/index.js";
+import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 import { runRepl } from "./repl.js";
 
 /**
@@ -302,33 +304,27 @@ async function main(): Promise<void> {
     maxIterations: cfg.projectSettings?.maxIterations ?? 10,
   });
 
-  process.stderr.write(`\n  dhara  •  ${cfg.providerName}/${cfg.modelId}  •  ${cfg.cwd}\n`);
+  // Banner
+  const colorEnabled = useColor(process.stdout);
   process.stderr.write(
-    `  ${"\u2500".repeat(Math.max(cfg.providerName.length + cfg.modelId.length + cfg.cwd.length + 8, 30))}\n\n`,
+    `\n  ${tag(ANSI.bold, "dhara", colorEnabled)}  •  ${tag(ANSI.bold, cfg.providerName, colorEnabled)}/${tag(ANSI.bold, cfg.modelId, colorEnabled)}  •  ${tag(ANSI.dim, cfg.cwd, colorEnabled)}\n`,
   );
+  process.stderr.write(`  ${tag(ANSI.dim, "One-shot mode", colorEnabled)}\n\n`);
+
+  // Create event bus for streaming
+  const eventBus = createEventBus();
+  subscribePromptEvents(eventBus, {
+    output: process.stdout,
+    errorOutput: process.stderr,
+    colorEnabled,
+  });
 
   try {
-    await agent.run(prompt);
+    await agent.run(prompt, undefined, eventBus);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`\nError: ${msg}\n`);
+    process.stderr.write(`\n${tag(ANSI.red, "Error", colorEnabled)}: ${msg}\n`);
     process.exit(1);
-  }
-
-  // Print the latest assistant response
-  const path = session.getPath();
-  for (let i = path.length - 1; i >= 0; i--) {
-    const entry = session.getEntry(path[i]);
-    if (entry && entry.type === "entry" && entry.role === "assistant") {
-      const textContent = entry.content
-        .filter((c) => c.type === "text" && c.text)
-        .map((c) => c.text)
-        .join("\n");
-      if (textContent) {
-        process.stdout.write(`${textContent}\n`);
-      }
-      break;
-    }
   }
 }
 

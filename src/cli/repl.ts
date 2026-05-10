@@ -8,66 +8,7 @@ import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
 import type { Skill } from "../core/skills.js";
 import { createStandardToolMap } from "../std/tools/index.js";
-
-// ── ANSI color helpers ────────────────────────────────────────────────
-
-const ANSI = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  italic: "\x1b[3m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
-  grey: "\x1b[90m",
-} as const;
-
-function useColor(stream: Writable): boolean {
-  return "isTTY" in stream && (stream as { isTTY: boolean }).isTTY === true;
-}
-
-/** Wrap text in an ANSI escape sequence if colors are enabled. */
-function tag(color: string, text: string, enabled: boolean): string {
-  if (!enabled) return text;
-  return `${color}${text}${ANSI.reset}`;
-}
-
-// ── Event payload types (inferred from agent-loop.ts) ─────────────────
-
-interface MessageDeltaPayload {
-  entry: { id: string };
-  content: { type: string; text?: string }[];
-  type: string;
-}
-
-interface ToolStartPayload {
-  toolCallId: string;
-  toolName: string;
-  args: Record<string, unknown>;
-}
-
-interface ToolEndPayload {
-  toolCallId: string;
-  toolName: string;
-  result: {
-    content: { type: string; text?: string }[];
-    metadata?: Record<string, unknown>;
-    isError?: boolean;
-  };
-  isError: boolean;
-}
-
-interface AgentCancelledPayload {
-  reason?: unknown;
-}
-
-interface AgentErrorPayload {
-  error: string;
-  iteration: number;
-}
+import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 
 // ── AbortController tracking ──────────────────────────────────────────
 
@@ -124,65 +65,6 @@ export interface ReplConfig {
   skills?: Skill[];
   /** Current project config dir for `/status` display. */
   projectConfigDir?: string;
-}
-
-/**
- * Format a tool's arguments for display in a compact way.
- */
-function formatToolArgs(toolName: string, args: Record<string, unknown>): string {
-  switch (toolName) {
-    case "read":
-    case "write":
-    case "edit": {
-      const path = String(args.path ?? "");
-      return path;
-    }
-    case "grep":
-    case "search": {
-      const pattern = String(args.pattern ?? args.query ?? "");
-      return pattern.length > 60 ? `${pattern.slice(0, 60)}…` : pattern;
-    }
-    case "ls": {
-      return String(args.path ?? ".");
-    }
-    case "bash": {
-      const cmd = String(args.command ?? "");
-      return cmd.length > 80 ? `${cmd.slice(0, 80)}…` : cmd;
-    }
-    default:
-      return JSON.stringify(args).slice(0, 80);
-  }
-}
-
-/**
- * Create a simplified coloured diff for terminal display.
- * Expects the standard unified diff format from edit.ts's generateDiff.
- */
-function formatDiff(diff: string, enabled: boolean): string {
-  if (!diff) return "";
-
-  const lines = diff.split("\n");
-  const result: string[] = [];
-
-  for (const line of lines) {
-    if (line.startsWith("+++") || line.startsWith("---")) {
-      // File header — dim
-      result.push(tag(ANSI.dim, line, enabled));
-    } else if (line.startsWith("@@")) {
-      // Hunk header — cyan
-      result.push(tag(ANSI.cyan, line, enabled));
-    } else if (line.startsWith("+")) {
-      // Added line — green
-      result.push(tag(ANSI.green, line, enabled));
-    } else if (line.startsWith("-")) {
-      // Removed line — red
-      result.push(tag(ANSI.red, line, enabled));
-    } else {
-      result.push(line);
-    }
-  }
-
-  return result.join("\n");
 }
 
 /**
@@ -447,83 +329,12 @@ export async function runRepl(config: ReplConfig): Promise<void> {
 
         // Create event bus for streaming
         const eventBus = createEventBus();
-        let toolDepth = 0;
 
-        // Subscribe to message:delta for streaming text output
-        eventBus.subscribe<MessageDeltaPayload>("message:delta", (payload) => {
-          for (const block of payload.content) {
-            if (block.type === "text" && block.text) {
-              output.write(block.text);
-            }
-          }
-          return { action: "allow" };
-        });
-
-        // Subscribe to message:start — new response beginning
-        eventBus.subscribe<MessageDeltaPayload>("message:start", () => {
-          // No-op: first text will come through deltas
-          return { action: "allow" };
-        });
-
-        // Subscribe to message:end — response complete
-        eventBus.subscribe("message:end", () => {
-          output.write("\n");
-          return { action: "allow" };
-        });
-
-        // Subscribe to tool:execution_start for tool progress
-        eventBus.subscribe<ToolStartPayload>("tool:execution_start", (payload) => {
-          toolDepth++;
-          const prefix = "  ".repeat(toolDepth);
-          const args = formatToolArgs(payload.toolName, payload.args);
-          const toolLabel = tag(ANSI.cyan, `[${payload.toolName}]`, colorEnabled);
-          errorOutput.write(`${prefix}${toolLabel} ${dim(args)}\n`);
-          return { action: "allow" };
-        });
-
-        // Subscribe to tool:execution_end for tool results
-        eventBus.subscribe<ToolEndPayload>("tool:execution_end", (payload) => {
-          const prefix = "  ".repeat(toolDepth);
-          toolDepth = Math.max(0, toolDepth - 1);
-
-          // Check for diff metadata from edit tool
-          const diff = payload.result?.metadata?.diff as string | undefined;
-          if (diff) {
-            const formatted = formatDiff(diff, colorEnabled);
-            if (formatted) {
-              errorOutput.write(`${formatted}\n`);
-            }
-          }
-
-          // Show tool result summary
-          const isError = payload.isError ?? payload.result?.isError ?? false;
-          const statusColor = isError ? ANSI.red : ANSI.green;
-          const status = isError ? "✗" : "✓";
-          errorOutput.write(
-            `${prefix}${tag(statusColor, status, colorEnabled)} ${dim(payload.toolName)}\n`,
-          );
-          return { action: "allow" };
-        });
-
-        // Subscribe to tool:call_cancelled
-        eventBus.subscribe("tool:call_cancelled", () => {
-          toolDepth = Math.max(0, toolDepth - 1);
-          errorOutput.write(`${tag(ANSI.yellow, "  Cancelled", colorEnabled)}\n`);
-          return { action: "allow" };
-        });
-
-        // Subscribe to agent:cancelled
-        eventBus.subscribe<AgentCancelledPayload>("agent:cancelled", () => {
-          errorOutput.write(`\n${tag(ANSI.yellow, "  Cancelled by user", colorEnabled)}\n`);
-          return { action: "allow" };
-        });
-
-        // Subscribe to agent:error
-        eventBus.subscribe<AgentErrorPayload>("agent:error", (payload) => {
-          errorOutput.write(
-            `\n${tag(ANSI.red, `  Error (iteration ${payload.iteration})`, colorEnabled)}: ${payload.error}\n`,
-          );
-          return { action: "allow" };
+        // Subscribe streaming output and tool progress handlers
+        subscribePromptEvents(eventBus, {
+          output,
+          errorOutput,
+          colorEnabled,
         });
 
         try {
