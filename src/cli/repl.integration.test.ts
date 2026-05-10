@@ -98,7 +98,8 @@ describe("REPL integration", () => {
     // Should have listed sessions
     const sessions = sessionManager.list();
     expect(sessions.length).toBe(1);
-    expect(outputText).toContain(sessions[0].sessionId);
+    const shortId = sessions[0].sessionId.slice(0, 8);
+    expect(outputText).toContain(shortId);
   });
 
   it("resumes a previous session", async () => {
@@ -224,7 +225,8 @@ describe("REPL integration", () => {
 
     expect(outputText).toContain("dhara");
     expect(outputText).toContain("opencode-go/deepseek-v4-flash");
-    expect(outputText).toContain("Started session");
+    expect(outputText).toContain("Started");
+    expect(outputText).toMatch(/Started [0-9a-f]{8}/);
   });
 
   it("shows session ID on resume", async () => {
@@ -246,6 +248,7 @@ describe("REPL integration", () => {
     input.write("/exit\n");
     await runPromise;
 
-    expect(outputText).toContain(sessionId);
+    const shortId = sessionId.slice(0, 8);
+    expect(outputText).toContain(shortId);
   });
 });
