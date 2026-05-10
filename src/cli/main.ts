@@ -4,6 +4,15 @@ import type { Provider } from "../core/provider.js";
 import { createSandbox } from "../core/sandbox.js";
 import { createSession } from "../core/session.js";
 import { SessionManager } from "../core/session-manager.js";
+import {
+  loadContextFiles,
+  reloadContextFiles,
+  type ContextFile,
+} from "../core/context-loader.js";
+import {
+  loadProjectConfig,
+  type ProjectSettings,
+} from "../core/project-config.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createStandardToolMap } from "../std/tools/index.js";
@@ -39,14 +48,16 @@ Usage:
   dhara [options]             REPL mode: interactive session (default)
 
 Options:
-  --provider <name>   LLM provider.
-                      Known: openai, anthropic, opencode-go
-                      Default: opencode-go
-  --model <id>        Model ID (e.g. "deepseek-v4-flash", "gpt-4o")
-  --base-url <url>    Custom API base URL (e.g. "https://opencode.ai/zen/go/v1")
-  --cwd <path>        Working directory (default: current directory)
-  --resume <id>       Resume a previous session by ID (REPL mode only)
-  --help              Show this help message
+  --provider <name>        LLM provider.
+                           Known: openai, anthropic, opencode-go
+                           Default: opencode-go
+  --model <id>             Model ID (e.g. "deepseek-v4-flash", "gpt-4o")
+  --base-url <url>         Custom API base URL
+  --cwd <path>             Working directory (default: current directory)
+  --resume <id>            Resume a previous session by ID (REPL mode only)
+  --no-context-files       Disable AGENTS.md / CLAUDE.md loading
+  --no-project-config      Disable .dhara/settings.json loading
+  --help                   Show this help message
 
 Environment:
   Known providers use conventional env vars:
@@ -75,6 +86,8 @@ const OPTION_NAMES = new Set([
   "base-url",
   "cwd",
   "resume",
+  "no-context-files",
+  "no-project-config",
 ]);
 
 interface ResolvedConfig {
@@ -84,6 +97,7 @@ interface ResolvedConfig {
   cwd: string;
   apiKey: string;
   provider: Provider;
+  projectSettings?: ProjectSettings;
 }
 
 function resolveConfig(args: string[]): ResolvedConfig {
@@ -119,7 +133,24 @@ function resolveConfig(args: string[]): ResolvedConfig {
     process.exit(1);
   }
 
-  return { providerName, modelId, baseUrl, cwd, apiKey, provider };
+  // Load project-level config overrides
+  const disableProjectConfig = args.includes("--no-project-config");
+  const projectConfig = disableProjectConfig
+    ? undefined
+    : loadProjectConfig(cwd);
+
+  const finalModelId = projectConfig?.settings.model ?? modelId;
+  const finalBaseUrl = projectConfig?.settings.baseUrl ?? baseUrl;
+
+  return {
+    providerName,
+    modelId: finalModelId,
+    baseUrl: finalBaseUrl,
+    cwd,
+    apiKey,
+    provider,
+    projectSettings: projectConfig?.settings,
+  };
 }
 
 function extractPrompt(args: string[]): string | undefined {
@@ -140,6 +171,48 @@ function extractPrompt(args: string[]): string | undefined {
   return prompt || undefined;
 }
 
+/**
+ * Build the final system prompt by prepending context files to the base prompt.
+ */
+function buildSystemPrompt(
+  cwd: string,
+  contextFiles: ContextFile[],
+): string {
+  const basePrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
+
+  if (contextFiles.length === 0) return basePrompt;
+
+  const contextParts = contextFiles.map(
+    (f) => `<context file="${f.path}" source="${f.source}">\n${f.content.trimEnd()}\n</context>`,
+  );
+
+  return `${contextParts.join("\n\n")}\n\n---\n\n${basePrompt}`;
+}
+
+/**
+ * Load context files, build system prompt, return the result + reload function.
+ */
+function createContextState(cwd: string, disableContextFiles: boolean) {
+  let contextFiles: ContextFile[] = disableContextFiles
+    ? []
+    : loadContextFiles(cwd).files;
+
+  function build(): string {
+    return buildSystemPrompt(cwd, contextFiles);
+  }
+
+  function reload() {
+    contextFiles = disableContextFiles ? [] : reloadContextFiles(cwd).files;
+    return build();
+  }
+
+  function getFiles() {
+    return contextFiles;
+  }
+
+  return { build, reload, getFiles };
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
@@ -150,11 +223,16 @@ async function main(): Promise<void> {
 
   const prompt = extractPrompt(args);
   const resumeSessionId = getArg(args, "resume");
+  const disableContextFiles = args.includes("--no-context-files");
 
   // ── REPL mode (no prompt argument) ──────────────────────────────────
   if (!prompt) {
     const cfg = resolveConfig(args);
     const sessionManager = new SessionManager();
+    const ctxState = createContextState(cfg.cwd, disableContextFiles);
+
+    const initialSystemPrompt = ctxState.build();
+    const projectConfig = loadProjectConfig(cfg.cwd);
 
     await runRepl({
       input: process.stdin,
@@ -164,7 +242,21 @@ async function main(): Promise<void> {
       cwd: cfg.cwd,
       modelId: cfg.modelId,
       providerName: cfg.providerName,
+      systemPrompt: initialSystemPrompt,
+      maxIterations: cfg.projectSettings?.maxIterations ?? 10,
       resumeSessionId,
+      contextFiles: ctxState.getFiles(),
+      projectConfigDir: projectConfig?.configDir,
+      onReload: () => {
+        const newPrompt = ctxState.reload();
+        const newProjectConfig = loadProjectConfig(cfg.cwd);
+        return {
+          systemPrompt: newPrompt,
+          contextFiles: ctxState.getFiles(),
+          projectConfigDir: newProjectConfig?.configDir,
+          maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+        };
+      },
     });
 
     process.exit(0);
@@ -172,6 +264,7 @@ async function main(): Promise<void> {
 
   // ── One-shot mode ───────────────────────────────────────────────────
   const cfg = resolveConfig(args);
+  const ctxState = createContextState(cfg.cwd, disableContextFiles);
 
   const sandbox = createSandbox({
     granted: ["filesystem:read", "filesystem:write", "filesystem:*", "process:spawn", "network:outbound"],
@@ -190,8 +283,8 @@ async function main(): Promise<void> {
     provider: cfg.provider,
     session,
     tools,
-    systemPrompt: `You are Dhara, an AI coding agent operating in ${cfg.cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`,
-    maxIterations: 10,
+    systemPrompt: ctxState.build(),
+    maxIterations: cfg.projectSettings?.maxIterations ?? 10,
   });
 
   process.stderr.write(`\n  dhara  •  ${cfg.providerName}/${cfg.modelId}  •  ${cfg.cwd}\n`);
