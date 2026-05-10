@@ -264,7 +264,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         output.write("\n");
         break;
 
-      case "prompt":
+      case "prompt": {
         if (command.text === "") break; // Skip empty input
 
         // Create AbortController for this prompt
@@ -299,6 +299,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           }
         }
         break;
+      }
     }
   }
 }

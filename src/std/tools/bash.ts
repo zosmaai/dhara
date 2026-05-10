@@ -1,4 +1,4 @@
-import { exec, type ExecException, type ExecOptions } from "node:child_process";
+import { type ExecException, type ExecOptions, exec } from "node:child_process";
 import { existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,13 +78,21 @@ function execCommand(
     // Handle AbortSignal
     if (signal) {
       if (signal.aborted) {
-        try { child.kill("SIGKILL"); } catch { /* ignore */ }
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          /* ignore */
+        }
         return;
       }
       signal.addEventListener(
         "abort",
         () => {
-          try { child.kill("SIGKILL"); } catch { /* ignore */ }
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            /* ignore */
+          }
         },
         { once: true },
       );

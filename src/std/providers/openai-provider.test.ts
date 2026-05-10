@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { createOpenAIProvider } from "./openai-provider.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompleteParams, ProviderMessage } from "../../core/provider.js";
+import { createOpenAIProvider } from "./openai-provider.js";
 
 describe("OpenAI Provider", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -84,9 +84,7 @@ describe("OpenAI Provider", () => {
   it("converts user messages", async () => {
     const provider = createOpenAIProvider({ apiKey: "sk-test" });
     await provider.complete({
-      messages: [
-        { role: "user", content: [{ type: "text", text: "Hello there" }] },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "Hello there" }] }],
       model: { id: "gpt-4", provider: "openai" },
     });
 
@@ -229,9 +227,7 @@ describe("OpenAI Provider", () => {
       model: { id: "gpt-4", provider: "openai" },
     });
 
-    expect(result.content).toEqual([
-      { type: "text", text: "The answer is 42." },
-    ]);
+    expect(result.content).toEqual([{ type: "text", text: "The answer is 42." }]);
     expect(result.usage).toEqual({ input: 8, output: 6 });
   });
 
@@ -279,10 +275,10 @@ describe("OpenAI Provider", () => {
 
   it("throws on API error", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ error: { message: "Invalid API key" } }),
-        { status: 401, headers: { "content-type": "application/json" } },
-      ),
+      new Response(JSON.stringify({ error: { message: "Invalid API key" } }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }),
     );
 
     const provider = createOpenAIProvider({ apiKey: "sk-bad" });

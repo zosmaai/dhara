@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { createAnthropicProvider } from "./anthropic-provider.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompleteParams } from "../../core/provider.js";
+import { createAnthropicProvider } from "./anthropic-provider.js";
 
 describe("Anthropic Provider", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -76,9 +76,7 @@ describe("Anthropic Provider", () => {
   it("converts user messages", async () => {
     const provider = createAnthropicProvider({ apiKey: "sk-ant-test" });
     await provider.complete({
-      messages: [
-        { role: "user", content: [{ type: "text", text: "Hello there" }] },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "Hello there" }] }],
       model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
@@ -214,9 +212,7 @@ describe("Anthropic Provider", () => {
       model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
-    expect(result.content).toEqual([
-      { type: "text", text: "The answer is 42." },
-    ]);
+    expect(result.content).toEqual([{ type: "text", text: "The answer is 42." }]);
     expect(result.usage).toEqual({ input: 8, output: 6 });
   });
 
@@ -245,9 +241,7 @@ describe("Anthropic Provider", () => {
       model: { id: "claude-sonnet-4", provider: "anthropic" },
     });
 
-    expect(result.content).toEqual([
-      { type: "text", text: "I'll read that" },
-    ]);
+    expect(result.content).toEqual([{ type: "text", text: "I'll read that" }]);
     expect(result.toolCalls).toHaveLength(1);
     expect(result.toolCalls?.[0]).toEqual({
       id: "toolu_abc",

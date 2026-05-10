@@ -1,8 +1,8 @@
 import type {
-  Provider,
-  ProviderMessage,
   AssistantMessage,
   CompleteParams,
+  Provider,
+  ProviderMessage,
 } from "../../core/provider.js";
 
 /**
@@ -62,10 +62,7 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
   const baseUrl = config.baseUrl ?? "https://api.openai.com/v1";
   const apiKey = config.apiKey;
 
-  async function complete(
-    params: CompleteParams,
-    signal?: AbortSignal,
-  ): Promise<AssistantMessage> {
+  async function complete(params: CompleteParams, signal?: AbortSignal): Promise<AssistantMessage> {
     const messages: OpenAIMessage[] = [];
 
     if (params.systemPrompt) {
@@ -121,12 +118,11 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
       content.push({ type: "text", text: choice.message.content });
     }
 
-    const toolCalls: AssistantMessage["toolCalls"] =
-      choice.message.tool_calls?.map((tc) => ({
-        id: tc.id,
-        name: tc.function.name,
-        input: JSON.parse(tc.function.arguments) as Record<string, unknown>,
-      }));
+    const toolCalls: AssistantMessage["toolCalls"] = choice.message.tool_calls?.map((tc) => ({
+      id: tc.id,
+      name: tc.function.name,
+      input: JSON.parse(tc.function.arguments) as Record<string, unknown>,
+    }));
 
     return {
       content,

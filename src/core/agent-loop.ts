@@ -1,5 +1,5 @@
 import type { EventBus } from "./events.js";
-import type { Provider, ProviderMessage, ToolRegistration } from "./provider.js";
+import type { AssistantMessage, Provider, ProviderMessage, ToolRegistration } from "./provider.js";
 import type { Session, ToolResult } from "./session.js";
 
 /**
@@ -93,7 +93,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       const toolDefs = Array.from(tools.values()).map((t) => t.definition);
 
       // Call LLM
-      let response;
+      let response: AssistantMessage | undefined;
       try {
         response = await provider.complete(
           {
