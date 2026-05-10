@@ -53,10 +53,49 @@ interface OpenAIResponse {
 }
 
 /**
+ * SSE delta chunk from a streaming response.
+ */
+interface StreamDelta {
+  choices?: Array<{
+    delta: {
+      content?: string;
+      reasoning_content?: string;
+      tool_calls?: Array<{
+        index: number;
+        id?: string;
+        function?: {
+          name?: string;
+          arguments?: string;
+        };
+      }>;
+    };
+    finish_reason?: string | null;
+    index: number;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+  };
+}
+
+/**
+ * Accumulated state for a streaming tool call.
+ */
+interface StreamingToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+/**
  * Create an OpenAI-compatible provider adapter.
  *
  * Supports OpenAI's Chat Completions API and any API that follows the same
  * schema (e.g. Groq, Cerebras, Ollama, vLLM).
+ *
+ * When `params.eventBus` is provided, the provider streams the response
+ * via SSE and emits `message:delta` events as tokens arrive. Tool calls
+ * are still accumulated and returned as a complete response.
  */
 export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
   const baseUrl = config.baseUrl ?? "https://api.openai.com/v1";
@@ -91,6 +130,13 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
       body.tools = tools;
     }
 
+    // Use streaming when an event bus is provided
+    if (params.eventBus) {
+      body.stream = true;
+      return streamComplete(body, params.eventBus, signal);
+    }
+
+    // Non-streaming path (no event bus)
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -134,6 +180,137 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
             output: data.usage.completion_tokens,
           }
         : undefined,
+    };
+  }
+
+  /**
+   * Execute a streaming completion via SSE.
+   * Emits `message:delta` events and returns the full accumulated response.
+   */
+  async function streamComplete(
+    body: Record<string, unknown>,
+    eventBus: NonNullable<CompleteParams["eventBus"]>,
+    signal?: AbortSignal,
+  ): Promise<AssistantMessage> {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!response.ok) {
+      let errorText = "";
+      try {
+        const errorData = (await response.json()) as { error?: { message: string } };
+        errorText = errorData.error?.message ?? "";
+      } catch {
+        errorText = await response.text();
+      }
+      throw new Error(errorText || `HTTP ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Response body is not readable");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullContent = "";
+    let fullReasoning = "";
+    const accumulatedToolCalls: StreamingToolCall[] = [];
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+          const data = trimmed.slice(6); // Remove "data: " prefix
+          if (data === "[DONE]") continue;
+
+          let delta: StreamDelta;
+          try {
+            delta = JSON.parse(data) as StreamDelta;
+          } catch {
+            continue; // Skip malformed JSON
+          }
+
+          const choice = delta.choices?.[0];
+          if (!choice) continue;
+
+          const contentDelta = choice.delta?.content;
+          const reasoningDelta = choice.delta?.reasoning_content;
+          const toolCallDeltas = choice.delta?.tool_calls;
+
+          // Accumulate content
+          if (contentDelta) {
+            fullContent += contentDelta;
+            eventBus.emit("message:delta", {
+              entry: { id: "" },
+              content: [{ type: "text", text: contentDelta }],
+              type: "text",
+            });
+          }
+
+          // Accumulate reasoning content
+          if (reasoningDelta) {
+            fullReasoning += reasoningDelta;
+          }
+
+          // Accumulate tool call deltas
+          if (toolCallDeltas) {
+            for (const tc of toolCallDeltas) {
+              // Ensure the tool call slot exists
+              while (accumulatedToolCalls.length <= tc.index) {
+                accumulatedToolCalls.push({ id: "", name: "", arguments: "" });
+              }
+              if (tc.id) accumulatedToolCalls[tc.index].id = tc.id;
+              if (tc.function?.name) accumulatedToolCalls[tc.index].name = tc.function.name;
+              if (tc.function?.arguments) {
+                accumulatedToolCalls[tc.index].arguments += tc.function.arguments;
+              }
+            }
+          }
+
+          // Check finish reason
+          if (choice.finish_reason) {
+            // We could emit usage info here, but it's in the last chunk
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const content: AssistantMessage["content"] = [];
+    if (fullContent) {
+      content.push({ type: "text", text: fullContent });
+    }
+
+    const toolCalls: AssistantMessage["toolCalls"] = accumulatedToolCalls
+      .filter((tc) => tc.name) // Only include complete tool calls
+      .map((tc) => ({
+        id: tc.id,
+        name: tc.name,
+        input: JSON.parse(tc.arguments || "{}") as Record<string, unknown>,
+      }));
+
+    return {
+      content: toolCalls.length > 0 ? [] : content,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      reasoningContent: fullReasoning || undefined,
     };
   }
 

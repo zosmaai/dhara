@@ -116,6 +116,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
             messages,
             tools: toolDefs.length > 0 ? toolDefs : undefined,
             model: session.meta.model ?? { id: "unknown", provider: "unknown" },
+            eventBus: eb,
           },
           signal,
         );

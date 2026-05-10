@@ -1,3 +1,4 @@
+import type { EventBus } from "./events.js";
 import type { ContentBlock, ModelRef, ToolResult } from "./session.js";
 
 export type { ContentBlock, ToolResult } from "./session.js";
@@ -43,6 +44,12 @@ export interface CompleteParams {
   messages: ProviderMessage[];
   tools?: ToolDefinition[];
   model: ModelRef;
+  /**
+   * Optional EventBus for streaming delta events during completion.
+   * When provided, the provider SHOULD emit `message:delta` events
+   * as tokens arrive, in addition to returning the complete response.
+   */
+  eventBus?: EventBus;
 }
 
 /**
