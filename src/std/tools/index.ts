@@ -77,3 +77,18 @@ export function createStandardToolMap(config: {
   }
   return map;
 }
+
+/**
+ * Merge extension tool registrations into a tool map.
+ * Extension tools take precedence if they shadow a standard tool name.
+ */
+export function mergeExtensionTools(
+  toolMap: Map<string, ToolRegistration>,
+  extensionTools: ToolRegistration[],
+): Map<string, ToolRegistration> {
+  const merged = new Map(toolMap);
+  for (const tool of extensionTools) {
+    merged.set(tool.definition.name, tool);
+  }
+  return merged;
+}
