@@ -479,4 +479,92 @@ describe("Agent Loop", () => {
       expect(toolMessage?.content[0].text).toBe("3");
     });
   });
+
+  describe("streaming", () => {
+    it("passes eventBus to provider and emits message:delta events", async () => {
+      const deltas: string[] = [];
+
+      // Provider that uses CompleteParams.eventBus to emit deltas
+      const provider: Provider = {
+        async complete(params, _signal) {
+          // Verify eventBus was passed through
+          expect(params.eventBus).toBeDefined();
+
+          // Emit deltas via the event bus from params
+          const eb = params.eventBus as NonNullable<typeof params.eventBus>;
+          for (const chunk of ["Hello", " ", "World"]) {
+            eb.emit("message:delta", {
+              entry: { id: "mock" },
+              content: [{ type: "text", text: chunk }],
+              type: "text",
+            });
+          }
+
+          return { content: [{ type: "text", text: "Hello World" }] };
+        },
+      };
+
+      // Listen on a separate test bus
+      const testBus = createEventBus();
+      testBus.subscribe<{ content: { type: string; text?: string }[] }>(
+        "message:delta",
+        (payload) => {
+          for (const block of payload.content) {
+            if (block.type === "text" && block.text) {
+              deltas.push(block.text);
+            }
+          }
+          return { action: "allow" };
+        },
+      );
+
+      const session = createSession({ cwd: "/tmp" });
+      const loop = createAgentLoop({ provider, session });
+
+      // Run with per-invocation eventBus
+      await loop.run("Say hi", undefined, testBus);
+
+      // Deltas arrive from two sources:
+      // 1. The provider's streaming emit (via CompleteParams.eventBus)
+      // 2. The agent loop's post-response fallback emit (full content)
+      expect(deltas).toEqual(["Hello", " ", "World", "Hello World"]);
+    });
+
+    it("emits deltas through default eventBus when no per-invocation bus given", async () => {
+      const deltas: string[] = [];
+
+      const provider: Provider = {
+        async complete(params) {
+          const eb = params.eventBus;
+          if (eb) {
+            eb.emit("message:delta", {
+              entry: { id: "mock" },
+              content: [{ type: "text", text: "streamed" }],
+              type: "text",
+            });
+          }
+          return { content: [{ type: "text", text: "full" }] };
+        },
+      };
+
+      // Create event bus and pass as default to agent loop
+      const bus = createEventBus();
+      bus.subscribe<{ content: { type: string; text?: string }[] }>("message:delta", (payload) => {
+        for (const block of payload.content) {
+          if (block.type === "text" && block.text) {
+            deltas.push(block.text);
+          }
+        }
+        return { action: "allow" };
+      });
+
+      const session = createSession({ cwd: "/tmp" });
+      const loop = createAgentLoop({ provider, session, eventBus: bus });
+
+      await loop.run("Hi");
+
+      // Provider emits "streamed" via eventBus, agent loop also emits "full" as fallback
+      expect(deltas).toEqual(["streamed", "full"]);
+    });
+  });
 });
