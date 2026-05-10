@@ -36,8 +36,10 @@ export interface AgentLoop {
    *
    * @param userPrompt - The user's message.
    * @param signal - Optional AbortSignal to cancel the entire run.
+   * @param eventBus - Optional per-invocation EventBus. When provided,
+   *   this overrides the default EventBus for this specific run.
    */
-  run(userPrompt: string, signal?: AbortSignal): Promise<void>;
+  run(userPrompt: string, signal?: AbortSignal, eventBus?: EventBus): Promise<void>;
 }
 
 /**
@@ -50,14 +52,21 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
     tools = new Map(),
     systemPrompt,
     maxIterations = 10,
-    eventBus,
+    eventBus: defaultEventBus,
   } = config;
+
+  /**
+   * Resolve which event bus to use: per-invocation override or default.
+   */
+  function resolveBus(invocationBus?: EventBus): EventBus | undefined {
+    return invocationBus ?? defaultEventBus;
+  }
 
   /**
    * Check if the signal has been aborted, and emit cancellation event if so.
    * Returns true if cancelled.
    */
-  function isCancelled(signal?: AbortSignal): boolean {
+  function isCancelled(signal?: AbortSignal, eventBus?: EventBus): boolean {
     if (signal?.aborted) {
       eventBus?.emit("agent:cancelled", { reason: signal.reason });
       return true;
@@ -65,11 +74,17 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
     return false;
   }
 
-  async function run(userPrompt: string, signal?: AbortSignal): Promise<void> {
-    // Check initial cancellation
-    if (isCancelled(signal)) return;
+  async function run(
+    userPrompt: string,
+    signal?: AbortSignal,
+    invocationEventBus?: EventBus,
+  ): Promise<void> {
+    const eb = resolveBus(invocationEventBus);
 
-    eventBus?.emit("agent:start", { prompt: userPrompt });
+    // Check initial cancellation
+    if (isCancelled(signal, eb)) return;
+
+    eb?.emit("agent:start", { prompt: userPrompt });
 
     // Append user message to session
     const userEntry = session.append({
@@ -77,17 +92,17 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       content: [{ type: "text", text: userPrompt }],
     });
 
-    eventBus?.emit("message:start", { entry: userEntry });
-    eventBus?.emit("message:end", { entry: userEntry });
-    eventBus?.emit("agent:prompt", { prompt: userPrompt, entryId: userEntry.id });
+    eb?.emit("message:start", { entry: userEntry });
+    eb?.emit("message:end", { entry: userEntry });
+    eb?.emit("agent:prompt", { prompt: userPrompt, entryId: userEntry.id });
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      if (isCancelled(signal)) {
-        eventBus?.emit("agent:end", { messages: [] });
+      if (isCancelled(signal, eb)) {
+        eb?.emit("agent:end", { messages: [] });
         return;
       }
 
-      eventBus?.emit("turn:start", { iteration });
+      eb?.emit("turn:start", { iteration });
 
       const messages = buildMessages(session);
       const toolDefs = Array.from(tools.values()).map((t) => t.definition);
@@ -107,20 +122,20 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       } catch (err) {
         // Check if cancellation caused the error
         if (signal?.aborted) {
-          eventBus?.emit("agent:cancelled", { reason: signal.reason });
-          eventBus?.emit("agent:end", { messages: [] });
+          eb?.emit("agent:cancelled", { reason: signal.reason });
+          eb?.emit("agent:end", { messages: [] });
           return;
         }
-        eventBus?.emit("agent:error", {
+        eb?.emit("agent:error", {
           error: err instanceof Error ? err.message : String(err),
           iteration,
         });
-        eventBus?.emit("agent:end", { messages: [] });
+        eb?.emit("agent:end", { messages: [] });
         return;
       }
 
-      if (isCancelled(signal)) {
-        eventBus?.emit("agent:end", { messages: [] });
+      if (isCancelled(signal, eb)) {
+        eb?.emit("agent:end", { messages: [] });
         return;
       }
 
@@ -141,19 +156,19 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       });
 
       // Emit message events for the assistant response
-      eventBus?.emit("message:start", { entry: assistantEntry, content: response.content });
+      eb?.emit("message:start", { entry: assistantEntry, content: response.content });
 
       // If streaming content, emit deltas (for now, emit the full content)
       if (response.content.length > 0) {
-        eventBus?.emit("message:delta", {
+        eb?.emit("message:delta", {
           entry: assistantEntry,
           content: response.content,
           type: "text",
         });
       }
 
-      eventBus?.emit("message:end", { entry: assistantEntry });
-      eventBus?.emit("agent:response", {
+      eb?.emit("message:end", { entry: assistantEntry });
+      eb?.emit("agent:response", {
         entryId: assistantEntry.id,
         content: response.content,
         toolCalls: response.toolCalls,
@@ -162,7 +177,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
 
       // If no tool calls, this turn is complete
       if (!response.toolCalls || response.toolCalls.length === 0) {
-        eventBus?.emit("turn:end", {
+        eb?.emit("turn:end", {
           iteration,
           message: assistantEntry,
           toolResults: [],
@@ -174,15 +189,15 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       const toolResults: Array<{ entry: unknown; toolName: string; toolCallId: string }> = [];
 
       for (const toolCall of response.toolCalls) {
-        if (isCancelled(signal)) break;
+        if (isCancelled(signal, eb)) break;
 
-        eventBus?.emit("tool:call_start", {
+        eb?.emit("tool:call_start", {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           input: toolCall.input,
         });
 
-        eventBus?.emit("tool:execution_start", {
+        eb?.emit("tool:execution_start", {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           args: toolCall.input,
@@ -190,7 +205,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
 
         // Check if signal was aborted before execution
         if (signal?.aborted) {
-          eventBus?.emit("tool:call_cancelled", {
+          eb?.emit("tool:call_cancelled", {
             toolCallId: toolCall.id,
             toolName: toolCall.name,
           });
@@ -201,7 +216,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
 
         // Check if tool was cancelled
         if (result.metadata?.cancelled || (signal?.aborted && !result.isError === false)) {
-          eventBus?.emit("tool:call_cancelled", {
+          eb?.emit("tool:call_cancelled", {
             toolCallId: toolCall.id,
             toolName: toolCall.name,
           });
@@ -215,14 +230,14 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
           isError: result.isError,
         });
 
-        eventBus?.emit("tool:execution_end", {
+        eb?.emit("tool:execution_end", {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           result,
           isError: result.isError ?? false,
         });
 
-        eventBus?.emit("tool:call_end", {
+        eb?.emit("tool:call_end", {
           toolCallId: toolCall.id,
           toolName: toolCall.name,
           result,
@@ -236,14 +251,14 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       }
 
       // Emit turn end event
-      eventBus?.emit("turn:end", {
+      eb?.emit("turn:end", {
         iteration,
         message: assistantEntry,
         toolResults,
       });
     }
 
-    eventBus?.emit("agent:end", { messages: [] });
+    eb?.emit("agent:end", { messages: [] });
   }
 
   return { run };

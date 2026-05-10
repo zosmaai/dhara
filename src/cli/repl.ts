@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { createAgentLoop } from "../core/agent-loop.js";
+import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import type { ContextFile } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
 import type { Provider } from "../core/provider.js";
@@ -241,6 +241,15 @@ export async function runRepl(config: ReplConfig): Promise<void> {
   let currentSkills = config.skills ?? [];
   let currentProjectConfigDir = config.projectConfigDir;
 
+  // ── Create agent loop (re-created on /reload) ──────────────────────
+  let agent: AgentLoop = createAgentLoop({
+    provider,
+    session,
+    tools,
+    systemPrompt: currentSystemPrompt,
+    maxIterations: currentMaxIterations,
+  });
+
   // ── Print header ───────────────────────────────────────────────────
   const mode = resumeSessionId ? "Resuming" : "Started";
   output.write(
@@ -332,6 +341,15 @@ export async function runRepl(config: ReplConfig): Promise<void> {
             currentContextFiles = result.contextFiles;
             currentSkills = result.skills;
             currentProjectConfigDir = result.projectConfigDir;
+
+            // Re-create agent loop with new system prompt
+            agent = createAgentLoop({
+              provider,
+              session,
+              tools,
+              systemPrompt: currentSystemPrompt,
+              maxIterations: currentMaxIterations,
+            });
 
             output.write(
               `Reloaded. ${result.contextFiles.length} context file(s), ${result.skills.length} skill(s).\n`,
@@ -508,18 +526,8 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           return { action: "allow" };
         });
 
-        // Re-create agent loop with event bus for this prompt
-        const streamingAgent = createAgentLoop({
-          provider,
-          session,
-          tools,
-          systemPrompt: currentSystemPrompt,
-          maxIterations: currentMaxIterations,
-          eventBus,
-        });
-
         try {
-          await streamingAgent.run(command.text, abortController.signal);
+          await agent.run(command.text, abortController.signal, eventBus);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           // Only print if not already handled by agent:error event
