@@ -57,7 +57,7 @@ export function createGrepTool(config: GrepToolConfig): ToolRegistration {
       },
     },
 
-    async execute(input) {
+    async execute(input, _signal) {
       const {
         pattern,
         path: inputPath,

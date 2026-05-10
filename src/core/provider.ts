@@ -70,8 +70,14 @@ export interface AssistantMessage {
 export interface Provider {
   /**
    * Send a completion request to the LLM.
+   *
+   * @param params - Completion parameters (messages, tools, model, etc.)
+   * @param signal - Optional AbortSignal to cancel the request.
+   *   When aborted, the provider SHOULD stop the request and return a
+   *   response with no tool calls. Implementations MAY throw, but the
+   *   agent loop handles errors gracefully.
    */
-  complete(params: CompleteParams): Promise<AssistantMessage>;
+  complete(params: CompleteParams, signal?: AbortSignal): Promise<AssistantMessage>;
 }
 
 /**
@@ -90,5 +96,13 @@ export interface ToolExecutor {
  */
 export interface ToolRegistration {
   definition: ToolDefinition;
-  execute: (input: Record<string, unknown>) => Promise<ToolResult>;
+  /**
+   * Execute the tool with the given input.
+   *
+   * @param input - Tool-specific parameters
+   * @param signal - Optional AbortSignal to cancel execution.
+   *   When aborted, the tool SHOULD stop as soon as possible and return
+   *   a partial result with `isError: true` or the best-effort output.
+   */
+  execute: (input: Record<string, unknown>, signal?: AbortSignal) => Promise<ToolResult>;
 }

@@ -52,7 +52,7 @@ export function createReadTool(config: ReadToolConfig): ToolRegistration {
       },
     },
 
-    async execute(input) {
+    async execute(input, _signal) {
       const {
         path: filePath,
         offset,

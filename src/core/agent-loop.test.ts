@@ -1,18 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSession } from "./session.js";
-import { createEventBus } from "./events.js";
 import { createAgentLoop } from "./agent-loop.js";
+import { createEventBus } from "./events.js";
 import type {
-  Provider,
   AssistantMessage,
-  ToolResult,
-  ContentBlock,
   CompleteParams,
+  ContentBlock,
+  Provider,
+  ToolResult,
 } from "./provider.js";
+import { createSession } from "./session.js";
 
-function mockProvider(
-  responses: AssistantMessage[],
-): Provider & { calls: CompleteParams[] } {
+function mockProvider(responses: AssistantMessage[]): Provider & { calls: CompleteParams[] } {
   const calls: CompleteParams[] = [];
   let index = 0;
 
@@ -32,9 +30,7 @@ function mockProvider(
 describe("Agent Loop", () => {
   describe("basic response", () => {
     it("appends user prompt and assistant response to session", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "Hello!" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "Hello!" }] }]);
       const session = createSession({ cwd: "/tmp" });
       const loop = createAgentLoop({ provider, session });
 
@@ -59,9 +55,7 @@ describe("Agent Loop", () => {
     });
 
     it("includes system prompt in completion params", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "OK" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "OK" }] }]);
       const session = createSession({ cwd: "/tmp" });
       const loop = createAgentLoop({
         provider,
@@ -75,9 +69,7 @@ describe("Agent Loop", () => {
     });
 
     it("passes model from session meta", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "OK" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "OK" }] }]);
       const session = createSession({
         cwd: "/tmp",
         model: { id: "gpt-4", provider: "openai" },
@@ -93,9 +85,7 @@ describe("Agent Loop", () => {
     });
 
     it("includes available tools in completion params", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "OK" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "OK" }] }]);
       const session = createSession({ cwd: "/tmp" });
       const tools = new Map([
         [
@@ -124,9 +114,7 @@ describe("Agent Loop", () => {
       const provider = mockProvider([
         {
           content: [],
-          toolCalls: [
-            { id: "tc1", name: "echo", input: { msg: "hello" } },
-          ],
+          toolCalls: [{ id: "tc1", name: "echo", input: { msg: "hello" } }],
         },
         { content: [{ type: "text", text: "Done" }] },
       ]);
@@ -142,9 +130,7 @@ describe("Agent Loop", () => {
               parameters: { type: "object" },
             },
             execute: async (input: Record<string, unknown>) => ({
-              content: [
-                { type: "text", text: (input.msg as string) ?? "" },
-              ] as ContentBlock[],
+              content: [{ type: "text", text: (input.msg as string) ?? "" }] as ContentBlock[],
             }),
           },
         ],
@@ -204,8 +190,7 @@ describe("Agent Loop", () => {
               description: "Get A",
               parameters: { type: "object" },
             },
-            execute: async () =>
-              ({ content: [{ type: "text", text: "A" }] } as ToolResult),
+            execute: async () => ({ content: [{ type: "text", text: "A" }] }) as ToolResult,
           },
         ],
         [
@@ -216,8 +201,7 @@ describe("Agent Loop", () => {
               description: "Get B",
               parameters: { type: "object" },
             },
-            execute: async () =>
-              ({ content: [{ type: "text", text: "B" }] } as ToolResult),
+            execute: async () => ({ content: [{ type: "text", text: "B" }] }) as ToolResult,
           },
         ],
       ]);
@@ -350,15 +334,14 @@ describe("Agent Loop", () => {
       const session = createSession({ cwd: "/tmp" });
       const loop = createAgentLoop({ provider, session });
 
-      await expect(loop.run("Hi")).rejects.toThrow("Rate limited");
+      // The loop should not throw; it emits agent:error and resolves
+      await expect(loop.run("Hi")).resolves.toBeUndefined();
     });
   });
 
   describe("events", () => {
     it("emits agent:prompt when run starts", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "OK" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "OK" }] }]);
       const bus = createEventBus();
       const handler = vi.fn(() => ({ action: "allow" as const }));
       bus.subscribe("agent:prompt", handler);
@@ -368,15 +351,11 @@ describe("Agent Loop", () => {
       await loop.run("Hi");
 
       expect(handler).toHaveBeenCalledTimes(1);
-      expect(handler).toHaveBeenCalledWith(
-        expect.objectContaining({ prompt: "Hi" }),
-      );
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ prompt: "Hi" }));
     });
 
     it("emits agent:response when assistant responds", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "Hello!" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "Hello!" }] }]);
       const bus = createEventBus();
       const handler = vi.fn(() => ({ action: "allow" as const }));
       bus.subscribe("agent:response", handler);
@@ -405,8 +384,8 @@ describe("Agent Loop", () => {
       const bus = createEventBus();
       const startHandler = vi.fn(() => ({ action: "allow" as const }));
       const endHandler = vi.fn(() => ({ action: "allow" as const }));
-      bus.subscribe("agent:tool_call_start", startHandler);
-      bus.subscribe("agent:tool_call_end", endHandler);
+      bus.subscribe("tool:call_start", startHandler);
+      bus.subscribe("tool:call_end", endHandler);
 
       const session = createSession({ cwd: "/tmp" });
       const tools = new Map([
@@ -436,9 +415,7 @@ describe("Agent Loop", () => {
 
   describe("message building", () => {
     it("builds conversation history from session entries", async () => {
-      const provider = mockProvider([
-        { content: [{ type: "text", text: "First" }] },
-      ]);
+      const provider = mockProvider([{ content: [{ type: "text", text: "First" }] }]);
       const session = createSession({ cwd: "/tmp" });
       session.append({ role: "user", content: [{ type: "text", text: "Previous" }] });
       session.append({

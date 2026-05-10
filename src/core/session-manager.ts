@@ -10,12 +10,12 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
-  createSession,
   type BranchEntry,
   type ModelRef,
   type Session,
   type SessionEntry,
   type SessionMeta,
+  createSession,
 } from "./session.js";
 
 /**

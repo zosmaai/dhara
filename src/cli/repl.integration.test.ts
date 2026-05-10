@@ -1,11 +1,11 @@
-import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AssistantMessage, CompleteParams, Provider } from "../core/provider.js";
 import { SessionManager } from "../core/session-manager.js";
 import { runRepl } from "./repl.js";
-import type { Provider, AssistantMessage, CompleteParams } from "../core/provider.js";
 
 /**
  * Create a mock provider that returns a static response for any prompt.

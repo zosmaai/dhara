@@ -1,8 +1,8 @@
 import type {
-  Provider,
-  ProviderMessage,
   AssistantMessage,
   CompleteParams,
+  Provider,
+  ProviderMessage,
 } from "../../core/provider.js";
 
 /**
@@ -48,13 +48,11 @@ interface AnthropicResponse {
 /**
  * Create an Anthropic Messages API provider adapter.
  */
-export function createAnthropicProvider(
-  config: AnthropicProviderConfig,
-): Provider {
+export function createAnthropicProvider(config: AnthropicProviderConfig): Provider {
   const baseUrl = config.baseUrl ?? "https://api.anthropic.com/v1";
   const apiKey = config.apiKey;
 
-  async function complete(params: CompleteParams): Promise<AssistantMessage> {
+  async function complete(params: CompleteParams, signal?: AbortSignal): Promise<AssistantMessage> {
     const messages: AnthropicMessage[] = [];
 
     for (const msg of params.messages) {
@@ -92,6 +90,7 @@ export function createAnthropicProvider(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(body),
+      signal,
     });
 
     const data = (await response.json()) as AnthropicResponse;

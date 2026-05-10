@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createEventBus, type HookResult } from "./events.js";
+import { type HookResult, createEventBus } from "./events.js";
 
 function allow(): HookResult {
   return { action: "allow" };

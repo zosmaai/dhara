@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSandbox, type Capability } from "./sandbox.js";
+import { type Capability, createSandbox } from "./sandbox.js";
 
 describe("Sandbox", () => {
   describe("capability checks", () => {

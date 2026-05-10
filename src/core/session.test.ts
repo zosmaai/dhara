@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSession, type SessionEntry, type BranchEntry } from "./session.js";
+import { type BranchEntry, type SessionEntry, createSession } from "./session.js";
 
 describe("Session Format", () => {
   describe("append + getEntry", () => {

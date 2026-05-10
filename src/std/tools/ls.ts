@@ -42,7 +42,7 @@ export function createLsTool(config: LsToolConfig): ToolRegistration {
       },
     },
 
-    async execute(input) {
+    async execute(input, _signal) {
       const { path: inputPath } = input as { path?: string };
       const targetDir = inputPath ? resolvePath(cwd, inputPath) : cwd;
 

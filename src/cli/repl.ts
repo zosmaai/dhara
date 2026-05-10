@@ -1,11 +1,18 @@
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { createAgentLoop, type AgentLoop } from "../core/agent-loop.js";
+import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
+import type { ContextFile } from "../core/context-loader.js";
 import type { Provider } from "../core/provider.js";
 import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
-import type { ContextFile } from "../core/context-loader.js";
 import { createStandardToolMap } from "../std/tools/index.js";
+
+/**
+ * Track the current operation's AbortController.
+ * When the user presses Ctrl+C during a prompt, this controller is aborted
+ * to cancel the in-progress LLM request or tool execution.
+ */
+let currentAbortController: AbortController | null = null;
 
 /**
  * Callback invoked when the user runs `/reload`.
@@ -122,6 +129,21 @@ export async function runRepl(config: ReplConfig): Promise<void> {
   output.write(`  ${resumeSessionId ? `Resumed from ${session.getPath().length} entries` : ""}\n`);
   output.write("\n");
 
+  // ── SIGINT (Ctrl+C) handler ────────────────────────────────────────
+  // During a running prompt: cancels the current operation.
+  // When idle: exits the REPL.
+  const sigintHandler = () => {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      output.write("\n  Cancelling...\n");
+    } else {
+      output.write("\nBye!\n");
+      rl.close();
+    }
+  };
+
+  process.on("SIGINT", sigintHandler);
+
   // ── Readline loop ──────────────────────────────────────────────────
   const rl = createInterface({ input, terminal: false });
 
@@ -130,6 +152,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
 
     switch (command.type) {
       case "exit":
+        process.removeListener("SIGINT", sigintHandler);
         output.write("Bye!\n");
         rl.close();
         return;
@@ -241,11 +264,15 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         output.write("\n");
         break;
 
-      case "prompt":
+      case "prompt": {
         if (command.text === "") break; // Skip empty input
 
+        // Create AbortController for this prompt
+        const abortController = new AbortController();
+        currentAbortController = abortController;
+
         try {
-          await agent.run(command.text);
+          await agent.run(command.text, abortController.signal);
 
           // Print the latest assistant response
           const path = session.getPath();
@@ -265,8 +292,14 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           output.write(`\nError: ${msg}\n`);
+        } finally {
+          // Clear the abort controller after the run completes
+          if (currentAbortController === abortController) {
+            currentAbortController = null;
+          }
         }
         break;
+      }
     }
   }
 }
