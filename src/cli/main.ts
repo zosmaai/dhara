@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { type ContextFile, loadContextFiles, reloadContextFiles } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
+import { ExtensionManager } from "../core/extension-manager.js";
 import { type ProjectSettings, loadProjectConfig } from "../core/project-config.js";
 import type { Provider } from "../core/provider.js";
 import { createSandbox } from "../core/sandbox.js";
@@ -11,6 +15,7 @@ import { type Skill, discoverSkills, reloadSkills } from "../core/skills.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createStandardToolMap } from "../std/tools/index.js";
+import { mergeExtensionTools } from "../std/tools/index.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 import { runRepl } from "./repl.js";
 
@@ -234,6 +239,29 @@ async function main(): Promise<void> {
   const resumeSessionId = getArg(args, "resume");
   const disableContextFiles = args.includes("--no-context-files");
 
+  // ── Extension setup (shared between REPL and one-shot) ──────────────
+  const extManager = new ExtensionManager();
+
+  // Default extension directories: global ~/.dhara/extensions, project .dhara/extensions
+  const globalExtDir = join(homedir(), ".dhara", "extensions");
+  const projectExtDir = join(process.cwd(), ".dhara", "extensions");
+
+  // Ensure directories exist so users can drop extensions in
+  try {
+    mkdirSync(globalExtDir, { recursive: true });
+  } catch {
+    // Best effort
+  }
+
+  try {
+    mkdirSync(projectExtDir, { recursive: true });
+  } catch {
+    // Best effort
+  }
+
+  await extManager.loadExtensions([globalExtDir, projectExtDir]);
+  const extensionTools = extManager.getToolRegistrations();
+
   // ── REPL mode (no prompt argument) ──────────────────────────────────
   if (!prompt) {
     const cfg = resolveConfig(args);
@@ -243,32 +271,37 @@ async function main(): Promise<void> {
     const initialSystemPrompt = ctxState.build();
     const projectConfig = loadProjectConfig(cfg.cwd);
 
-    await runRepl({
-      input: process.stdin,
-      output: process.stdout,
-      sessionManager,
-      provider: cfg.provider,
-      cwd: cfg.cwd,
-      modelId: cfg.modelId,
-      providerName: cfg.providerName,
-      systemPrompt: initialSystemPrompt,
-      maxIterations: cfg.projectSettings?.maxIterations ?? 10,
-      resumeSessionId,
-      contextFiles: ctxState.getFiles(),
-      skills: ctxState.getSkills(),
-      projectConfigDir: projectConfig?.configDir,
-      onReload: () => {
-        const newPrompt = ctxState.reload();
-        const newProjectConfig = loadProjectConfig(cfg.cwd);
-        return {
-          systemPrompt: newPrompt,
-          contextFiles: ctxState.getFiles(),
-          skills: ctxState.getSkills(),
-          projectConfigDir: newProjectConfig?.configDir,
-          maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
-        };
-      },
-    });
+    try {
+      await runRepl({
+        input: process.stdin,
+        output: process.stdout,
+        sessionManager,
+        provider: cfg.provider,
+        cwd: cfg.cwd,
+        modelId: cfg.modelId,
+        providerName: cfg.providerName,
+        systemPrompt: initialSystemPrompt,
+        maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+        resumeSessionId,
+        contextFiles: ctxState.getFiles(),
+        skills: ctxState.getSkills(),
+        projectConfigDir: projectConfig?.configDir,
+        toolOverrides: extensionTools,
+        onReload: () => {
+          const newPrompt = ctxState.reload();
+          const newProjectConfig = loadProjectConfig(cfg.cwd);
+          return {
+            systemPrompt: newPrompt,
+            contextFiles: ctxState.getFiles(),
+            skills: ctxState.getSkills(),
+            projectConfigDir: newProjectConfig?.configDir,
+            maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+          };
+        },
+      });
+    } finally {
+      await extManager.shutdownAll();
+    }
 
     process.exit(0);
   }
@@ -293,7 +326,8 @@ async function main(): Promise<void> {
     model: { id: cfg.modelId, provider: cfg.providerName },
   });
 
-  const tools = createStandardToolMap({ cwd: cfg.cwd, sandbox });
+  const standardTools = createStandardToolMap({ cwd: cfg.cwd, sandbox });
+  const tools = mergeExtensionTools(standardTools, extensionTools);
 
   const { createAgentLoop } = await import("../core/agent-loop.js");
   const agent = createAgentLoop({
@@ -325,6 +359,8 @@ async function main(): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`\n${tag(ANSI.red, "Error", colorEnabled)}: ${msg}\n`);
     process.exit(1);
+  } finally {
+    await extManager.shutdownAll();
   }
 }
 
