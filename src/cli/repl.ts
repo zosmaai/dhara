@@ -325,8 +325,47 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           `  ${tag(ANSI.yellow, "/status", colorEnabled)}    Show current configuration, context files, and skills\n`,
         );
         output.write(`  ${tag(ANSI.yellow, "/help", colorEnabled)}      Show this help\n`);
+        output.write(
+          `  ${tag(ANSI.yellow, "/history", colorEnabled)}   Show recent conversation history (optional: /history N)\n`,
+        );
         output.write("\n");
         break;
+
+      case "history": {
+        const count = command.count;
+        const path = session.getPath();
+        const entries: { role: string; text: string }[] = [];
+
+        // Walk backward through the path to collect entries
+        for (let i = path.length - 1; i >= 0; i--) {
+          const entry = session.getEntry(path[i]);
+          if (entry?.type !== "entry") continue;
+          const text = entry.content
+            .filter((c) => c.type === "text" && c.text)
+            .map((c) => c.text)
+            .join("")
+            .slice(0, 200);
+          if (text || entry.toolCalls?.length) {
+            entries.unshift({ role: entry.role, text });
+          }
+          if (entries.length >= count) break;
+        }
+
+        if (entries.length === 0) {
+          output.write("  No conversation history.\n");
+        } else {
+          output.write(`\n${bold(`Recent history (last ${entries.length})`)}:\n`);
+          for (const e of entries) {
+            const roleColor =
+              e.role === "user" ? ANSI.green : e.role === "assistant" ? ANSI.blue : ANSI.yellow;
+            const label = e.role === "tool_result" ? "tool  " : `${e.role.padEnd(8)}`;
+            const line = e.text || (e.role === "assistant" ? "(tool call)" : "");
+            output.write(`  ${tag(roleColor, label, colorEnabled)} ${dim(line)}\n`);
+          }
+          output.write("\n");
+        }
+        break;
+      }
 
       case "prompt": {
         if (command.text === "") break; // Skip empty input
@@ -377,7 +416,8 @@ export type ReplCommand =
   | { type: "resume"; sessionId: string }
   | { type: "reload" }
   | { type: "status" }
-  | { type: "skills" };
+  | { type: "skills" }
+  | { type: "history"; count: number }; // Default 10
 
 const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   exit: () => ({ type: "exit" }),
@@ -389,6 +429,10 @@ const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   reload: () => ({ type: "reload" }),
   status: () => ({ type: "status" }),
   skills: () => ({ type: "skills" }),
+  history: (arg) => {
+    const count = arg ? Number.parseInt(arg, 10) : 10;
+    return { type: "history", count: Number.isNaN(count) ? 10 : Math.max(count, 1) };
+  },
 };
 
 /**

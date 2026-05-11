@@ -70,3 +70,19 @@ describe("parseInput", () => {
     expect(parseInput("   ")).toEqual({ type: "prompt", text: "" });
   });
 });
+
+it("parses /history without count", () => {
+  expect(parseInput("/history")).toEqual({ type: "history", count: 10 });
+});
+
+it("parses /history with a count", () => {
+  expect(parseInput("/history 5")).toEqual({ type: "history", count: 5 });
+});
+
+it("parses /history with invalid count defaults to 10", () => {
+  expect(parseInput("/history abc")).toEqual({ type: "history", count: 10 });
+});
+
+it("parses /history with negative count defaults to 1", () => {
+  expect(parseInput("/history -3")).toEqual({ type: "history", count: 1 });
+});
