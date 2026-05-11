@@ -6,7 +6,7 @@ import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
 import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
-import { DharaChat } from "../std/renderers/tui/dhara-chat.js";
+import { DharaApp } from "../std/renderers/tui/dhara-chat.js";
 import {
   DEFAULT_THEME,
   ProcessTerminal,
@@ -101,7 +101,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
   const tui = new TUI(terminal);
 
   // ── Chat ───────────────────────────────────────────────────────────
-  const chat = new DharaChat({
+  const chat = new DharaApp({
     theme,
     version: "0.1.0",
     status: {
@@ -117,14 +117,14 @@ export async function runTui(config: TuiConfig): Promise<void> {
 
       // Wire chat to this prompt's event bus
       chat.setEventBus(eventBus);
-      chat.updateStatus({ state: "thinking" });
+      chat.statusBar.update({ state: "thinking" });
       tui.requestRender();
 
       try {
         await agent.run(text, abortController.signal, eventBus);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        chat.addSystemMessage(`Error: ${msg}`, true);
+        chat.addMessage({ role: "error", content: msg });
       } finally {
         chat.finishStream();
         try {
@@ -132,7 +132,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
         } catch {
           /* best effort */
         }
-        chat.updateStatus({ state: "idle" });
+        chat.statusBar.update({ state: "idle" });
         tui.requestRender();
       }
     },
@@ -141,7 +141,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
     },
   });
 
-  chat.onRenderRequest = () => tui.requestRender();
+  chat.onRender = () => tui.requestRender();
 
   // ── Reload ─────────────────────────────────────────────────────────
   tui.onDebug = () => {
@@ -157,12 +157,12 @@ export async function runTui(config: TuiConfig): Promise<void> {
           systemPrompt: currentSystemPrompt,
           maxIterations: currentMaxIterations,
         });
-        chat.addSystemMessage("Reloaded configuration.");
+        chat.addMessage({ role: "system", content: "Reloaded configuration." });
       } catch (err) {
-        chat.addSystemMessage(
-          `Reload error: ${err instanceof Error ? err.message : String(err)}`,
-          true,
-        );
+        chat.addMessage({
+          role: "error",
+          content: `Reload error: ${err instanceof Error ? err.message : String(err)}`,
+        });
       }
     }
     tui.requestRender();

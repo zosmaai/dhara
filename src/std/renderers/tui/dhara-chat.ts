@@ -1,479 +1,248 @@
-import type { EventBus, HookResult } from "../../../core/events.js";
-import { ChatMessage, type ChatMessageConfig } from "./components/chat-message.js";
 /**
- * DharaChat — the main TUI component for the dhara coding agent.
+ * DharaApp — the coding agent TUI application.
  *
- * Layout (height-aware, pi-tui inspired):
- * ```
- * ┌──────────────────────────────────────────┐
- * │  ⚡ dhara v0.1.0                          │  ← branded header
- * │  The Agent Protocol Standard              │
- * │                                           │
- * │  opencode-go/deepseek-v4-flash            │
- * │  /home/arjun/code/project                 │
- * │  Session abc12345    Type /help           │
- * └──────────────────────────────────────────┘
- *
- *   You: List the files
- *
- *   Dhara: Here are the files:               ← chat messages
- *   src/index.ts                                (scrollable)
- *   src/main.ts
- *
- *   [bash] $ ls -la                            ← tool progress
- *   total 24                                   (styled + diffs)
- *   -rw-r--r-- 1 user user 1234 index.ts
- *
- * ───────────────────────────────────────────
- *   >  User types here...█                    ← editor (multiline
- *                                                with Shift+Enter)
- * ───────────────────────────────────────────
- *   ● opencode-go/deepseek-v4-flash ↑1k ↓450  ← status bar
- * ```
+ * Thin shell that composes sub-components and wires them to agent events.
+ * Rendering logic is extracted to standalone functions for testability.
  */
 import type { Component, FocusableComponent } from "./components/component.js";
-import { visibleWidth } from "./components/component.js";
+import { ChatMessage, type ChatMessageConfig } from "./components/chat-message.js";
 import { Editor, type EditorConfig } from "./components/editor.js";
 import { StatusBar, type StatusBarConfig } from "./components/status-bar.js";
+import { visibleWidth } from "./components/component.js";
 import type { Theme } from "./theme.js";
+import type { EventBus, HookResult } from "../../../core/events.js";
 
-const allow = (): HookResult => ({ action: "allow" });
+// ── Types ──────────────────────────────────────────────────────────────
 
-export interface DharaChatConfig {
+export interface DharaAppConfig {
   theme: Theme;
+  version?: string;
+  status?: StatusBarConfig;
+  editor?: Partial<EditorConfig>;
   onSubmit: (text: string) => void;
   onExit: () => void;
-  editor?: Partial<EditorConfig>;
-  status?: StatusBarConfig;
-  version?: string;
 }
 
-export class DharaChat implements Component, FocusableComponent {
+// ── Application ────────────────────────────────────────────────────────
+
+export class DharaApp implements Component, FocusableComponent {
   private theme: Theme;
-  private cfg: DharaChatConfig;
+  private cfg: DharaAppConfig;
 
-  // ── Messages ──
-  private messages: ChatMessageConfig[] = [];
-  private streamingContent = "";
-  private streamingReasoning = "";
+  messages: ChatMessageConfig[] = [];
+  streamContent = "";
+  streamReasoning = "";
 
-  // ── Tool state ──
-  private toolBuffers = new Map<string, string>();
-  private activeToolCalls = new Map<string, { name: string; input?: string; startedAt: number }>();
+  editor: Editor;
+  statusBar: StatusBar;
 
-  // ── Sub-components ──
-  private editor: Editor;
-  private statusBar: StatusBar;
+  processing = false;
+  focused = false;
 
-  // ── Event bus ──
-  private unsubscribes: (() => void)[] = [];
-
-  // ── Exit tracking ──
-  private ctrlCPressed = false;
+  // Exit: double-tap Ctrl+C
+  private ctrlCTapped = false;
   private ctrlCTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // ── Processing state ──
-  private processing = false;
+  // Event cleanup (set by wireEvents)
+  private _unsubs: (() => void)[] = [];
+  addUnsub(fn: () => void): void { this._unsubs.push(fn); }
 
-  focused = false;
-  onRenderRequest?: () => void;
+  onRender?: () => void;
 
-  constructor(config: DharaChatConfig) {
+  constructor(config: DharaAppConfig) {
     this.theme = config.theme;
     this.cfg = config;
 
-    this.editor = new Editor(this.theme, {
+    this.editor = new Editor(config.theme, {
       prompt: "> ",
       placeholder: "Ask anything... (/help for commands)",
       ...config.editor,
     });
 
-    this.statusBar = new StatusBar(this.theme, config.status ?? {});
+    this.statusBar = new StatusBar(config.theme, config.status ?? {});
 
-    this.editor.onSubmit = (text: string) => {
+    this.editor.onSubmit = (text) => {
       if (this.processing) return;
-      if (text.trim().startsWith("/")) {
-        this.handleSlashCommand(text.trim());
-      } else {
-        this.messages.push({ role: "user", content: text });
-        this.processing = true;
-        this.statusBar.update({ state: "thinking" });
-        this.onRenderRequest?.();
-        config.onSubmit(text);
-      }
+      if (text.startsWith("/")) return this.slash(text);
+      this.messages.push({ role: "user", content: text });
+      this.processing = true;
+      this.statusBar.update({ state: "thinking" });
+      this.onRender?.();
+      config.onSubmit(text);
     };
   }
 
-  // ── Event bus ─────────────────────────────────────────────────────
+  // ── Component interface ────────────────────────────────────────────
 
-  setEventBus(bus: EventBus): void {
-    this.disposeSubscriptions();
-    this.subscribe(bus);
-  }
-
-  private disposeSubscriptions(): void {
-    for (const u of this.unsubscribes) u();
-    this.unsubscribes = [];
-  }
-
-  dispose(): void {
-    this.disposeSubscriptions();
-    if (this.ctrlCTimer) clearTimeout(this.ctrlCTimer);
-  }
-
-  // ── Render ────────────────────────────────────────────────────────
-
-  render(width: number, _height?: number): string[] {
-    const out: string[] = [];
-
-    // 1. Header (fixed height)
-    for (const l of this.renderHeader(width)) out.push(l);
-
-    // 2. Messages (all of them — TUI clips to viewport)
-    for (const l of this.renderMessages(width)) out.push(l);
-
-    // 3. Spacer
-    out.push(this.theme.apply("dim", "─".repeat(width)));
-
-    // 4. Editor
-    for (const l of this.editor.render(width)) out.push(l);
-
-    // 5. Status bar
-    for (const l of this.statusBar.render(width)) out.push(l);
-
-    return out;
-  }
-
-  // ── Header ────────────────────────────────────────────────────────
-
-  private renderHeader(width: number): string[] {
-    const border = this.theme.resolve("panel.border");
-    const accent = this.theme.resolve("accent");
-    const dim = this.theme.resolve("dim");
-    const bold = this.theme.resolve("bold");
-    const muted = this.theme.resolve("muted");
-
-    const version = this.cfg.version ?? "v0.1.0";
-    const provider = this.cfg.status?.provider ?? "?";
-    const model = this.cfg.status?.model ?? "?";
-    const cwd = this.cfg.status?.cwd ?? "?";
-    const sid = this.cfg.status?.sessionId ?? "?";
-
-    const w = width - 4; // indented 2 from left
-    const h = "─";
-    const B = border.prefix;
-    const R = border.reset;
-
-    const row = (content: string, plainW: number) =>
-      `${B}  ${content}${" ".repeat(Math.max(0, w - plainW))}  ${R}`;
-
+  render(width: number): string[] {
     return [
-      `  ${B}┌${h.repeat(w)}┐${R}`,
-      row(
-        `${accent.prefix}⚡${accent.reset} ${bold.prefix}dhara${bold.reset} ${dim.prefix}${version}${dim.reset}`,
-        visibleWidth(`⚡ dhara ${version}`),
-      ),
-      row(
-        `${dim.prefix}The Agent Protocol Standard${dim.reset}`,
-        visibleWidth("The Agent Protocol Standard"),
-      ),
-      row("", 0),
-      row(
-        `${bold.prefix}${provider}${bold.reset}/${bold.prefix}${model}${bold.reset}`,
-        visibleWidth(`${provider}/${model}`),
-      ),
-      row(`${dim.prefix}${cwd}${dim.reset}`, visibleWidth(cwd)),
-      row(
-        `${muted.prefix}Session ${sid}${muted.reset}  ${dim.prefix}Type /help for commands${dim.reset}`,
-        visibleWidth(`Session ${sid}  Type /help for commands`),
-      ),
-      `  ${B}└${h.repeat(w)}┘${R}`,
+      ...renderHeader(this.theme, this.cfg, width),
+      ...renderMessages(this.theme, this.messages, this.streamContent, this.streamReasoning, width),
+      this.theme.apply("dim", "─".repeat(width)),
+      ...this.editor.render(width),
+      ...this.statusBar.render(width),
     ];
   }
 
-  // ── Messages ──────────────────────────────────────────────────────
-
-  private renderMessages(width: number): string[] {
-    const lines: string[] = [];
-
-    // Past messages
-    for (const msg of this.messages) {
-      for (const l of new ChatMessage(this.theme, msg).render(width)) lines.push(l);
-      lines.push("");
-    }
-
-    // Streaming
-    if (this.streamingContent) {
-      const msgs = new ChatMessage(this.theme, {
-        role: "assistant",
-        content: this.streamingContent,
-        reasoning: this.streamingReasoning || undefined,
-      });
-      for (const l of msgs.render(width)) lines.push(l);
-    }
-
-    // Active tool calls with output
-    for (const [, tc] of this.activeToolCalls) {
-      const style = this.theme.resolve("tool.name");
-      const dim = this.theme.resolve("dim");
-
-      // Tool header
-      const input = tc.input ? ` ${dim.prefix}${tc.input.slice(0, 80)}${dim.reset}` : "";
-      lines.push(`  ${style.prefix}[${tc.name}]${style.reset}${input}`);
-
-      // Tool output (last few lines, with diff coloring)
-      const buf = this.toolBuffers.get(tc.name) ?? "";
-      const bufLines = buf.split("\n").slice(-6);
-      for (const l of bufLines) {
-        const rendered = this.renderToolLine(l, width);
-        lines.push(`    ${rendered}`);
-      }
-    }
-
-    return lines;
-  }
-
-  /** Render a single line of tool output with diff coloring. */
-  private renderToolLine(line: string, maxW: number): string {
-    const add = this.theme.resolve("tool.diff.add");
-    const rem = this.theme.resolve("tool.diff.remove");
-    const out = this.theme.resolve("tool.output");
-
-    if (line.startsWith("+")) return `${add.prefix}${line.slice(0, maxW)}${add.reset}`;
-    if (line.startsWith("-")) return `${rem.prefix}${line.slice(0, maxW)}${rem.reset}`;
-    return `${out.prefix}${line.slice(0, maxW)}${out.reset}`;
-  }
-
-  // ── Input handling ────────────────────────────────────────────────
-
   handleInput(data: string): boolean {
     if (data === "\x03") return this.handleCtrlC();
-    if (data === "\x04") {
-      if (this.editor.getText() === "") {
-        this.cfg.onExit();
-        return true;
-      }
-    }
-    this.ctrlCPressed = false;
-    if (this.ctrlCTimer) {
-      clearTimeout(this.ctrlCTimer);
-      this.ctrlCTimer = null;
-    }
+    if (data === "\x04" && this.editor.getText() === "") { this.cfg.onExit(); return true; }
+    this.ctrlCTapped = false;
+    if (this.ctrlCTimer) { clearTimeout(this.ctrlCTimer); this.ctrlCTimer = null; }
     return this.editor.handleInput(data);
   }
 
-  private handleCtrlC(): boolean {
-    if (this.processing) {
-      this.processing = false;
-      this.finishStream();
-      this.statusBar.update({ state: "idle" });
-      this.addSystemMessage("Cancelled.");
-      this.onRenderRequest?.();
-      return true;
-    }
-    if (!this.ctrlCPressed) {
-      this.ctrlCPressed = true;
-      this.addSystemMessage("Press Ctrl+C again or Ctrl+D to exit.");
-      this.onRenderRequest?.();
-      this.ctrlCTimer = setTimeout(() => {
-        this.ctrlCPressed = false;
-        this.ctrlCTimer = null;
-        const last = this.messages[this.messages.length - 1];
-        if (last?.content?.includes("Press Ctrl+C again")) this.messages.pop();
-        this.onRenderRequest?.();
-      }, 1500);
-      return true;
-    }
-    this.cfg.onExit();
-    return true;
+  invalidate(): void { this.editor.invalidate(); this.statusBar.invalidate(); }
+
+  getCursorPosition() {
+    const p = this.editor.getCursorPosition();
+    if (!p) return null;
+    const hdr = renderHeader(this.theme, this.cfg, 80).length;
+    const msgs = renderMessages(this.theme, this.messages, this.streamContent, this.streamReasoning, 80).length;
+    return { line: hdr + msgs + 1 + p.line, column: p.column };
   }
 
-  invalidate(): void {
-    this.editor.invalidate();
-    this.statusBar.invalidate();
-  }
-
-  getCursorPosition(): { line: number; column: number } | null {
-    const pos = this.editor.getCursorPosition();
-    if (!pos) return null;
-    // Cursor is at: header height + all message lines + spacer + editor cursor line
-    const headerH = this.renderHeader(80).length;
-    const msgH = this.renderMessages(80).length;
-    return { line: headerH + msgH + 1 + pos.line, column: pos.column };
-  }
-
-  // ── Public API ────────────────────────────────────────────────────
-
-  addMessage(c: ChatMessageConfig) {
-    this.messages.push(c);
-  }
-  appendDelta(d: string) {
-    this.streamingContent += d;
-  }
-  appendReasoning(t: string) {
-    this.streamingReasoning += t;
-  }
+  // ── Public API ──────────────────────────────────────────────────────
 
   finishStream(): void {
-    if (this.streamingContent) {
-      this.messages.push({ role: "assistant", content: this.streamingContent });
-    }
-    this.streamingContent = "";
-    this.streamingReasoning = "";
+    if (this.streamContent) this.messages.push({ role: "assistant", content: this.streamContent });
+    this.streamContent = "";
+    this.streamReasoning = "";
     this.processing = false;
     this.statusBar.update({ state: "idle" });
   }
 
-  startToolCall(id: string, name: string, input?: string): void {
-    this.activeToolCalls.set(id, { name, input, startedAt: Date.now() });
+  addMessage(c: ChatMessageConfig): void { this.messages.push(c); }
+
+  // ── Event wiring ────────────────────────────────────────────────────
+
+  setEventBus(bus: EventBus): void {
+    this.disposeSubs();
+    wireEvents(bus, this);
   }
 
-  appendToolOutput(id: string, output: string): void {
-    // Tool output is tracked by tool name for simplicity
-    const tc = this.activeToolCalls.get(id);
-    if (!tc) return;
-    const existing = this.toolBuffers.get(tc.name) ?? "";
-    this.toolBuffers.set(tc.name, existing + output);
+  private disposeSubs(): void { for (const u of this._unsubs) u(); this._unsubs = []; }
+
+  dispose(): void {
+    this.disposeSubs();
+    if (this.ctrlCTimer) clearTimeout(this.ctrlCTimer);
   }
 
-  finishToolCall(id: string): void {
-    const tc = this.activeToolCalls.get(id);
-    if (!tc) return;
-    const output = this.toolBuffers.get(tc.name);
-    if (output !== undefined) {
-      this.messages.push({ role: "tool", content: output, toolCall: tc.name });
+  // ── Exit ────────────────────────────────────────────────────────────
+
+  private handleCtrlC(): boolean {
+    if (this.processing) { this.finishStream(); this.addMessage({ role: "system", content: "Cancelled." }); this.onRender?.(); return true; }
+    if (!this.ctrlCTapped) {
+      this.ctrlCTapped = true;
+      this.addMessage({ role: "system", content: "Press Ctrl+C again or Ctrl+D to exit." });
+      this.onRender?.();
+      this.ctrlCTimer = setTimeout(() => { this.ctrlCTapped = false; this.ctrlCTimer = null; }, 1500);
+      return true;
     }
-    this.activeToolCalls.delete(id);
+    this.cfg.onExit(); return true;
   }
 
-  updateStatus(s: Partial<StatusBarConfig>) {
-    this.statusBar.update(s);
-  }
+  // ── Slash commands ──────────────────────────────────────────────────
 
-  addSystemMessage(text: string, isErr = false): void {
-    this.messages.push({ role: isErr ? "error" : "system", content: text });
-  }
-
-  // ── Slash commands ────────────────────────────────────────────────
-
-  private handleSlashCommand(input: string): void {
+  private slash(input: string): void {
     const cmd = input.split(/\s+/)[0]?.toLowerCase();
     switch (cmd) {
-      case "/help":
-        this.showHelp();
-        break;
-      case "/clear":
-        this.messages = [];
-        this.finishStream();
-        break;
-      case "/exit":
-      case "/quit":
-        this.cfg.onExit();
-        break;
-      default:
-        this.addSystemMessage(`Unknown: ${cmd}. Type /help.`, true);
+      case "/help": this.messages.push({ role: "system", content: SLASH_HELP }); break;
+      case "/clear": this.messages = []; this.finishStream(); break;
+      case "/exit": case "/quit": this.cfg.onExit(); break;
+      default: this.messages.push({ role: "error", content: `Unknown: ${cmd}. Type /help.` });
     }
   }
+}
 
-  private showHelp(): void {
-    this.messages.push({
-      role: "system",
-      content: [
-        "Commands:  /help  /clear  /exit",
-        "",
-        "Shortcuts:",
-        "  ↑/↓ history   Shift+Enter newline   Enter submit",
-        "  Ctrl+A/E line start/end   Ctrl+K delete to end",
-        "  Ctrl+U delete line   Ctrl+W delete word",
-        "  Alt+B/F word back/forward   Ctrl+C cancel/exit",
-        "  Ctrl+D exit (when empty)",
-      ].join("\n"),
-    });
+// ── Extracted rendering ────────────────────────────────────────────────
+
+function renderHeader(theme: Theme, cfg: DharaAppConfig, width: number): string[] {
+  const B = theme.resolve("panel.border");
+  const A = theme.resolve("accent");
+  const D = theme.resolve("dim");
+  const Bd = theme.resolve("bold");
+  const M = theme.resolve("muted");
+
+  const v = cfg.version ?? "v0.1.0";
+  const p = cfg.status?.provider ?? "?";
+  const m = cfg.status?.model ?? "?";
+  const c = cfg.status?.cwd ?? "?";
+  const s = cfg.status?.sessionId ?? "?";
+
+  const w = width - 4;
+  const h = "─";
+  const row = (content: string, plainW: number) =>
+    `${B.prefix}  ${content}${" ".repeat(Math.max(0, w - plainW))}  ${B.reset}`;
+
+  return [
+    `  ${B.prefix}┌${h.repeat(w)}┐${B.reset}`,
+    row(`${A.prefix}⚡${A.reset} ${Bd.prefix}dhara${Bd.reset} ${D.prefix}${v}${D.reset}`, visibleWidth(`⚡ dhara ${v}`)),
+    row(`${D.prefix}The Agent Protocol Standard${D.reset}`, visibleWidth("The Agent Protocol Standard")),
+    row("", 0),
+    row(`${Bd.prefix}${p}${Bd.reset}/${Bd.prefix}${m}${Bd.reset}`, visibleWidth(`${p}/${m}`)),
+    row(`${D.prefix}${c}${D.reset}`, visibleWidth(c)),
+    row(`${M.prefix}Session ${s}${M.reset}  ${D.prefix}Type /help${D.reset}`, visibleWidth(`Session ${s}  Type /help`)),
+    `  ${B.prefix}└${h.repeat(w)}┘${B.reset}`,
+  ];
+}
+
+function renderMessages(
+  theme: Theme,
+  messages: ChatMessageConfig[],
+  streaming: string,
+  reasoning: string,
+  width: number,
+): string[] {
+  const lines: string[] = [];
+  for (const m of messages) {
+    for (const l of new ChatMessage(theme, m).render(width)) lines.push(l);
+    lines.push("");
   }
+  if (streaming) {
+    for (const l of new ChatMessage(theme, { role: "assistant", content: streaming, reasoning: reasoning || undefined }).render(width))
+      lines.push(l);
+  }
+  return lines;
+}
 
-  // ── Event subscriptions ──────────────────────────────────────────
+// ── Event wiring ───────────────────────────────────────────────────────
 
-  private subscribe(bus: EventBus): void {
-    const req = () => this.onRenderRequest?.();
+function wireEvents(bus: EventBus, app: DharaApp): void {
+  const R = () => app.onRender?.();
 
-    this.unsubscribes.push(
-      bus.subscribe("agent:start", () => {
-        this.statusBar.update({ state: "thinking" });
-        req();
-        return allow();
-      }),
-    );
+  const EVENTS: [string, (e: unknown) => void][] = [
+    ["agent:start", () => { app.statusBar.update({ state: "thinking" }); R(); }],
+    ["message:delta", (e) => {
+      app.streamContent += (e as { delta: string }).delta;
+      app.statusBar.update({ state: "streaming" }); R();
+    }],
+    ["message:reasoning", (e) => { app.streamReasoning += (e as { text: string }).text; R(); }],
+    ["agent:end", (e) => {
+      app.finishStream();
+      const ek = e as { result?: { tokens?: { input: number; output: number } } };
+      if (ek?.result?.tokens) app.statusBar.update({ tokens: ek.result.tokens });
+      R();
+    }],
+    ["agent:error", (e) => {
+      app.finishStream();
+      app.statusBar.update({ state: "error" });
+      app.addMessage({ role: "error", content: (e as { error: Error }).error.message });
+      R();
+    }],
+    ["agent:cancelled", () => { app.finishStream(); app.addMessage({ role: "system", content: "Cancelled." }); R(); }],
+  ];
 
-    this.unsubscribes.push(
-      bus.subscribe("message:delta", (e) => {
-        this.appendDelta((e as { delta: string }).delta);
-        this.statusBar.update({ state: "streaming" });
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("message:reasoning", (e) => {
-        this.appendReasoning((e as { text: string }).text);
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("tool:start", (e) => {
-        const { id, name, input } = e as { id: string; name: string; input?: string };
-        this.startToolCall(id, name, input);
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("tool:progress", (e) => {
-        const { id, output } = e as { id: string; output: string };
-        this.appendToolOutput(id, output);
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("tool:end", (e) => {
-        this.finishToolCall((e as { id: string }).id);
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("agent:end", (e) => {
-        this.finishStream();
-        const ev = e as { result?: { tokens?: { input: number; output: number } } };
-        if (ev?.result?.tokens) this.statusBar.update({ tokens: ev.result.tokens });
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("agent:error", (e) => {
-        this.finishStream();
-        this.statusBar.update({ state: "error" });
-        this.addSystemMessage(`Error: ${(e as { error: Error }).error.message}`, true);
-        req();
-        return allow();
-      }),
-    );
-
-    this.unsubscribes.push(
-      bus.subscribe("agent:cancelled", () => {
-        this.finishStream();
-        this.addSystemMessage("Cancelled.");
-        req();
-        return allow();
-      }),
-    );
+  for (const [event, handler] of EVENTS) {
+    app.addUnsub(bus.subscribe(event, handler as () => HookResult));
   }
 }
+
+const SLASH_HELP = [
+  "Commands:  /help  /clear  /exit",
+  "",
+  "Shortcuts:",
+  "  ↑/↓ history   Shift+Enter newline   Enter submit",
+  "  Ctrl+A/E start/end   Ctrl+K delete to end   Ctrl+U delete line",
+  "  Ctrl+W delete word   Alt+B/F word   Ctrl+C cancel/exit",
+].join("\n");
