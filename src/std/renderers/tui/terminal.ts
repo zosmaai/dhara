@@ -76,11 +76,7 @@ export class ProcessTerminal implements Terminal {
     const oldRows = this._rows;
     this._columns = this.output.columns || 80;
     this._rows = this.output.rows || 24;
-    if (
-      this.started &&
-      (oldCols !== this._columns || oldRows !== this._rows) &&
-      this.onResizeCb
-    ) {
+    if (this.started && (oldCols !== this._columns || oldRows !== this._rows) && this.onResizeCb) {
       this.onResizeCb();
     }
   }

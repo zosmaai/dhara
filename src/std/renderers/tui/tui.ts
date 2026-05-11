@@ -13,7 +13,7 @@
  * - **Focus management**: One component receives keyboard input.
  * - **Overlay system**: Components rendered on top of existing content.
  */
-import type { FocusableComponent, Component } from "./components/component.js";
+import type { Component, FocusableComponent } from "./components/component.js";
 import type { Terminal } from "./terminal.js";
 import { synchronized } from "./terminal.js";
 
@@ -115,6 +115,14 @@ export class TUI {
     this.render();
   }
 
+  /** Defer render to next tick (for initial render after terminal setup). */
+  private requestRenderDeferred(): void {
+    if (!this.started) return;
+    setImmediate(() => {
+      if (this.started) this.render();
+    });
+  }
+
   /** Start the TUI: take over the terminal and begin rendering. */
   start(): void {
     if (this.started) return;
@@ -125,7 +133,8 @@ export class TUI {
       () => this.handleResize(),
     );
 
-    this.render();
+    // Defer first render so terminal size is ready (pi-tui pattern)
+    this.requestRenderDeferred();
   }
 
   /** Stop the TUI: restore terminal and release resources. */
@@ -223,6 +232,15 @@ export class TUI {
     for (const overlay of this.overlays) {
       const overlayLines = overlay.component.render(width, height);
       lines = this.blendOverlay(lines, overlayLines);
+    }
+
+    // Pad to exactly terminal height to prevent layout jitter
+    while (lines.length < height) {
+      lines.push("");
+    }
+    // Clip to terminal height (show bottom = most recent for chat)
+    if (lines.length > height) {
+      lines = lines.slice(-height);
     }
 
     // Determine rendering strategy

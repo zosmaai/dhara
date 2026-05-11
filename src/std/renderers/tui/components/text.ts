@@ -3,7 +3,7 @@
  *
  * Supports ANSI-styled text and handles wrapping at word boundaries.
  */
-import { ThemedComponent, type Component, visibleWidth } from "./component.js";
+import { type Component, ThemedComponent, visibleWidth } from "./component.js";
 
 /**
  * A simple component that renders text content with optional styling.

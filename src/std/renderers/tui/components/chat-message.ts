@@ -1,11 +1,11 @@
+import type { Theme } from "../theme.js";
 /**
  * Chat message component: renders a single chat message with role styling.
  *
  * Handles user, assistant, tool, and error messages with appropriate
  * theme styles. Supports reasoning/thinking display.
  */
-import { type Component, visibleWidth, truncateToWidth } from "./component.js";
-import type { Theme } from "../theme.js";
+import { type Component, truncateToWidth, visibleWidth } from "./component.js";
 
 export type ChatRole = "user" | "assistant" | "tool" | "error" | "system";
 

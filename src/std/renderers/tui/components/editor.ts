@@ -1,3 +1,13 @@
+import {
+  DEFAULT_KEYBINDINGS,
+  type KeyAction,
+  type KeyBinding,
+  isPrintable,
+  isShiftEnter,
+  mergeBindings,
+  resolveBinding,
+} from "../keybindings.js";
+import type { Theme } from "../theme.js";
 /**
  * Editor component: multiline text input with readline/emacs keybindings.
  *
@@ -14,17 +24,7 @@
  *
  * The editor is theme-aware via style names.
  */
-import { type FocusableComponent, visibleWidth, truncateToWidth } from "./component.js";
-import type { Theme } from "../theme.js";
-import {
-  type KeyAction,
-  type KeyBinding,
-  DEFAULT_KEYBINDINGS,
-  resolveBinding,
-  isShiftEnter,
-  isPrintable,
-  mergeBindings,
-} from "../keybindings.js";
+import { type FocusableComponent, truncateToWidth, visibleWidth } from "./component.js";
 
 export interface EditorConfig {
   /** Prompt text shown before the input line. */
@@ -215,8 +215,7 @@ export class Editor implements FocusableComponent {
     // Cursor line within the viewport
     const visualLine = this.cursorLine;
     // Cursor column: prompt width + cursor position in current line
-    const visualCol =
-      visualLine === 0 ? promptLen + this.cursorCol : this.cursorCol;
+    const visualCol = visualLine === 0 ? promptLen + this.cursorCol : this.cursorCol;
     return { line: visualLine, column: visualCol };
   }
 
