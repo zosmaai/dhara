@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type ContextFile, loadContextFiles, reloadContextFiles } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
 import { ExtensionManager } from "../core/extension-manager.js";
@@ -41,8 +42,19 @@ const KNOWN_PROVIDERS: Record<
   },
 };
 
+function getVersion(): string {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkgPath = join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version as string;
+  } catch {
+    return "0.1.0";
+  }
+}
+
 function printUsage(): void {
-  process.stdout.write(`dhara — The Agent Protocol Standard
+  process.stdout.write(`dhara — The Agent Protocol Standard v${getVersion()}
 
 Usage:
   dhara <prompt> [options]    One-shot: run a single prompt and exit
@@ -58,6 +70,7 @@ Options:
   --resume <id>            Resume a previous session by ID (REPL mode only)
   --no-context-files       Disable AGENTS.md / CLAUDE.md loading
   --no-project-config      Disable .dhara/settings.json loading
+  --version                Show version and exit
   --help                   Show this help message
 
 Environment:
@@ -66,6 +79,22 @@ Environment:
     OPENAI_API_KEY     API key for openai
     ANTHROPIC_API_KEY  API key for anthropic
   For custom providers, set DHARA_API_KEY as fallback.
+
+REPL commands (type /help in session):
+  /exit, /quit       Exit the REPL
+  /save              Save the current session
+  /list              List saved sessions
+  /history [N]       Show recent conversation history
+  /status            Show configuration and stats
+  /skills            List loaded skills
+  /reload            Reload config files and skills
+
+Features:
+  Streaming output   Real-time token display
+  Tool progress      Visible tool execution with diffs
+  Token tracking     Usage displayed after each response
+  Extensions         Subprocess tools via JSON-RPC
+  Context files      AGENTS.md / CLAUDE.md auto-loading
 
 Examples:
   dhara "List the files in this project"   One-shot
@@ -82,6 +111,7 @@ function getArg(args: string[], name: string): string | undefined {
 
 const OPTION_NAMES = new Set([
   "help",
+  "version",
   "provider",
   "model",
   "base-url",
@@ -230,6 +260,11 @@ function createContextState(cwd: string, disableContextFiles: boolean) {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
+
+  if (args.includes("--version")) {
+    process.stdout.write(`dhara v${getVersion()}\n`);
+    process.exit(0);
+  }
 
   if (args.includes("--help")) {
     printUsage();
