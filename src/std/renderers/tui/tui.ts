@@ -54,6 +54,8 @@ export class TUI {
   private previousLines: string[] = [];
   private started = false;
   private renderScheduled = false;
+  /** Track actual terminal cursor row (0-indexed from top). */
+  private cursorRow = 0;
 
   // Input handling
   private inputBuffer = "";
@@ -266,13 +268,13 @@ export class TUI {
     const output = lines.map((l) => `\r${l}`).join("\n");
     this.terminal.write(synchronized(output));
     this.terminal.write("\n");
+    this.cursorRow = lines.length;
   }
 
   private fullRender(lines: string[]): void {
-    // Move cursor to top of the TUI area
-    const prevHeight = this.previousLines.length;
-    if (prevHeight > 0) {
-      this.terminal.moveBy(prevHeight - 1);
+    // Move cursor from current position to top of content area
+    if (this.cursorRow > 0) {
+      this.terminal.moveBy(this.cursorRow);
     }
 
     // Clear from cursor to end, then render all lines
@@ -280,6 +282,7 @@ export class TUI {
     const output = lines.map((l) => `\r${l}`).join("\n");
     this.terminal.write(synchronized(output));
     this.terminal.write("\n");
+    this.cursorRow = lines.length;
 
     this.fullRedraws++;
   }
@@ -297,8 +300,8 @@ export class TUI {
 
     if (firstChange === -1) return; // Nothing changed
 
-    // Move cursor to first changed line
-    const moveUp = this.previousLines.length - firstChange;
+    // Move cursor from current position to first changed line
+    const moveUp = this.cursorRow - firstChange;
     this.terminal.moveBy(moveUp);
 
     // Clear from first change to bottom
@@ -318,6 +321,7 @@ export class TUI {
     } else {
       this.terminal.write("\n");
     }
+    this.cursorRow = lines.length;
   }
 
   /** Blend overlay lines on top of base content. */
@@ -344,5 +348,6 @@ export class TUI {
     this.terminal.moveBy(moveUp);
     this.terminal.write(`\r\x1b[${column}C`);
     this.terminal.showCursor();
+    this.cursorRow = line;
   }
 }

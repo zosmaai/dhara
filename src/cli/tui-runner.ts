@@ -15,6 +15,9 @@ import {
   loadThemeFile,
 } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface TuiConfig {
   sessionManager: SessionManager;
@@ -46,6 +49,9 @@ export async function runTui(config: TuiConfig): Promise<void> {
     onReload,
     theme: themeArg,
   } = config;
+
+  // ── Version ────────────────────────────────────────────────────────
+  const pkgVersion = getPkgVersion();
 
   // ── Theme ──────────────────────────────────────────────────────────
   let theme: Theme;
@@ -103,7 +109,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
   // ── Chat ───────────────────────────────────────────────────────────
   const chat = new DharaApp({
     theme,
-    version: "0.1.0",
+    version: pkgVersion,
     status: {
       provider: providerName,
       model: modelId,
@@ -198,4 +204,17 @@ export async function runTui(config: TuiConfig): Promise<void> {
       resolve();
     };
   });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+function getPkgVersion(): string {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const pkgPath = join(__dirname, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version as string;
+  } catch {
+    return "0.1.0";
+  }
 }
