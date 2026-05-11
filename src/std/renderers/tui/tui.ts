@@ -53,6 +53,7 @@ export class TUI {
   // Rendering state
   private previousLines: string[] = [];
   private started = false;
+  private renderScheduled = false;
 
   // Input handling
   private inputBuffer = "";
@@ -109,16 +110,14 @@ export class TUI {
     return entry.handle;
   }
 
-  /** Request a re-render on the next animation frame. */
+  /** Request a re-render, debounced via nextTick. */
   requestRender(): void {
     if (!this.started) return;
-    this.render();
-  }
-
-  /** Defer render to next tick (for initial render after terminal setup). */
-  private requestRenderDeferred(): void {
-    if (!this.started) return;
+    // Debounce: if already scheduled, skip
+    if (this.renderScheduled) return;
+    this.renderScheduled = true;
     setImmediate(() => {
+      this.renderScheduled = false;
       if (this.started) this.render();
     });
   }
@@ -133,8 +132,8 @@ export class TUI {
       () => this.handleResize(),
     );
 
-    // Defer first render so terminal size is ready (pi-tui pattern)
-    this.requestRenderDeferred();
+    // Defer first render so terminal size is ready
+    this.requestRender();
   }
 
   /** Stop the TUI: restore terminal and release resources. */
@@ -192,14 +191,14 @@ export class TUI {
     // Route to focused component
     if (this.focusedComponent?.handleInput) {
       this.focusedComponent.handleInput(data);
-      this.render();
+      this.requestRender();
       return;
     }
 
     // Route to root if it handles input
     if (this.root?.handleInput) {
       this.root.handleInput(data);
-      this.render();
+      this.requestRender();
     }
   }
 
