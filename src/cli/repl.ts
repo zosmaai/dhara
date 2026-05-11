@@ -223,7 +223,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
   process.on("SIGINT", sigintHandler);
 
   // ── Readline loop ──────────────────────────────────────────────────
-  const rl = createInterface({ input, terminal: false });
+  const rl = createInterface({ input, terminal: true });
 
   for await (const line of rl) {
     const command = parseInput(line);

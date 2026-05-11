@@ -159,6 +159,11 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       // Emit message events for the assistant response
       eb?.emit("message:start", { entry: assistantEntry, content: response.content });
 
+      // Emit reasoning/thinking content if present
+      if (response.reasoningContent) {
+        eb?.emit("message:reasoning", { entry: assistantEntry, text: response.reasoningContent });
+      }
+
       // If streaming content, emit deltas (for now, emit the full content)
       if (response.content.length > 0) {
         eb?.emit("message:delta", {

@@ -267,6 +267,10 @@ export function createOpenAIProvider(config: OpenAIProviderConfig): Provider {
           // Accumulate reasoning content
           if (reasoningDelta) {
             fullReasoning += reasoningDelta;
+            eventBus.emit("message:reasoning", {
+              entry: { id: "" },
+              text: reasoningDelta,
+            });
           }
 
           // Accumulate tool call deltas

@@ -251,6 +251,16 @@ export function subscribePromptEvents(eventBus: EventBus, config: PromptEventCon
     }),
   );
 
+  // Reasoning/thinking content display
+  unsubs.push(
+    eventBus.subscribe<{ text: string }>("message:reasoning", (payload) => {
+      if (payload.text) {
+        errorOutput.write(tag(ANSI.dim, payload.text, colorEnabled));
+      }
+      return { action: "allow" };
+    }),
+  );
+
   // Token usage after each response (agent:response has usage data)
   unsubs.push(
     eventBus.subscribe<{ usage?: { input: number; output: number } }>(
