@@ -134,8 +134,19 @@ export class TUI {
       () => this.handleResize(),
     );
 
-    // Defer first render so terminal size is ready
-    this.requestRender();
+    // Render immediately — do not defer. Some terminals clear the
+    // alt-screen shortly after the switch, so a deferred render can
+    // race and produce a blank screen.
+    this.render();
+
+    // Re-render after a short delay to catch terminals that clear
+    // after the alt-screen switch completes.
+    setTimeout(() => {
+      if (this.started) {
+        this.previousLines = [];
+        this.render();
+      }
+    }, 100);
   }
 
   /** Stop the TUI: restore terminal and release resources. */

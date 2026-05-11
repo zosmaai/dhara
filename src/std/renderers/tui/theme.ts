@@ -257,6 +257,39 @@ export const DEFAULT_THEME: ThemeDefinition = {
     "selector.inactive": { fg: "#6272a4" },
     loader: { fg: "#f1fa8c" },
 
+    // ── Syntax highlighting ──
+    "syntax.keyword": { fg: "#ff79c6", bold: true },
+    "syntax.string": { fg: "#f1fa8c" },
+    "syntax.comment": { fg: "#6272a4", italic: true },
+    "syntax.number": { fg: "#bd93f9" },
+    "syntax.function": { fg: "#50fa7b" },
+    "syntax.type": { fg: "#8be9fd" },
+    "syntax.operator": { fg: "#ff79c6" },
+    "syntax.punctuation": { fg: "#f8f8f2" },
+    "syntax.property": { fg: "#8be9fd" },
+    "syntax.tag": { fg: "#ff79c6" },
+    "syntax.attribute": { fg: "#50fa7b" },
+    "syntax.plain": { fg: "#f8f8f2" },
+
+    // ── Markdown ──
+    "markdown.h1": { fg: "#bd93f9", bold: true },
+    "markdown.h2": { fg: "#bd93f9", bold: true },
+    "markdown.h3": { fg: "#bd93f9", bold: true },
+    "markdown.bold": { bold: true },
+    "markdown.italic": { italic: true },
+    "markdown.code": { fg: "#f1fa8c" },
+    "markdown.link": { fg: "#8be9fd", underline: true },
+    "markdown.bullet": { fg: "#50fa7b" },
+    "markdown.number": { fg: "#50fa7b" },
+    "markdown.quote": { fg: "#6272a4", italic: true },
+
+    // ── Tool call boxes ──
+    "tool.box.border": { fg: "#44475a" },
+    "tool.box.title": { fg: "#8be9fd", bold: true },
+    "tool.box.icon": { fg: "#50fa7b" },
+    "tool.box.path": { fg: "#f1fa8c" },
+    "tool.box.meta": { fg: "#6272a4" },
+
     // ── Accent colors ──
     accent: { fg: "#bd93f9" },
     success: { fg: "#50fa7b" },

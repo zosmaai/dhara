@@ -267,7 +267,7 @@ describe("StatusBar", () => {
     const bar = new StatusBar(theme, { state: "idle" });
     bar.update({ state: "thinking" });
     const lines = bar.render(80);
-    expect(lines[0]).toContain("●");
+    expect(lines[0]).toContain("◐");
   });
 });
 
@@ -311,7 +311,8 @@ describe("Editor", () => {
     const theme = new Theme(DEFAULT_THEME);
     const editor = new Editor(theme, { prompt: "> " });
     const lines = editor.render(60);
-    expect(lines[0]).toContain(">");
+    // Line 0 is the top border, prompt is on line 1
+    expect(lines[1]).toContain(">");
   });
 
   it("shows placeholder when empty and unfocused", () => {
