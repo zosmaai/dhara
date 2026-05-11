@@ -223,8 +223,10 @@ export class TUI {
   private render(): void {
     if (!this.root) return;
 
-    const width = this.terminal.columns;
+    const rawWidth = this.terminal.columns;
     const height = this.terminal.rows;
+    // Cap width to prevent absurdly wide boxes on large monitors
+    const width = Math.min(rawWidth, 120);
 
     // Collect all lines: root + overlays
     let lines = this.root.render(width, height);
