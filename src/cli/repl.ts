@@ -303,6 +303,26 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           }
         }
 
+        // Calculate total token usage from session entries
+        const path = session.getPath();
+        let totalInput = 0;
+        let totalOutput = 0;
+        for (const id of path) {
+          const entry = session.getEntry(id);
+          if (entry?.type === "entry") {
+            const e = entry as import("../core/session.js").SessionEntry;
+            if (e.metadata?.tokenCount) {
+              totalInput += e.metadata.tokenCount.input ?? 0;
+              totalOutput += e.metadata.tokenCount.output ?? 0;
+            }
+          }
+        }
+        if (totalInput > 0 || totalOutput > 0) {
+          output.write(
+            `  Token usage: ${dim(`${totalInput.toLocaleString()} in / ${totalOutput.toLocaleString()} out`)}\n`,
+          );
+        }
+
         output.write(`  Session: ${session.meta.sessionId}\n`);
         output.write("\n");
         break;
