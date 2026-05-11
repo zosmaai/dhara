@@ -147,9 +147,14 @@ export class Editor implements FocusableComponent {
     const promptCode = this.theme.resolve(this.promptStyle);
     const textCode = this.theme.resolve(this.textStyle);
     const placeholderCode = this.theme.resolve(this.placeholderStyle);
+    const borderStyle = this.theme.resolve("panel.border");
+    const dimStyle = this.theme.resolve("dim");
 
     const result: string[] = [];
     const displayLines = this.getDisplayLines();
+
+    // Top border
+    result.push(borderStyle.prefix + "─".repeat(width) + borderStyle.reset);
 
     for (let i = 0; i < displayLines.length; i++) {
       const isFirstLine = i === 0;
@@ -158,26 +163,27 @@ export class Editor implements FocusableComponent {
       if (isFirstLine) {
         const prefix = promptCode.prefix + this.prompt + promptCode.reset + textCode.prefix;
         const suffix = textCode.reset;
-        const available = width - visibleWidth(this.prompt);
+        const available = width - visibleWidth(this.prompt) - 2;
 
         if (lineContent === "" && this.lines.join("") === "" && !this.focused) {
           // Show placeholder when empty and unfocused
           result.push(
-            promptCode.prefix +
-              this.prompt +
-              promptCode.reset +
-              placeholderCode.prefix +
-              truncateToWidth(this.placeholder, available) +
-              placeholderCode.reset,
+            ` ${promptCode.prefix}${this.prompt}${promptCode.reset}${placeholderCode.prefix}${truncateToWidth(this.placeholder, available)}${placeholderCode.reset}`,
           );
         } else {
-          result.push(prefix + truncateToWidth(lineContent, available) + suffix);
+          result.push(` ${prefix}${truncateToWidth(lineContent, available)}${suffix}`);
         }
       } else {
-        // Continuation lines: indent same as prompt
-        const indent = " ".repeat(visibleWidth(this.prompt));
-        result.push(indent + truncateToWidth(lineContent, width - visibleWidth(this.prompt)));
+        // Continuation lines: indent same as prompt + space
+        const indent = " ".repeat(visibleWidth(this.prompt) + 1);
+        result.push(indent + truncateToWidth(lineContent, width - visibleWidth(this.prompt) - 1));
       }
+    }
+
+    // Multiline indicator
+    if (this.lines.length > 1) {
+      const mlIndicator = `${dimStyle.prefix}└ ${this.lines.length} lines — Shift+Enter for newline, Enter to submit${dimStyle.reset}`;
+      result.push(` ${truncateToWidth(mlIndicator, width - 2)}`);
     }
 
     return result;

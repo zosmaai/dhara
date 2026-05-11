@@ -37,3 +37,16 @@ export {
   truncateToWidth,
   padToWidth,
 } from "./components/component.js";
+export {
+  highlightCode,
+  looksLikeCodeBlock,
+  extractLanguage,
+} from "./components/syntax-highlight.js";
+export type { HighlightOptions } from "./components/syntax-highlight.js";
+export {
+  renderMarkdown,
+  renderInline,
+  renderDiffBlock,
+  wrapRenderedMarkdown,
+} from "./components/markdown.js";
+export type { RenderedLine } from "./components/markdown.js";

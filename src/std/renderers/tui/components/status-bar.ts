@@ -1,9 +1,9 @@
-import type { Theme } from "../theme.js";
 /**
  * Status bar component: displays session info at the bottom of the TUI.
  *
  * Shows: model name, session ID, token usage, working directory.
  */
+import type { Theme } from "../theme.js";
 import { type Component, padToWidth, visibleWidth } from "./component.js";
 
 export interface StatusBarConfig {
@@ -61,7 +61,7 @@ export class StatusBar implements Component {
       parts.push(`${dimStyle.prefix}#${this.config.sessionId}${dimStyle.reset}`);
     }
 
-    // Right side: token usage
+    // Right side: token usage + cwd
     const rightParts: string[] = [];
     if (this.config.tokens) {
       const { input, output } = this.config.tokens;
@@ -76,8 +76,8 @@ export class StatusBar implements Component {
     }
 
     // Build the bar
-    const leftSide = parts.join(" ");
-    const rightSide = rightParts.join(" ");
+    const leftSide = parts.join("  ");
+    const rightSide = rightParts.join("  ");
 
     // Calculate spacing
     const leftWidth = visibleWidth(leftSide);
@@ -94,21 +94,27 @@ export class StatusBar implements Component {
   }
 
   private stateIcon(state: string): string {
+    const spinStyle = this.theme.resolve("accent");
+    const streamStyle = this.theme.resolve("info");
+    const idleStyle = this.theme.resolve("dim");
+    const errStyle = this.theme.resolve("error");
+
     switch (state) {
       case "thinking":
-        return "●";
+        return `${spinStyle.prefix}◐${spinStyle.reset}`;
       case "streaming":
-        return "▶";
+        return `${streamStyle.prefix}▶${streamStyle.reset}`;
       case "idle":
-        return "○";
+        return `${idleStyle.prefix}○${idleStyle.reset}`;
       case "error":
-        return "✖";
+        return `${errStyle.prefix}✖${errStyle.reset}`;
       default:
         return " ";
     }
   }
 
   private fmt(n: number): string {
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
     if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
     return String(n);
   }
@@ -119,7 +125,7 @@ export class StatusBar implements Component {
     const parts = path.split("/");
     if (parts.length <= 1) return path.slice(-maxLen);
     const last = parts[parts.length - 1];
-    const prefix = ".../";
+    const prefix = "…/";
     const available = maxLen - prefix.length - last.length;
     if (available <= 0) return `${prefix}${last.slice(-available)}`;
     const parent = parts[parts.length - 2] ?? "";
