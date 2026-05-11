@@ -121,25 +121,26 @@ function resolveConfig(args: string[]): ResolvedConfig {
     process.exit(1);
   }
 
+  // Load project-level config overrides first
+  const disableProjectConfig = args.includes("--no-project-config");
+  const projectConfig = disableProjectConfig ? undefined : loadProjectConfig(cwd);
+
+  const finalModelId = projectConfig?.settings.model ?? modelId;
+  const finalBaseUrl = projectConfig?.settings.baseUrl ?? baseUrl;
+  const maxTokens = projectConfig?.settings.maxTokens;
+
   let provider: Provider;
   try {
     if (providerName === "anthropic") {
-      provider = createAnthropicProvider({ apiKey });
+      provider = createAnthropicProvider({ apiKey, maxTokens });
     } else {
-      provider = createOpenAIProvider({ apiKey, baseUrl });
+      provider = createOpenAIProvider({ apiKey, baseUrl: finalBaseUrl });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`Error creating provider: ${msg}\n`);
     process.exit(1);
   }
-
-  // Load project-level config overrides
-  const disableProjectConfig = args.includes("--no-project-config");
-  const projectConfig = disableProjectConfig ? undefined : loadProjectConfig(cwd);
-
-  const finalModelId = projectConfig?.settings.model ?? modelId;
-  const finalBaseUrl = projectConfig?.settings.baseUrl ?? baseUrl;
 
   return {
     providerName,
