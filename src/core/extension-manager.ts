@@ -391,7 +391,10 @@ function discoverManifests(dirs: string[]): ExtensionManifest[] {
 
       try {
         const content = readFileSync(manifestPath, "utf-8");
-        const manifest = JSON.parse(content) as ExtensionManifest;
+        const isYaml = manifestPath.endsWith(".yaml");
+        const manifest = (
+          isYaml ? parseSimpleYaml(content) : JSON.parse(content)
+        ) as ExtensionManifest;
 
         // Validate required fields
         if (!manifest.name || !manifest.runtime?.command) {
@@ -409,4 +412,96 @@ function discoverManifests(dirs: string[]): ExtensionManifest[] {
   }
 
   return manifests;
+}
+
+/**
+ * Parse a simple subset of YAML that covers extension manifest files.
+ *
+ * Supports:
+ * - Key-value pairs: `name: value`
+ * - Quoted strings: `description: "some text"`
+ * - Nested objects (2 levels): `runtime:\n  type: subprocess`
+ * - Arrays: `capabilities:\n  - item1\n  - item2`
+ *
+ * Not supported: multi-line strings, anchors, aliases, complex types.
+ */
+function parseSimpleYaml(yaml: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const lines = yaml.split("\n");
+
+  let currentKey: string | null = null;
+  let currentObj: Record<string, unknown> | null = null;
+  let currentArray: unknown[] | null = null;
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\s+$/, ""); // Trim trailing whitespace
+    if (!line || line.trimStart().startsWith("#")) continue;
+
+    // Array item: starts with "  - " or "- "
+    const arrayMatch = line.match(/^\s*-\s+(.*)/);
+    if (arrayMatch && currentKey) {
+      const value = parseYamlValue(arrayMatch[1]);
+      if (currentArray) {
+        currentArray.push(value);
+      } else {
+        currentArray = [value];
+        result[currentKey] = currentArray;
+      }
+      continue;
+    }
+
+    // Nested key: starts with "  " and has no leading "-"
+    const nestedMatch = line.match(/^\s{2}([\w-]+):\s*(.*)/);
+    if (nestedMatch && currentKey) {
+      if (!currentObj) {
+        currentObj = {};
+        result[currentKey] = currentObj;
+      }
+      const val = parseYamlValue(nestedMatch[2]);
+      if (val !== undefined) {
+        currentObj[nestedMatch[1]] = val;
+      }
+      continue;
+    }
+
+    // Top-level key
+    const topMatch = line.match(/^([\w-]+):\s*(.*)/);
+    if (topMatch) {
+      currentKey = topMatch[1];
+      currentObj = null;
+      currentArray = null;
+      const val = parseYamlValue(topMatch[2]);
+      if (val !== undefined) {
+        result[currentKey] = val;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Parse a single YAML value.
+ */
+function parseYamlValue(value: string): unknown {
+  const trimmed = value.trim();
+
+  if (trimmed === "" || trimmed === "~") return undefined;
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed === "null") return null;
+
+  // Quoted string
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+
+  // Number
+  const num = Number(trimmed);
+  if (!Number.isNaN(num) && trimmed !== "") return num;
+
+  return trimmed;
 }
