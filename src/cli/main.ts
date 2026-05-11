@@ -19,6 +19,7 @@ import { createStandardToolMap } from "../std/tools/index.js";
 import { mergeExtensionTools } from "../std/tools/index.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 import { runRepl } from "./repl.js";
+import { runTui } from "./tui-runner.js";
 
 /**
  * Known providers with their default model, base URL, and env var name.
@@ -58,7 +59,8 @@ function printUsage(): void {
 
 Usage:
   dhara <prompt> [options]    One-shot: run a single prompt and exit
-  dhara [options]             REPL mode: interactive session (default)
+  dhara [options]             TUI mode: full-screen interactive session (default)
+  dhara --repl [options]      REPL mode: line-based interactive session
 
 Options:
   --provider <name>        LLM provider.
@@ -67,7 +69,9 @@ Options:
   --model <id>             Model ID (e.g. "deepseek-v4-flash", "gpt-4o")
   --base-url <url>         Custom API base URL
   --cwd <path>             Working directory (default: current directory)
-  --resume <id>            Resume a previous session by ID (REPL mode only)
+  --resume <id>            Resume a previous session by ID
+  --theme <name|path>      TUI theme (built-in: dhara-default, dracula)
+  --repl                   Use line-based REPL instead of TUI
   --no-context-files       Disable AGENTS.md / CLAUDE.md loading
   --no-project-config      Disable .dhara/settings.json loading
   --version                Show version and exit
@@ -117,6 +121,8 @@ const OPTION_NAMES = new Set([
   "base-url",
   "cwd",
   "resume",
+  "repl",
+  "theme",
   "no-context-files",
   "no-project-config",
 ]);
@@ -298,7 +304,7 @@ async function main(): Promise<void> {
   await extManager.loadExtensions([globalExtDir, projectExtDir]);
   const extensionTools = extManager.getToolRegistrations();
 
-  // ── REPL mode (no prompt argument) ──────────────────────────────────
+  // ── No prompt → interactive mode (TUI or REPL) ────────────────────
   if (!prompt) {
     const cfg = resolveConfig(args);
     const sessionManager = new SessionManager();
@@ -307,10 +313,45 @@ async function main(): Promise<void> {
     const initialSystemPrompt = ctxState.build();
     const projectConfig = loadProjectConfig(cfg.cwd);
 
+    // ── REPL mode (--repl flag) ────────────────────────────────────
+    if (args.includes("--repl")) {
+      try {
+        await runRepl({
+          input: process.stdin,
+          output: process.stdout,
+          sessionManager,
+          provider: cfg.provider,
+          cwd: cfg.cwd,
+          modelId: cfg.modelId,
+          providerName: cfg.providerName,
+          systemPrompt: initialSystemPrompt,
+          maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+          resumeSessionId,
+          contextFiles: ctxState.getFiles(),
+          skills: ctxState.getSkills(),
+          projectConfigDir: projectConfig?.configDir,
+          toolOverrides: extensionTools,
+          onReload: () => {
+            const newPrompt = ctxState.reload();
+            const newProjectConfig = loadProjectConfig(cfg.cwd);
+            return {
+              systemPrompt: newPrompt,
+              contextFiles: ctxState.getFiles(),
+              skills: ctxState.getSkills(),
+              projectConfigDir: newProjectConfig?.configDir,
+              maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+            };
+          },
+        });
+      } finally {
+        await extManager.shutdownAll();
+      }
+      process.exit(0);
+    }
+
+    // ── TUI mode (default) ────────────────────────────────────────
     try {
-      await runRepl({
-        input: process.stdin,
-        output: process.stdout,
+      await runTui({
         sessionManager,
         provider: cfg.provider,
         cwd: cfg.cwd,
@@ -319,18 +360,12 @@ async function main(): Promise<void> {
         systemPrompt: initialSystemPrompt,
         maxIterations: cfg.projectSettings?.maxIterations ?? 10,
         resumeSessionId,
-        contextFiles: ctxState.getFiles(),
-        skills: ctxState.getSkills(),
-        projectConfigDir: projectConfig?.configDir,
         toolOverrides: extensionTools,
         onReload: () => {
           const newPrompt = ctxState.reload();
           const newProjectConfig = loadProjectConfig(cfg.cwd);
           return {
             systemPrompt: newPrompt,
-            contextFiles: ctxState.getFiles(),
-            skills: ctxState.getSkills(),
-            projectConfigDir: newProjectConfig?.configDir,
             maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
           };
         },
