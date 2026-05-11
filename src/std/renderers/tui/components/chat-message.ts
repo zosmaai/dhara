@@ -46,7 +46,7 @@ export class ChatMessage implements Component {
     this.cache = null;
   }
 
-  render(width: number): string[] {
+  render(width: number, _height?: number): string[] {
     if (this.cache?.width === width) return this.cache.lines;
 
     const result: string[] = [];

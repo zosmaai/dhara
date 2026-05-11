@@ -1,8 +1,5 @@
 /**
  * TUI runner — bridges the TUI renderer with dhara's agent loop.
- *
- * Creates the ProcessTerminal, TUI instance, DharaChat component,
- * and wires agent.run() to the chat UI and event bus.
  */
 import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import { createEventBus } from "../core/events.js";
@@ -19,36 +16,20 @@ import {
 import { DharaChat } from "../std/renderers/tui/dhara-chat.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 
-// ── Types ────────────────────────────────────────────────────────────
-
 export interface TuiConfig {
-  /** SessionManager for persisting sessions. */
   sessionManager: SessionManager;
-  /** LLM provider. */
   provider: Provider;
-  /** Working directory. */
   cwd: string;
-  /** Model identifier. */
   modelId: string;
-  /** Provider name for display. */
   providerName: string;
-  /** Optional sandbox (default: full capabilities). */
   sandbox?: Sandbox;
-  /** System prompt. */
   systemPrompt?: string;
-  /** Max iterations per prompt. */
   maxIterations?: number;
-  /** Resume an existing session by ID. */
   resumeSessionId?: string;
-  /** Optional additional tool registrations. */
   toolOverrides?: ToolRegistration[];
-  /** Handler for `/reload` command. */
   onReload?: () => { systemPrompt: string; maxIterations: number };
-  /** Theme name or path. */
   theme?: string;
 }
-
-// ── Implementation ───────────────────────────────────────────────────
 
 export async function runTui(config: TuiConfig): Promise<void> {
   const {
@@ -66,66 +47,51 @@ export async function runTui(config: TuiConfig): Promise<void> {
     theme: themeArg,
   } = config;
 
-  // ── Load theme ───────────────────────────────────────────────────
+  // ── Theme ──────────────────────────────────────────────────────────
   let theme: Theme;
   if (themeArg) {
-    try {
-      theme = loadThemeFile(themeArg);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`Warning: ${msg}. Using default theme.\n`);
-      theme = new Theme(DEFAULT_THEME);
-    }
+    try { theme = loadThemeFile(themeArg); } catch { theme = new Theme(DEFAULT_THEME); }
   } else {
     theme = new Theme(DEFAULT_THEME);
   }
 
-  // ── Create or resume session ─────────────────────────────────────
+  // ── Session ────────────────────────────────────────────────────────
   const session = resumeSessionId
     ? sessionManager.load(resumeSessionId)
     : sessionManager.create({ cwd, model: { id: modelId, provider: providerName } });
 
-  // ── Create sandbox ────────────────────────────────────────────────
+  // ── Sandbox ────────────────────────────────────────────────────────
   const sandbox =
     sandboxOverride ??
     createSandbox({
-      granted: [
-        "filesystem:read",
-        "filesystem:write",
-        "filesystem:*",
-        "process:spawn",
-        "network:outbound",
-      ],
+      granted: ["filesystem:read", "filesystem:write", "filesystem:*", "process:spawn", "network:outbound"],
       cwd,
     });
 
-  // ── Create tools ──────────────────────────────────────────────────
+  // ── Tools ──────────────────────────────────────────────────────────
   let tools = createStandardToolMap({ cwd, sandbox });
-  if (toolOverrides && toolOverrides.length > 0) {
-    tools = mergeExtensionTools(tools, toolOverrides);
-  }
+  if (toolOverrides?.length) tools = mergeExtensionTools(tools, toolOverrides);
 
-  // ── Create initial system prompt ──────────────────────────────────
+  // ── System prompt ──────────────────────────────────────────────────
   const defaultPrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
   let currentSystemPrompt = systemPrompt ?? defaultPrompt;
   let currentMaxIterations = maxIterations;
 
-  // ── Create agent loop ─────────────────────────────────────────────
+  // ── Agent ──────────────────────────────────────────────────────────
   let agent: AgentLoop = createAgentLoop({
-    provider,
-    session,
-    tools,
+    provider, session, tools,
     systemPrompt: currentSystemPrompt,
     maxIterations: currentMaxIterations,
   });
 
-  // ── Create terminal + TUI ─────────────────────────────────────────
+  // ── Terminal + TUI ─────────────────────────────────────────────────
   const terminal = new ProcessTerminal();
   const tui = new TUI(terminal);
 
-  // ── Create chat component ─────────────────────────────────────────
+  // ── Chat ───────────────────────────────────────────────────────────
   const chat = new DharaChat({
     theme,
+    version: "0.1.0",
     status: {
       provider: providerName,
       model: modelId,
@@ -134,93 +100,73 @@ export async function runTui(config: TuiConfig): Promise<void> {
       state: "idle",
     },
     onSubmit: async (text: string) => {
-      // Create event bus for this prompt
       const eventBus = createEventBus();
-      // Re-create chat with event bus for streaming
-      chat.dispose();
-      chat.addMessage({ role: "assistant", content: "..." }); // TODO: wire properly
+      const abortController = new AbortController();
+
+      // Wire chat to this prompt's event bus
+      chat.setEventBus(eventBus);
+      chat.updateStatus({ state: "thinking" });
       tui.requestRender();
 
       try {
-        await agent.run(text, undefined, eventBus);
+        await agent.run(text, abortController.signal, eventBus);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         chat.addSystemMessage(`Error: ${msg}`, true);
       } finally {
         chat.finishStream();
-        // Save session
-        try {
-          session.save();
-        } catch {
-          // Best effort
-        }
+        try { session.save(); } catch { /* best effort */ }
         chat.updateStatus({ state: "idle" });
         tui.requestRender();
       }
+    },
+    onExit: () => {
+      tui.stop();
     },
   });
 
   chat.onRenderRequest = () => tui.requestRender();
 
-  // ── Handle reload ─────────────────────────────────────────────────
+  // ── Reload ─────────────────────────────────────────────────────────
   tui.onDebug = () => {
     if (onReload) {
       try {
         const result = onReload();
         currentSystemPrompt = result.systemPrompt;
         currentMaxIterations = result.maxIterations;
-
         agent = createAgentLoop({
-          provider,
-          session,
-          tools,
+          provider, session, tools,
           systemPrompt: currentSystemPrompt,
           maxIterations: currentMaxIterations,
         });
-
         chat.addSystemMessage("Reloaded configuration.");
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        chat.addSystemMessage(`Reload error: ${msg}`, true);
+        chat.addSystemMessage(`Reload error: ${err instanceof Error ? err.message : String(err)}`, true);
       }
     }
     tui.requestRender();
   };
 
-  // ── Handle shutdown ───────────────────────────────────────────────
-  tui.onShutdown = () => {
-    chat.dispose();
-    try {
-      session.save();
-    } catch {
-      // Best effort
-    }
-    terminal.write(`\nDhara session saved: ${session.meta.sessionId.slice(0, 8)}\n`);
-  };
-
-  // ── Start the TUI ─────────────────────────────────────────────────
+  // ── Start ──────────────────────────────────────────────────────────
   tui.setRoot(chat);
   tui.focus(chat);
   tui.start();
 
-  // ── Welcome message ───────────────────────────────────────────────
-  chat.addSystemMessage(
-    `Welcome to Dhara! Using ${theme.name} theme.
-Provider: ${providerName}/${modelId}
-Session: ${session.meta.sessionId.slice(0, 8)}
-Type /help for commands, Ctrl+C to exit.`,
-  );
-  tui.requestRender();
-
-  // ── Wait for shutdown ─────────────────────────────────────────────
-  // TUI runs synchronously via terminal input, so this promise resolves
-  // only when SIGINT/Ctrl+C stops the terminal.
+  // Wait until TUI.stop() is called (from onExit via Ctrl+C/Ctrl+D)
   await new Promise<void>((resolve) => {
-    const sigintHandler = () => {
-      process.removeListener("SIGINT", sigintHandler);
-      tui.stop();
+    const check = setInterval(() => {
+      // no-op: just keep process alive until tui stops
+    }, 500);
+    process.once("SIGTERM", () => { clearInterval(check); tui.stop(); resolve(); });
+    // Override shutdown to resolve the promise
+    const origShutdown = tui.onShutdown;
+    tui.onShutdown = () => {
+      clearInterval(check);
+      chat.dispose();
+      try { session.save(); } catch { /* best effort */ }
+      terminal.write(`\nSession saved: ${session.meta.sessionId.slice(0, 8)}\n`);
+      origShutdown?.();
       resolve();
     };
-    process.once("SIGINT", sigintHandler);
   });
 }

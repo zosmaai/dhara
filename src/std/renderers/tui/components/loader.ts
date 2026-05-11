@@ -57,7 +57,7 @@ export class Loader implements Component {
     this.config = { ...this.config, text };
   }
 
-  render(width: number): string[] {
+  render(width: number, _height?: number): string[] {
     const styleName = this.config.styleName ?? "loader";
     const { prefix, reset } = this.theme.resolve(styleName);
 
