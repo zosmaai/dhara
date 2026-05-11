@@ -251,6 +251,21 @@ export function subscribePromptEvents(eventBus: EventBus, config: PromptEventCon
     }),
   );
 
+  // Token usage after each response (agent:response has usage data)
+  unsubs.push(
+    eventBus.subscribe<{ usage?: { input: number; output: number } }>(
+      "agent:response",
+      (payload) => {
+        if (payload.usage) {
+          errorOutput.write(
+            `${dim("  Tokens:", colorEnabled)} ${tag(ANSI.grey, `${payload.usage.input.toLocaleString()} in / ${payload.usage.output.toLocaleString()} out`, colorEnabled)}\n`,
+          );
+        }
+        return { action: "allow" };
+      },
+    ),
+  );
+
   return () => {
     for (const unsub of unsubs) {
       unsub();
