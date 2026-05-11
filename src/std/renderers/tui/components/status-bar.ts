@@ -35,7 +35,7 @@ export class StatusBar implements Component {
     this.config = { ...this.config, ...config };
   }
 
-  render(width: number): string[] {
+  render(width: number, _height?: number): string[] {
     const barStyle = this.theme.resolve("status.bar");
     const modelStyle = this.theme.resolve("status.model");
     const tokenStyle = this.theme.resolve("status.tokens");

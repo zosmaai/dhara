@@ -41,7 +41,7 @@ export class Box implements Component {
     this.children = [];
   }
 
-  render(width: number): string[] {
+  render(width: number, _height?: number): string[] {
     const borderStyle = this.config.borderStyle ?? "panel.border";
     const titleStyle = this.config.titleStyle ?? "panel.title";
     const border = this.theme.resolve(borderStyle);

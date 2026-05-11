@@ -142,7 +142,7 @@ export class Editor implements FocusableComponent {
 
   // ── Component interface ──
 
-  render(_width: number): string[] {
+  render(_width: number, _height?: number): string[] {
     const width = _width;
     const promptCode = this.theme.resolve(this.promptStyle);
     const textCode = this.theme.resolve(this.textStyle);

@@ -18,8 +18,9 @@ export interface Component {
   /**
    * Render this component to an array of strings, one per line.
    * Each line **must not exceed** the given `width`.
+   * If `height` is provided, the component should fill that many rows.
    */
-  render(width: number): string[];
+  render(width: number, height?: number): string[];
 
   /**
    * Handle keyboard input when this component has focus.

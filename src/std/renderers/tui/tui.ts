@@ -214,13 +214,14 @@ export class TUI {
     if (!this.root) return;
 
     const width = this.terminal.columns;
+    const height = this.terminal.rows;
 
     // Collect all lines: root + overlays
-    let lines = this.root.render(width);
+    let lines = this.root.render(width, height);
 
     // Render overlays on top
     for (const overlay of this.overlays) {
-      const overlayLines = overlay.component.render(width);
+      const overlayLines = overlay.component.render(width, height);
       lines = this.blendOverlay(lines, overlayLines);
     }
 

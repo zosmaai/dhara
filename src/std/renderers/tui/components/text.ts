@@ -31,7 +31,7 @@ export class Text implements Component {
     this.cache = null;
   }
 
-  render(width: number): string[] {
+  render(width: number, _height?: number): string[] {
     if (this.cache?.width === width) return this.cache.lines;
 
     const lines: string[] = [];
@@ -129,7 +129,7 @@ export class ThemedText extends ThemedComponent {
     this.cache = null;
   }
 
-  render(width: number): string[] {
+  render(width: number, _height?: number): string[] {
     if (this.cache?.width === width) return this.cache.lines;
 
     const { prefix, reset } = this.styleCodes(this.styleName);
