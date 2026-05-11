@@ -3,11 +3,11 @@ import type { Readable, Writable } from "node:stream";
 import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import type { ContextFile } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
-import type { Provider } from "../core/provider.js";
+import type { Provider, ToolRegistration } from "../core/provider.js";
 import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
 import type { Skill } from "../core/skills.js";
-import { createStandardToolMap } from "../std/tools/index.js";
+import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 
 // ── AbortController tracking ──────────────────────────────────────────
@@ -65,6 +65,11 @@ export interface ReplConfig {
   skills?: Skill[];
   /** Current project config dir for `/status` display. */
   projectConfigDir?: string;
+  /**
+   * Optional additional tool registrations to merge into the tool map.
+   * These take precedence over standard tools on name collision.
+   */
+  toolOverrides?: ToolRegistration[];
 }
 
 /**
@@ -113,7 +118,10 @@ export async function runRepl(config: ReplConfig): Promise<void> {
     });
 
   // ── Create tools ───────────────────────────────────────────────────
-  const tools = createStandardToolMap({ cwd, sandbox });
+  let tools = createStandardToolMap({ cwd, sandbox });
+  if (config.toolOverrides && config.toolOverrides.length > 0) {
+    tools = mergeExtensionTools(tools, config.toolOverrides);
+  }
 
   // ── Create initial system prompt ───────────────────────────────────
   const defaultPrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
