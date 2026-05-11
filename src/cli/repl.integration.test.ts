@@ -180,6 +180,7 @@ describe("REPL integration", () => {
     expect(outputText).toContain("/save");
     expect(outputText).toContain("/list");
     expect(outputText).toContain("/resume");
+    expect(outputText).toContain("/history");
   });
 
   it("handles /save explicitly", async () => {

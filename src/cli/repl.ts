@@ -176,6 +176,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
     switch (command.type) {
       case "exit":
         process.removeListener("SIGINT", sigintHandler);
+        session.save();
         output.write(`${dim("Bye!")}\n`);
         rl.close();
         return;
