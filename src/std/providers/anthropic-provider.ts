@@ -13,6 +13,8 @@ export interface AnthropicProviderConfig {
   apiKey: string;
   /** Custom base URL (for proxies). */
   baseUrl?: string;
+  /** Maximum tokens to generate (default: 4096). */
+  maxTokens?: number;
 }
 
 interface AnthropicContentBlock {
@@ -143,7 +145,7 @@ export function createAnthropicProvider(config: AnthropicProviderConfig): Provid
     const body: Record<string, unknown> = {
       model: params.model.id,
       messages,
-      max_tokens: 4096,
+      max_tokens: config.maxTokens ?? 4096,
     };
 
     if (params.systemPrompt) {

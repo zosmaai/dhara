@@ -17,6 +17,8 @@ export interface ProjectSettings {
   maxIterations?: number;
   /** Base URL for the provider. */
   baseUrl?: string;
+  /** Maximum tokens to generate per response. */
+  maxTokens?: number;
   /** Whether to enable auto-save for sessions. */
   autoSave?: boolean;
   /** Extra directories to search for skills. */
