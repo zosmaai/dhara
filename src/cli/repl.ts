@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import type { ContextFile } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
@@ -9,6 +12,12 @@ import type { SessionManager } from "../core/session-manager.js";
 import type { Skill } from "../core/skills.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
+
+// ── Package version ───────────────────────────────────────────────────
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkgPath = join(__dirname, "..", "..", "package.json");
+const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+const VERSION = pkg.version as string;
 
 // ── AbortController tracking ──────────────────────────────────────────
 
@@ -142,17 +151,63 @@ export async function runRepl(config: ReplConfig): Promise<void> {
 
   // ── Print header ───────────────────────────────────────────────────
   const mode = resumeSessionId ? "Resuming" : "Started";
-  output.write(
-    `\n  ${tag(ANSI.bold, "dhara", colorEnabled)}  •  ${bold(providerName)}/${bold(modelId)}  •  ${dim(cwd)}\n`,
-  );
-  output.write(
-    `  ${dim(mode)} ${tag(ANSI.grey, session.meta.sessionId.slice(0, 8), colorEnabled)}`,
-  );
-  if (resumeSessionId) {
-    const entryCount = session.getPath().length;
-    output.write(` ${dim(`(${entryCount} entries)`)}`);
+  const shortId = session.meta.sessionId.slice(0, 8);
+  const versionTag = `v${VERSION}`;
+
+  // ┌────────────────────────────────────────────────────┐
+  // │  ⚡ dhara v0.1.0                                  │
+  // │  The Agent Protocol Standard                       │
+  // │                                                    │
+  // │  opencode-go/deepseek-v4-flash                     │
+  // │  /home/arjun                                       │
+  // │  Session a57f653f                                  │
+  // │                                                    │
+  // │  Type /help for available commands                 │
+  // └────────────────────────────────────────────────────┘
+
+  // Build box header lines — each element is [formatted_with_ANSI, plain_text_width]
+  const boxLines: [string, number][] = [
+    [
+      `  ${tag(ANSI.bold, "dhara", colorEnabled)} ${tag(ANSI.dim, versionTag, colorEnabled)}`,
+      `  dhara ${versionTag}`.length,
+    ],
+    [
+      `  ${tag(ANSI.dim, "The Agent Protocol Standard", colorEnabled)}`,
+      "  The Agent Protocol Standard".length,
+    ],
+    ["", 0],
+    [`  ${bold(providerName)}/${bold(modelId)}`, `  ${providerName}/${modelId}`.length],
+    [`  ${dim(cwd)}`, `  ${cwd}`.length],
+    [
+      `  ${mode} ${tag(ANSI.cyan, shortId, colorEnabled)}${resumeSessionId ? ` ${dim(`(${session.getPath().length} entries)`)}` : ""}`,
+      `  ${mode} ${shortId}`.length,
+    ],
+    ["", 0],
+    [
+      `  ${tag(ANSI.yellow, "/help", colorEnabled)} ${dim("for available commands")}`,
+      "  /help for available commands".length,
+    ],
+  ] as const;
+
+  const boxWidth = Math.max(...boxLines.map(([, w]) => w), 36) + 4;
+  const tb = (char: string) => tag(ANSI.cyan, char, colorEnabled);
+  const pad = (n: number) => tag(ANSI.dim, " ".repeat(n), colorEnabled);
+
+  const tl = "\u250c";
+  const tr = "\u2510";
+  const bl = "\u2514";
+  const br = "\u2518";
+  const h = "\u2500";
+  const v = "\u2502";
+
+  output.write("\n");
+  output.write(`  ${tb(tl + h.repeat(boxWidth - 2) + tr)}\n`);
+  for (const [formatted, plainWidth] of boxLines) {
+    const padding = boxWidth - 4 - plainWidth;
+    output.write(`  ${tb(v)} ${formatted}${pad(padding)}${tb(v)}\n`);
   }
-  output.write("\n\n");
+  output.write(`  ${tb(bl + h.repeat(boxWidth - 2) + br)}\n`);
+  output.write("\n");
 
   // ── SIGINT (Ctrl+C) handler ────────────────────────────────────────
   const sigintHandler = () => {
