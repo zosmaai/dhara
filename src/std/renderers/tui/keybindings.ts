@@ -113,10 +113,7 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
  * Resolve a terminal input sequence to a key action.
  * Returns null if no binding matches.
  */
-export function resolveBinding(
-  bindings: KeyBinding[],
-  data: string,
-): KeyAction | null {
+export function resolveBinding(bindings: KeyBinding[], data: string): KeyAction | null {
   for (const binding of bindings) {
     if (data === binding.sequence) {
       return binding.action;
@@ -150,10 +147,7 @@ export function isPrintable(data: string): boolean {
  * Merge user-defined keybindings with defaults.
  * User bindings take precedence.
  */
-export function mergeBindings(
-  defaults: KeyBinding[],
-  user?: KeyBinding[],
-): KeyBinding[] {
+export function mergeBindings(defaults: KeyBinding[], user?: KeyBinding[]): KeyBinding[] {
   if (!user || user.length === 0) return defaults;
 
   const seen = new Set(user.map((b) => b.sequence));

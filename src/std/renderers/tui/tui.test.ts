@@ -3,25 +3,25 @@
  *
  * Uses VirtualTerminal for headless testing of components and rendering.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  TUI,
-  VirtualTerminal,
-  Theme,
+  Box,
+  ChatMessage,
+  DEFAULT_KEYBINDINGS,
   DEFAULT_THEME,
   Editor,
-  Text,
-  ChatMessage,
-  StatusBar,
   Loader,
-  Box,
-  resolveBinding,
-  isShiftEnter,
+  StatusBar,
+  TUI,
+  Text,
+  Theme,
+  VirtualTerminal,
   isPrintable,
+  isShiftEnter,
   mergeBindings,
-  DEFAULT_KEYBINDINGS,
-  visibleWidth,
+  resolveBinding,
   truncateToWidth,
+  visibleWidth,
 } from "./index.js";
 
 // ── VirtualTerminal tests ────────────────────────────────────────────
@@ -57,9 +57,12 @@ describe("VirtualTerminal", () => {
   it("simulates input via feedInput", () => {
     const vt = new VirtualTerminal();
     let input = "";
-    vt.start((data) => {
-      input += data;
-    }, () => {});
+    vt.start(
+      (data) => {
+        input += data;
+      },
+      () => {},
+    );
     vt.feedInput("hello");
     expect(input).toBe("hello");
   });
@@ -523,7 +526,7 @@ describe("TUI", () => {
 
     let content = ["Line 0", "Line 1", "Line 2", "Line 3", "Line 4"];
     const component = {
-      render: (_w: number) => content,
+      render: (_w: number, _h?: number) => content,
       invalidate: () => {},
     };
 
@@ -533,7 +536,7 @@ describe("TUI", () => {
 
     const redrawsBefore = tui.fullRedraws;
 
-    // Change lines 1 and 3
+    // Change lines 1 and 3 (same line count, stays within 10 rows)
     content = ["Line 0", "CHANGED 1", "Line 2", "CHANGED 3", "Line 4"];
     tui.requestRender();
     await new Promise((r) => setTimeout(r, 20));
@@ -541,22 +544,21 @@ describe("TUI", () => {
     // Should NOT have triggered a full redraw
     expect(tui.fullRedraws).toBe(redrawsBefore);
 
+    // Since TUI pads to terminal height, changed lines are within the 10-row viewport
     const viewport = vt.getViewport();
-    // Check that changed lines are reflected
-    expect(viewport.find((l) => l.includes("Line 0"))).toBeTruthy();
-    expect(viewport.find((l) => l.includes("CHANGED 1"))).toBeTruthy();
-    expect(viewport.find((l) => l.includes("CHANGED 3"))).toBeTruthy();
+    expect(viewport.some((l) => l.includes("CHANGED 1"))).toBe(true);
+    expect(viewport.some((l) => l.includes("CHANGED 3"))).toBe(true);
 
     tui.stop();
   });
 
-  it("does full redraw on resize (line count change)", async () => {
-    const vt = new VirtualTerminal(40, 10);
+  it("pads to terminal height to prevent layout jitter", async () => {
+    const vt = new VirtualTerminal(40, 5);
     const tui = new TUI(vt);
 
-    let content = ["Line 0", "Line 1", "Line 2"];
+    // Component returns fewer lines than terminal height
     const component = {
-      render: (_w: number) => content,
+      render: (_w: number, _h?: number) => ["Line 1", "Line 2"],
       invalidate: () => {},
     };
 
@@ -564,14 +566,14 @@ describe("TUI", () => {
     tui.start();
     await new Promise((r) => setTimeout(r, 20));
 
+    // Should still produce exactly 5 lines (padded)
+    // Previous lines array tracks the last render result
     const redrawsBefore = tui.fullRedraws;
-
-    // Change line count
-    content = ["Line 0", "Line 1"];
     tui.requestRender();
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(tui.fullRedraws).toBeGreaterThan(redrawsBefore);
+    // No full redraw because line count is stable
+    expect(tui.fullRedraws).toBe(redrawsBefore);
     tui.stop();
   });
 

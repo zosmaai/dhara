@@ -1,10 +1,10 @@
+import type { Theme } from "../theme.js";
 /**
  * Box component: a container with optional border, title, and padding.
  *
  * Used for panels, dialogs, and grouping related content.
  */
 import { type Component, visibleWidth } from "./component.js";
-import type { Theme } from "../theme.js";
 
 export interface BoxConfig {
   /** Box title shown in top border. */
@@ -67,13 +67,10 @@ export class Box implements Component {
         const titled = `${titleCode.prefix}${titleText}${titleCode.reset}`;
         const right = `${border.prefix}${"─".repeat(Math.max(0, rightLen))}${border.reset}`;
 
-        const topLine =
-          `${border.prefix}┌${border.reset}${left}${titled}${right}${border.prefix}┐${border.reset}`;
+        const topLine = `${border.prefix}┌${border.reset}${left}${titled}${right}${border.prefix}┐${border.reset}`;
         result.push(topLine);
       } else {
-        result.push(
-          `${border.prefix}┌${"─".repeat(width - 2)}┐${border.reset}`,
-        );
+        result.push(`${border.prefix}┌${"─".repeat(width - 2)}┐${border.reset}`);
       }
     }
 
@@ -93,7 +90,9 @@ export class Box implements Component {
         for (const line of childLines) {
           const padded = `${padStr}${line}`;
           if (bordered) {
-            result.push(`${borderPrefix}${padded}${" ".repeat(Math.max(0, width - 2 - visibleWidth(padded)))}${borderSuffix}`);
+            result.push(
+              `${borderPrefix}${padded}${" ".repeat(Math.max(0, width - 2 - visibleWidth(padded)))}${borderSuffix}`,
+            );
           } else {
             result.push(padded);
           }
@@ -103,9 +102,7 @@ export class Box implements Component {
 
     // Bottom border
     if (bordered) {
-      result.push(
-        `${border.prefix}└${"─".repeat(width - 2)}┘${border.reset}`,
-      );
+      result.push(`${border.prefix}└${"─".repeat(width - 2)}┘${border.reset}`);
     }
 
     return result;

@@ -80,9 +80,7 @@ function rgbToAnsi256(r: number, g: number, b: number): number {
 }
 
 /** Hex color to ANSI codes. Returns {fg, bg} ANSI sequences. */
-function hexToAnsi(
-  hex: string,
-): { fgCode: string | null; bgCode: string | null } {
+function hexToAnsi(hex: string): { fgCode: string | null; bgCode: string | null } {
   const clean = hex.replace("#", "");
   if (!/^[0-9a-fA-F]{6}$/.test(clean)) return { fgCode: null, bgCode: null };
 
@@ -257,7 +255,7 @@ export const DEFAULT_THEME: ThemeDefinition = {
     "overlay.bg": { fg: "#f8f8f2", bg: "#282a36" },
     "selector.active": { fg: "#282a36", bg: "#bd93f9" },
     "selector.inactive": { fg: "#6272a4" },
-    "loader": { fg: "#f1fa8c" },
+    loader: { fg: "#f1fa8c" },
 
     // ── Accent colors ──
     accent: { fg: "#bd93f9" },

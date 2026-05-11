@@ -1,10 +1,10 @@
+import type { Theme } from "../theme.js";
 /**
  * Status bar component: displays session info at the bottom of the TUI.
  *
  * Shows: model name, session ID, token usage, working directory.
  */
-import { type Component, visibleWidth, padToWidth } from "./component.js";
-import type { Theme } from "../theme.js";
+import { type Component, padToWidth, visibleWidth } from "./component.js";
 
 export interface StatusBarConfig {
   /** Model identifier. */
@@ -49,7 +49,9 @@ export class StatusBar implements Component {
     }
 
     if (this.config.provider && this.config.model) {
-      parts.push(`${modelStyle.prefix}${this.config.provider}/${this.config.model}${modelStyle.reset}`);
+      parts.push(
+        `${modelStyle.prefix}${this.config.provider}/${this.config.model}${modelStyle.reset}`,
+      );
     } else if (this.config.model) {
       parts.push(`${modelStyle.prefix}${this.config.model}${modelStyle.reset}`);
     }
@@ -82,12 +84,7 @@ export class StatusBar implements Component {
     const rightWidth = visibleWidth(rightSide);
     const spacer = Math.max(1, width - leftWidth - rightWidth);
 
-    const line =
-      barStyle.prefix +
-      leftSide +
-      " ".repeat(spacer) +
-      rightSide +
-      barStyle.reset;
+    const line = barStyle.prefix + leftSide + " ".repeat(spacer) + rightSide + barStyle.reset;
 
     return [padToWidth(line, width)];
   }

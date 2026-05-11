@@ -1,10 +1,10 @@
+import { readFileSync } from "node:fs";
 /**
  * Theme loader: parses YAML theme files and returns Theme instances.
  *
  * Supports a minimal YAML subset (no external dependency).
  */
-import { Theme, type ThemeDefinition, type StyleDefinition } from "./theme.js";
-import { readFileSync } from "node:fs";
+import { type StyleDefinition, Theme, type ThemeDefinition } from "./theme.js";
 
 /**
  * Parse a minimal YAML theme definition string.
@@ -35,7 +35,10 @@ function parseThemeYaml(yaml: string): ThemeDefinition {
 
     if (!inStyles) {
       if (trimmed.startsWith("name:")) {
-        name = trimmed.slice(5).trim().replace(/^["']|["']$/g, "");
+        name = trimmed
+          .slice(5)
+          .trim()
+          .replace(/^["']|["']$/g, "");
       } else if (trimmed === "styles:") {
         inStyles = true;
       }

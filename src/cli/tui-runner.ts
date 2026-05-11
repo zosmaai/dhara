@@ -6,14 +6,14 @@ import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
 import { type Sandbox, createSandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
+import { DharaChat } from "../std/renderers/tui/dhara-chat.js";
 import {
-  TUI,
-  ProcessTerminal,
-  Theme,
   DEFAULT_THEME,
+  ProcessTerminal,
+  TUI,
+  Theme,
   loadThemeFile,
 } from "../std/renderers/tui/index.js";
-import { DharaChat } from "../std/renderers/tui/dhara-chat.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 
 export interface TuiConfig {
@@ -50,7 +50,11 @@ export async function runTui(config: TuiConfig): Promise<void> {
   // ── Theme ──────────────────────────────────────────────────────────
   let theme: Theme;
   if (themeArg) {
-    try { theme = loadThemeFile(themeArg); } catch { theme = new Theme(DEFAULT_THEME); }
+    try {
+      theme = loadThemeFile(themeArg);
+    } catch {
+      theme = new Theme(DEFAULT_THEME);
+    }
   } else {
     theme = new Theme(DEFAULT_THEME);
   }
@@ -64,7 +68,13 @@ export async function runTui(config: TuiConfig): Promise<void> {
   const sandbox =
     sandboxOverride ??
     createSandbox({
-      granted: ["filesystem:read", "filesystem:write", "filesystem:*", "process:spawn", "network:outbound"],
+      granted: [
+        "filesystem:read",
+        "filesystem:write",
+        "filesystem:*",
+        "process:spawn",
+        "network:outbound",
+      ],
       cwd,
     });
 
@@ -79,7 +89,9 @@ export async function runTui(config: TuiConfig): Promise<void> {
 
   // ── Agent ──────────────────────────────────────────────────────────
   let agent: AgentLoop = createAgentLoop({
-    provider, session, tools,
+    provider,
+    session,
+    tools,
     systemPrompt: currentSystemPrompt,
     maxIterations: currentMaxIterations,
   });
@@ -115,7 +127,11 @@ export async function runTui(config: TuiConfig): Promise<void> {
         chat.addSystemMessage(`Error: ${msg}`, true);
       } finally {
         chat.finishStream();
-        try { session.save(); } catch { /* best effort */ }
+        try {
+          session.save();
+        } catch {
+          /* best effort */
+        }
         chat.updateStatus({ state: "idle" });
         tui.requestRender();
       }
@@ -135,13 +151,18 @@ export async function runTui(config: TuiConfig): Promise<void> {
         currentSystemPrompt = result.systemPrompt;
         currentMaxIterations = result.maxIterations;
         agent = createAgentLoop({
-          provider, session, tools,
+          provider,
+          session,
+          tools,
           systemPrompt: currentSystemPrompt,
           maxIterations: currentMaxIterations,
         });
         chat.addSystemMessage("Reloaded configuration.");
       } catch (err) {
-        chat.addSystemMessage(`Reload error: ${err instanceof Error ? err.message : String(err)}`, true);
+        chat.addSystemMessage(
+          `Reload error: ${err instanceof Error ? err.message : String(err)}`,
+          true,
+        );
       }
     }
     tui.requestRender();
@@ -157,13 +178,21 @@ export async function runTui(config: TuiConfig): Promise<void> {
     const check = setInterval(() => {
       // no-op: just keep process alive until tui stops
     }, 500);
-    process.once("SIGTERM", () => { clearInterval(check); tui.stop(); resolve(); });
+    process.once("SIGTERM", () => {
+      clearInterval(check);
+      tui.stop();
+      resolve();
+    });
     // Override shutdown to resolve the promise
     const origShutdown = tui.onShutdown;
     tui.onShutdown = () => {
       clearInterval(check);
       chat.dispose();
-      try { session.save(); } catch { /* best effort */ }
+      try {
+        session.save();
+      } catch {
+        /* best effort */
+      }
       terminal.write(`\nSession saved: ${session.meta.sessionId.slice(0, 8)}\n`);
       origShutdown?.();
       resolve();

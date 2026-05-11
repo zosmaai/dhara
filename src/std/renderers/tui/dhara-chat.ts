@@ -1,3 +1,5 @@
+import type { EventBus, HookResult } from "../../../core/events.js";
+import { ChatMessage, type ChatMessageConfig } from "./components/chat-message.js";
 /**
  * DharaChat — the main TUI component for the dhara coding agent.
  *
@@ -30,12 +32,10 @@
  * ```
  */
 import type { Component, FocusableComponent } from "./components/component.js";
-import { ChatMessage, type ChatMessageConfig } from "./components/chat-message.js";
+import { visibleWidth } from "./components/component.js";
 import { Editor, type EditorConfig } from "./components/editor.js";
 import { StatusBar, type StatusBarConfig } from "./components/status-bar.js";
 import type { Theme } from "./theme.js";
-import type { EventBus, HookResult } from "../../../core/events.js";
-import { visibleWidth } from "./components/component.js";
 
 const allow = (): HookResult => ({ action: "allow" });
 
@@ -59,10 +59,7 @@ export class DharaChat implements Component, FocusableComponent {
 
   // ── Tool state ──
   private toolBuffers = new Map<string, string>();
-  private activeToolCalls = new Map<
-    string,
-    { name: string; input?: string; startedAt: number }
-  >();
+  private activeToolCalls = new Map<string, { name: string; input?: string; startedAt: number }>();
 
   // ── Sub-components ──
   private editor: Editor;
@@ -127,28 +124,22 @@ export class DharaChat implements Component, FocusableComponent {
   // ── Render ────────────────────────────────────────────────────────
 
   render(width: number, _height?: number): string[] {
-    const height = _height ?? 24;
     const out: string[] = [];
 
-    // 1. Header
+    // 1. Header (fixed height)
     for (const l of this.renderHeader(width)) out.push(l);
 
-    // 2. Messages (fill remaining space minus editor + status + spacer)
-    const editorLines = this.editor.render(width);
-    const statusLines = this.statusBar.render(width);
-    const fixed = editorLines.length + 1 + statusLines.length;
-    const msgH = height - this.renderHeader(width).length - fixed;
-
-    for (const l of this.renderMessages(width, Math.max(1, msgH))) out.push(l);
+    // 2. Messages (all of them — TUI clips to viewport)
+    for (const l of this.renderMessages(width)) out.push(l);
 
     // 3. Spacer
     out.push(this.theme.apply("dim", "─".repeat(width)));
 
     // 4. Editor
-    for (const l of editorLines) out.push(l);
+    for (const l of this.editor.render(width)) out.push(l);
 
     // 5. Status bar
-    for (const l of statusLines) out.push(l);
+    for (const l of this.statusBar.render(width)) out.push(l);
 
     return out;
   }
@@ -178,10 +169,19 @@ export class DharaChat implements Component, FocusableComponent {
 
     return [
       `  ${B}┌${h.repeat(w)}┐${R}`,
-      row(`${accent.prefix}⚡${accent.reset} ${bold.prefix}dhara${bold.reset} ${dim.prefix}${version}${dim.reset}`, visibleWidth(`⚡ dhara ${version}`)),
-      row(`${dim.prefix}The Agent Protocol Standard${dim.reset}`, visibleWidth("The Agent Protocol Standard")),
+      row(
+        `${accent.prefix}⚡${accent.reset} ${bold.prefix}dhara${bold.reset} ${dim.prefix}${version}${dim.reset}`,
+        visibleWidth(`⚡ dhara ${version}`),
+      ),
+      row(
+        `${dim.prefix}The Agent Protocol Standard${dim.reset}`,
+        visibleWidth("The Agent Protocol Standard"),
+      ),
       row("", 0),
-      row(`${bold.prefix}${provider}${bold.reset}/${bold.prefix}${model}${bold.reset}`, visibleWidth(`${provider}/${model}`)),
+      row(
+        `${bold.prefix}${provider}${bold.reset}/${bold.prefix}${model}${bold.reset}`,
+        visibleWidth(`${provider}/${model}`),
+      ),
       row(`${dim.prefix}${cwd}${dim.reset}`, visibleWidth(cwd)),
       row(
         `${muted.prefix}Session ${sid}${muted.reset}  ${dim.prefix}Type /help for commands${dim.reset}`,
@@ -193,7 +193,7 @@ export class DharaChat implements Component, FocusableComponent {
 
   // ── Messages ──────────────────────────────────────────────────────
 
-  private renderMessages(width: number, availableH: number): string[] {
+  private renderMessages(width: number): string[] {
     const lines: string[] = [];
 
     // Past messages
@@ -230,10 +230,7 @@ export class DharaChat implements Component, FocusableComponent {
       }
     }
 
-    // Clip to available height, show bottom (most recent)
-    const visible = lines.slice(-availableH);
-    while (visible.length < availableH) visible.unshift("");
-    return visible;
+    return lines;
   }
 
   /** Render a single line of tool output with diff coloring. */
@@ -252,10 +249,16 @@ export class DharaChat implements Component, FocusableComponent {
   handleInput(data: string): boolean {
     if (data === "\x03") return this.handleCtrlC();
     if (data === "\x04") {
-      if (this.editor.getText() === "") { this.cfg.onExit(); return true; }
+      if (this.editor.getText() === "") {
+        this.cfg.onExit();
+        return true;
+      }
     }
     this.ctrlCPressed = false;
-    if (this.ctrlCTimer) { clearTimeout(this.ctrlCTimer); this.ctrlCTimer = null; }
+    if (this.ctrlCTimer) {
+      clearTimeout(this.ctrlCTimer);
+      this.ctrlCTimer = null;
+    }
     return this.editor.handleInput(data);
   }
 
@@ -285,21 +288,31 @@ export class DharaChat implements Component, FocusableComponent {
     return true;
   }
 
-  invalidate(): void { this.editor.invalidate(); this.statusBar.invalidate(); }
+  invalidate(): void {
+    this.editor.invalidate();
+    this.statusBar.invalidate();
+  }
 
   getCursorPosition(): { line: number; column: number } | null {
     const pos = this.editor.getCursorPosition();
     if (!pos) return null;
+    // Cursor is at: header height + all message lines + spacer + editor cursor line
     const headerH = this.renderHeader(80).length;
-    const msgH = this.renderMessages(80, 10).length;
+    const msgH = this.renderMessages(80).length;
     return { line: headerH + msgH + 1 + pos.line, column: pos.column };
   }
 
   // ── Public API ────────────────────────────────────────────────────
 
-  addMessage(c: ChatMessageConfig) { this.messages.push(c); }
-  appendDelta(d: string) { this.streamingContent += d; }
-  appendReasoning(t: string) { this.streamingReasoning += t; }
+  addMessage(c: ChatMessageConfig) {
+    this.messages.push(c);
+  }
+  appendDelta(d: string) {
+    this.streamingContent += d;
+  }
+  appendReasoning(t: string) {
+    this.streamingReasoning += t;
+  }
 
   finishStream(): void {
     if (this.streamingContent) {
@@ -333,7 +346,9 @@ export class DharaChat implements Component, FocusableComponent {
     this.activeToolCalls.delete(id);
   }
 
-  updateStatus(s: Partial<StatusBarConfig>) { this.statusBar.update(s); }
+  updateStatus(s: Partial<StatusBarConfig>) {
+    this.statusBar.update(s);
+  }
 
   addSystemMessage(text: string, isErr = false): void {
     this.messages.push({ role: isErr ? "error" : "system", content: text });
@@ -344,24 +359,36 @@ export class DharaChat implements Component, FocusableComponent {
   private handleSlashCommand(input: string): void {
     const cmd = input.split(/\s+/)[0]?.toLowerCase();
     switch (cmd) {
-      case "/help": this.showHelp(); break;
-      case "/clear": this.messages = []; this.finishStream(); break;
-      case "/exit": case "/quit": this.cfg.onExit(); break;
-      default: this.addSystemMessage(`Unknown: ${cmd}. Type /help.`, true);
+      case "/help":
+        this.showHelp();
+        break;
+      case "/clear":
+        this.messages = [];
+        this.finishStream();
+        break;
+      case "/exit":
+      case "/quit":
+        this.cfg.onExit();
+        break;
+      default:
+        this.addSystemMessage(`Unknown: ${cmd}. Type /help.`, true);
     }
   }
 
   private showHelp(): void {
-    this.messages.push({ role: "system", content: [
-      "Commands:  /help  /clear  /exit",
-      "",
-      "Shortcuts:",
-      "  ↑/↓ history   Shift+Enter newline   Enter submit",
-      "  Ctrl+A/E line start/end   Ctrl+K delete to end",
-      "  Ctrl+U delete line   Ctrl+W delete word",
-      "  Alt+B/F word back/forward   Ctrl+C cancel/exit",
-      "  Ctrl+D exit (when empty)",
-    ].join("\n") });
+    this.messages.push({
+      role: "system",
+      content: [
+        "Commands:  /help  /clear  /exit",
+        "",
+        "Shortcuts:",
+        "  ↑/↓ history   Shift+Enter newline   Enter submit",
+        "  Ctrl+A/E line start/end   Ctrl+K delete to end",
+        "  Ctrl+U delete line   Ctrl+W delete word",
+        "  Alt+B/F word back/forward   Ctrl+C cancel/exit",
+        "  Ctrl+D exit (when empty)",
+      ].join("\n"),
+    });
   }
 
   // ── Event subscriptions ──────────────────────────────────────────
@@ -369,51 +396,84 @@ export class DharaChat implements Component, FocusableComponent {
   private subscribe(bus: EventBus): void {
     const req = () => this.onRenderRequest?.();
 
-    this.unsubscribes.push(bus.subscribe("agent:start", () => {
-      this.statusBar.update({ state: "thinking" }); req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("agent:start", () => {
+        this.statusBar.update({ state: "thinking" });
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("message:delta", (e) => {
-      this.appendDelta((e as { delta: string }).delta);
-      this.statusBar.update({ state: "streaming" }); req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("message:delta", (e) => {
+        this.appendDelta((e as { delta: string }).delta);
+        this.statusBar.update({ state: "streaming" });
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("message:reasoning", (e) => {
-      this.appendReasoning((e as { text: string }).text); req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("message:reasoning", (e) => {
+        this.appendReasoning((e as { text: string }).text);
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("tool:start", (e) => {
-      const { id, name, input } = e as { id: string; name: string; input?: string };
-      this.startToolCall(id, name, input); req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("tool:start", (e) => {
+        const { id, name, input } = e as { id: string; name: string; input?: string };
+        this.startToolCall(id, name, input);
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("tool:progress", (e) => {
-      const { id, output } = e as { id: string; output: string };
-      this.appendToolOutput(id, output); req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("tool:progress", (e) => {
+        const { id, output } = e as { id: string; output: string };
+        this.appendToolOutput(id, output);
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("tool:end", (e) => {
-      this.finishToolCall((e as { id: string }).id); req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("tool:end", (e) => {
+        this.finishToolCall((e as { id: string }).id);
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("agent:end", (e) => {
-      this.finishStream();
-      const ev = e as { result?: { tokens?: { input: number; output: number } } };
-      if (ev?.result?.tokens) this.statusBar.update({ tokens: ev.result.tokens });
-      req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("agent:end", (e) => {
+        this.finishStream();
+        const ev = e as { result?: { tokens?: { input: number; output: number } } };
+        if (ev?.result?.tokens) this.statusBar.update({ tokens: ev.result.tokens });
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("agent:error", (e) => {
-      this.finishStream();
-      this.statusBar.update({ state: "error" });
-      this.addSystemMessage(`Error: ${(e as { error: Error }).error.message}`, true);
-      req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("agent:error", (e) => {
+        this.finishStream();
+        this.statusBar.update({ state: "error" });
+        this.addSystemMessage(`Error: ${(e as { error: Error }).error.message}`, true);
+        req();
+        return allow();
+      }),
+    );
 
-    this.unsubscribes.push(bus.subscribe("agent:cancelled", () => {
-      this.finishStream();
-      this.addSystemMessage("Cancelled.");
-      req(); return allow();
-    }));
+    this.unsubscribes.push(
+      bus.subscribe("agent:cancelled", () => {
+        this.finishStream();
+        this.addSystemMessage("Cancelled.");
+        req();
+        return allow();
+      }),
+    );
   }
 }

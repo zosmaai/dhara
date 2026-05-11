@@ -1,10 +1,10 @@
+import type { Theme } from "../theme.js";
 /**
  * Loader component: animated spinner for indicating progress.
  *
  * Supports custom frames and styling via theme.
  */
 import { type Component, visibleWidth } from "./component.js";
-import type { Theme } from "../theme.js";
 
 const DEFAULT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
