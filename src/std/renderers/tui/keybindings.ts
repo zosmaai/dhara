@@ -128,8 +128,10 @@ export function resolveBinding(bindings: KeyBinding[], data: string): KeyAction 
  */
 export function isShiftEnter(data: string): boolean {
   return (
-    data === `${ESC}[13;2~` || // xterm
-    data === `${ESC}[27;2;13~` || // kitty/foot
+    data === `${ESC}[13;2~` || // xterm (CSI ~)
+    data === `${ESC}[27;2;13~` || // kitty/foot (CSI ~)
+    data === `${ESC}[13;2u` || // Ghostty/kitty protocol (CSI u)
+    data === `${ESC}[13;2u\n` || // Ghostty (CSI u + newline variant)
     data === `${ESC}OM` || // old xterm
     data === "\x1b\x0d" || // ESC + CR
     data === "\x1b\x0a" || // ESC + LF

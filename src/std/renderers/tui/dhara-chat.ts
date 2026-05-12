@@ -111,21 +111,7 @@ export class DharaApp implements Component, FocusableComponent {
     this.statusBar.invalidate();
   }
 
-  getCursorPosition(width?: number) {
-    const p = this.editor.getCursorPosition();
-    if (!p) return null;
-    const w = width ?? 80;
-    const hdr = renderHeader(this.theme, this.cfg, w).length;
-    const msgs = renderMessages(
-      this.theme,
-      this.messages,
-      this.streamContent,
-      this.streamReasoning,
-      w,
-    ).length;
-    // +1 for the separator line between messages and editor
-    return { line: hdr + msgs + 1 + p.line, column: p.column };
-  }
+  // Cursor positioning handled via CURSOR_MARKER embedded by editor
 
   // ── Public API ──────────────────────────────────────────────────────
 
