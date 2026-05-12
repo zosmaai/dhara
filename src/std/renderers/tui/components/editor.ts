@@ -1,14 +1,15 @@
-import { CURSOR_MARKER } from "../tui.js";
 import {
   DEFAULT_KEYBINDINGS,
   type KeyAction,
   type KeyBinding,
+  decodePrintableKey,
   isPrintable,
   isShiftEnter,
   mergeBindings,
   resolveBinding,
 } from "../keybindings.js";
 import type { Theme } from "../theme.js";
+import { CURSOR_MARKER } from "../tui.js";
 /**
  * Editor component: multiline text input with readline/emacs keybindings.
  *
@@ -216,6 +217,13 @@ export class Editor implements FocusableComponent {
     // Printable character
     if (isPrintable(data)) {
       this.insertText(data);
+      return true;
+    }
+
+    // Kitty CSI-u printable (Ghostty sends CSI-u for ALL keys with kitty protocol)
+    const decoded = decodePrintableKey(data);
+    if (decoded) {
+      this.insertText(decoded);
       return true;
     }
 

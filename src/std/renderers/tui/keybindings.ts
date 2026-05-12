@@ -107,6 +107,17 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
 
   // ── Tab ──
   { sequence: "\t", action: "autocomplete", description: "Tab: autocomplete" },
+
+  // ── CSI-u sequences (Kitty keyboard protocol) ──
+  { sequence: "\x1b[13;1u", action: "submit", description: "Enter (CSI-u)" },
+  { sequence: "\x1b[13;2u", action: "newline", description: "Shift+Enter (CSI-u)" },
+  { sequence: "\x1b[27;1u", action: "cancel", description: "Escape (CSI-u)" },
+  { sequence: "\x1b[127;1u", action: "delete.left", description: "Backspace (CSI-u)" },
+  { sequence: "\x1b[9;1u", action: "autocomplete", description: "Tab (CSI-u)" },
+  { sequence: "\x1b[A", action: "history.prev" },
+  { sequence: "\x1b[B", action: "history.next" },
+  { sequence: "\x1b[C", action: "cursor.right" },
+  { sequence: "\x1b[D", action: "cursor.left" },
 ];
 
 /**
@@ -120,6 +131,46 @@ export function resolveBinding(bindings: KeyBinding[], data: string): KeyAction 
     }
   }
   return null;
+}
+
+/** CSI-u sequence regex: ESC [ <codepoint> [ ; <mod> ] [ : <event> ] u */
+const ESC_CHAR = String.fromCharCode(27);
+const CSI_U_RE = new RegExp(`^${ESC_CHAR}\\[(\\d+)(?:;(\\d+))?(?::(\\d+))?u$`);
+
+/**
+ * Decode a Kitty CSI-u sequence into a printable character, if applicable.
+ * When Kitty keyboard protocol is active, ALL keys arrive as CSI-u sequences,
+ * including regular printable characters. This extracts the character.
+ * Only accepts plain (mod=1) or Shift-modified keys.
+ */
+export function decodeKittyPrintable(data: string): string | undefined {
+  const match = data.match(CSI_U_RE);
+  if (!match) return undefined;
+
+  const codepoint = Number.parseInt(match[1] ?? "", 10);
+  if (!Number.isFinite(codepoint)) return undefined;
+
+  // modifier is 1-indexed in CSI-u: 1 = none, 2 = shift
+  const modValue = match[2] ? Number.parseInt(match[2], 10) : 1;
+  const modifier = modValue - 1;
+
+  // Only accept plain or Shift-modified keys
+  if (modifier & ~1) return undefined;
+  if (codepoint < 32) return undefined;
+
+  try {
+    return String.fromCodePoint(codepoint);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Decode any terminal sequence into a printable character, if applicable.
+ * Handles Kitty CSI-u and xterm modifyOtherKeys formats.
+ */
+export function decodePrintableKey(data: string): string | undefined {
+  return decodeKittyPrintable(data);
 }
 
 /**
