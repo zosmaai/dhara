@@ -19,6 +19,8 @@ export interface StatusBarConfig {
   tokens?: { input: number; output: number };
   /** Current state (e.g. "thinking", "idle"). */
   state?: string;
+  /** Context window usage: tokens used and total limit. */
+  contextUsage?: { used: number; total: number };
 }
 
 export class StatusBar implements Component {
@@ -61,13 +63,23 @@ export class StatusBar implements Component {
       parts.push(`${dimStyle.prefix}#${this.config.sessionId}${dimStyle.reset}`);
     }
 
-    // Right side: token usage + cwd
+    // Right side: token usage + context + cwd
     const rightParts: string[] = [];
     if (this.config.tokens) {
       const { input, output } = this.config.tokens;
       rightParts.push(
         `${tokenStyle.prefix}↑${this.fmt(input)} ↓${this.fmt(output)}${tokenStyle.reset}`,
       );
+    }
+
+    // Context usage percentage (like pi's footer)
+    if (this.config.contextUsage) {
+      const pct =
+        this.config.contextUsage.total > 0
+          ? Math.round((this.config.contextUsage.used / this.config.contextUsage.total) * 100)
+          : 0;
+      const pctStyle = this.theme.resolve(pct > 80 ? "error" : pct > 50 ? "info" : "dim");
+      rightParts.push(`${pctStyle.prefix}${pct}%${pctStyle.reset}`);
     }
 
     if (this.config.cwd) {

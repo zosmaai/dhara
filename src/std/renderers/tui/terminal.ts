@@ -3,7 +3,15 @@
  *
  * Decouples the TUI engine from the actual terminal implementation,
  * enabling headless testing via {@link VirtualTerminal}.
+ *
+ * ProcessTerminal follows pi-tui's approach:
+ * - StdinBuffer: splits batched input into individual sequences
+ * - Kitty keyboard protocol query with proper response handling
+ * - Bracketed paste detection via StdinBuffer
+ * - Write logging via PI_TUI_WRITE_LOG env var
  */
+import { StdinBuffer } from "./stdin-buffer.js";
+
 export interface Terminal {
   /** Start listening for input. Calls onInput for each chunk of terminal data. */
   start(onInput: (data: string) => void, onResize: () => void): void;
@@ -15,7 +23,7 @@ export interface Terminal {
   readonly columns: number;
   /** Current terminal height in rows. */
   readonly rows: number;
-  /** Move cursor up by N lines. */
+  /** Move cursor by N lines (positive = up, negative = down). */
   moveBy(lines: number): void;
   /** Hide the cursor. */
   hideCursor(): void;
@@ -32,8 +40,6 @@ export interface Terminal {
 // ── ANSI escape sequences ──────────────────────────────────────────────
 
 const CSI = "\x1b[";
-const SYNC_START = `${CSI}?2026h`;
-const SYNC_END = `${CSI}?2026l`;
 
 const CURSOR_HIDE = `${CSI}?25l`;
 const CURSOR_SHOW = `${CSI}?25h`;
@@ -52,6 +58,9 @@ const RESIZE_POLL_MS = 50;
  * Terminal implementation backed by process.stdin/stdout.
  *
  * Enters raw mode on `start()`, restores on `stop()`.
+ * Uses StdinBuffer to split batched input into individual sequences.
+ * Queries and enables Kitty keyboard protocol for proper detection
+ * of modified keys (Shift+Enter, Ctrl+arrows, etc.).
  */
 export class ProcessTerminal implements Terminal {
   private input = process.stdin;
@@ -62,6 +71,18 @@ export class ProcessTerminal implements Terminal {
   private _columns = 0;
   private _rows = 0;
   private started = false;
+
+  /** Previous raw mode state for proper restore. */
+  private wasRaw = false;
+
+  /** Whether Kitty keyboard protocol is active. */
+  private kittyProtocolActive = false;
+  /** Whether xterm modifyOtherKeys mode was enabled as fallback. */
+  private modifyOtherKeysActive = false;
+
+  /** StdinBuffer for splitting input into individual sequences. */
+  private stdinBuffer: StdinBuffer | null = null;
+  private stdinDataHandler: ((data: string) => void) | null = null;
 
   get columns(): number {
     return this._columns || this.output.columns || 80;
@@ -88,19 +109,84 @@ export class ProcessTerminal implements Terminal {
     this.onResizeCb = onResize;
     this.refreshSize();
 
+    // Save previous raw mode state
+    this.wasRaw = this.input.isRaw || false;
+
+    // Enable raw mode
     this.input.setRawMode(true);
     this.input.resume();
     this.input.setEncoding("utf-8");
 
+    // Enter alt-screen, enable bracketed paste, hide cursor
     this.output.write(ALT_SCREEN_ENTER);
     this.output.write(BRACKETED_PASTE_START);
     this.output.write(CURSOR_HIDE);
 
-    this.input.on("data", this.handleData);
+    // Set up resize handler
     this.output.on("resize", this.handleResize);
+
+    // Refresh terminal dimensions — they may be stale after suspend/resume
+    // (SIGWINCH is lost while process is stopped). Unix only.
+    if (process.platform !== "win32") {
+      process.kill(process.pid, "SIGWINCH");
+    }
 
     // Poll for resize on terminals that don't emit events
     this.resizeTimer = setInterval(() => this.refreshSize(), RESIZE_POLL_MS);
+
+    // Query and enable Kitty keyboard protocol via StdinBuffer
+    this.setupStdinBuffer();
+  }
+
+  /**
+   * Set up StdinBuffer to split batched input into individual sequences.
+   * Also handles Kitty protocol response detection.
+   */
+  private setupStdinBuffer(): void {
+    this.stdinBuffer = new StdinBuffer();
+
+    // Kitty protocol response pattern: ESC [ ? <flags> u
+    const kittyResponsePattern = new RegExp(`^${String.fromCharCode(27)}\\[\\?(\\d+)u$`);
+
+    // Forward individual sequences to the input handler, with Kitty response detection
+    this.stdinBuffer.on("data", (sequence: string) => {
+      if (!this.kittyProtocolActive) {
+        const match = sequence.match(kittyResponsePattern);
+        if (match) {
+          this.kittyProtocolActive = true;
+          // Enable Kitty keyboard protocol (push flags 1+2+4)
+          // 1 = disambiguate escape codes
+          // 2 = report event types (press/repeat/release)
+          // 4 = report alternate keys
+          this.output.write(`${CSI}>7u`);
+          return; // Don't forward protocol response
+        }
+      }
+      this.onInputCb?.(sequence);
+    });
+
+    // Re-wrap paste content with bracketed paste markers for existing editor handling
+    this.stdinBuffer.on("paste", (content: string) => {
+      this.onInputCb?.(`\x1b[200~${content}\x1b[201~`);
+    });
+
+    // Pipe stdin through the buffer
+    this.stdinDataHandler = (data: string) => {
+      this.stdinBuffer?.process(data);
+    };
+
+    this.input.on("data", this.stdinDataHandler);
+
+    // Query Kitty protocol support
+    this.output.write(`${CSI}?u`);
+
+    // Fallback: if no kitty response after 150ms, use modifyOtherKeys
+    setTimeout(() => {
+      if (!this.kittyProtocolActive && !this.modifyOtherKeysActive) {
+        this.output.write(`${CSI}>4;2m`);
+        this.modifyOtherKeysActive = true;
+      }
+    }, 150);
   }
 
   stop(): void {
@@ -112,13 +198,33 @@ export class ProcessTerminal implements Terminal {
       this.resizeTimer = null;
     }
 
-    this.input.removeListener("data", this.handleData);
+    // Clean up StdinBuffer
+    if (this.stdinBuffer) {
+      this.stdinBuffer.destroy();
+      this.stdinBuffer = null;
+    }
+
+    if (this.stdinDataHandler) {
+      this.input.removeListener("data", this.stdinDataHandler);
+      this.stdinDataHandler = null;
+    }
+
     this.output.removeListener("resize", this.handleResize);
+
+    // Disable Kitty protocol if active
+    if (this.kittyProtocolActive) {
+      this.output.write(`${CSI}<u`);
+      this.kittyProtocolActive = false;
+    }
+    if (this.modifyOtherKeysActive) {
+      this.output.write(`${CSI}>4;0m`);
+      this.modifyOtherKeysActive = false;
+    }
 
     this.output.write(CURSOR_SHOW);
     this.output.write(BRACKETED_PASTE_END);
     this.output.write(ALT_SCREEN_EXIT);
-    this.input.setRawMode(false);
+    this.input.setRawMode(this.wasRaw);
     this.input.pause();
   }
 
@@ -128,9 +234,9 @@ export class ProcessTerminal implements Terminal {
 
   moveBy(lines: number): void {
     if (lines > 0) {
-      this.output.write(`${CSI}${lines}A`);
+      this.output.write(`${CSI}${lines}A`); // Cursor Up
     } else if (lines < 0) {
-      this.output.write(`${CSI}${-lines}B`);
+      this.output.write(`${CSI}${-lines}B`); // Cursor Down
     }
   }
 
@@ -155,10 +261,6 @@ export class ProcessTerminal implements Terminal {
   }
 
   // ── Event handlers (arrow functions for stable binding) ─────────
-
-  private handleData = (data: string): void => {
-    this.onInputCb?.(data);
-  };
 
   private handleResize = (): void => {
     this.refreshSize();
@@ -268,17 +370,13 @@ export class VirtualTerminal implements Terminal {
   // ── Minimal ANSI parsing ────────────────────────────────────────
 
   private _processAnsi(data: string): void {
-    // We track cursor movements and content writes in a simplified way.
-    // For testing, getViewport() is the primary inspection method.
     const lines = data.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (i > 0) {
-        // Newline
         this.cursorY = Math.min(this._rows - 1, this.cursorY + 1);
         this.cursorX = 0;
       }
-      // Strip ANSI sequences from output for clean viewport
       const ESC_CHAR = String.fromCharCode(27);
       const ansiCleanRegex = new RegExp(`${ESC_CHAR}\\[[0-9;]*[a-zA-Z]`, "g");
       const clean = line.replace(ansiCleanRegex, "");
@@ -295,5 +393,5 @@ export class VirtualTerminal implements Terminal {
  * Wrap output in synchronized update markers for flicker-free rendering.
  */
 export function synchronized(output: string): string {
-  return `${SYNC_START}${output}${SYNC_END}`;
+  return `\x1b[?2026h${output}\x1b[?2026l`;
 }

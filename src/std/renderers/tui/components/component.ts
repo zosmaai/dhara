@@ -88,14 +88,94 @@ export abstract class ThemedComponent implements Component {
 
 // ── Utility: measure visible width (strip ANSI) ────────────────────────
 
-const ESC = String.fromCharCode(27);
-const ANSI_RE = new RegExp(`${ESC}\\[[0-9;]*[a-zA-Z]`, "g");
+const ESC = "\x1b";
+
+/**
+ * Strip ALL ANSI escape sequences from a string.
+ * Handles CSI (ESC [ ...), OSC (ESC ] ...), APC (ESC _ ...), SS3 (ESC O).
+ */
+function stripAnsi(text: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < text.length) {
+    if (text[i] !== ESC) {
+      result += text[i];
+      i++;
+      continue;
+    }
+
+    // ESC found — determine sequence type
+    if (i + 1 >= text.length) {
+      i++;
+      continue;
+    }
+
+    const next = text[i + 1];
+    if (!next) {
+      i++;
+      continue;
+    }
+
+    if (next === "[") {
+      // CSI: ESC [ <params> <final> (final byte 0x40-0x7E)
+      let j = i + 2;
+      while (j < text.length) {
+        const code = text.charCodeAt(j);
+        if (code >= 0x40 && code <= 0x7e) {
+          i = j + 1;
+          break;
+        }
+        j++;
+      }
+      if (j >= text.length) i = text.length; // unterminated
+    } else if (next === "]") {
+      // OSC: ESC ] ... BEL (\x07) or ESC ] ... ST (ESC \)
+      let j = i + 2;
+      while (j < text.length) {
+        if (text[j] === "\x07") {
+          i = j + 1;
+          break;
+        }
+        if (text[j] === ESC && j + 1 < text.length && text[j + 1] === "\\") {
+          i = j + 2;
+          break;
+        }
+        j++;
+      }
+      if (j >= text.length) i = text.length;
+    } else if (next === "_") {
+      // APC: ESC _ ... BEL or ESC _ ... ST
+      let j = i + 2;
+      while (j < text.length) {
+        if (text[j] === "\x07") {
+          i = j + 1;
+          break;
+        }
+        if (text[j] === ESC && j + 1 < text.length && text[j + 1] === "\\") {
+          i = j + 2;
+          break;
+        }
+        j++;
+      }
+      if (j >= text.length) i = text.length;
+    } else if (next === "O") {
+      // SS3: ESC O <char> (3 bytes)
+      i += 3;
+    } else {
+      // Two-byte escape: ESC <char>
+      i += 2;
+    }
+  }
+
+  return result;
+}
 
 /**
  * Measure the visible (printable) width of a string by stripping ANSI codes.
  */
 export function visibleWidth(text: string): number {
-  return text.replace(ANSI_RE, "").length;
+  return stripAnsi(text).length;
 }
 
 /**
@@ -103,23 +183,75 @@ export function visibleWidth(text: string): number {
  */
 export function truncateToWidth(text: string, maxWidth: number): string {
   if (maxWidth <= 0) return "";
-  const visible = text.replace(ANSI_RE, "");
+  const visible = stripAnsi(text);
   if (visible.length <= maxWidth) return text;
 
   // Walk character by character, tracking visible vs raw positions
   let visibleCount = 0;
   let rawIndex = 0;
   while (rawIndex < text.length && visibleCount < maxWidth) {
-    if (text[rawIndex] === "\x1b") {
-      // Skip the entire ANSI sequence
-      rawIndex++;
-      while (rawIndex < text.length && !/[a-zA-Z]/.test(text[rawIndex])) {
-        rawIndex++;
-      }
-      rawIndex++; // skip the terminating letter
-    } else {
+    if (text[rawIndex] !== ESC) {
       visibleCount++;
       rawIndex++;
+      continue;
+    }
+
+    // ESC sequence — skip entirely
+    if (rawIndex + 1 >= text.length) {
+      rawIndex++;
+      continue;
+    }
+    const next = text[rawIndex + 1];
+    if (!next) {
+      rawIndex += 2;
+      continue;
+    }
+    if (next === "[") {
+      // CSI
+      let j = rawIndex + 2;
+      while (j < text.length) {
+        const code = text.charCodeAt(j);
+        if (code >= 0x40 && code <= 0x7e) {
+          rawIndex = j + 1;
+          break;
+        }
+        j++;
+      }
+      if (j >= text.length) rawIndex = text.length;
+    } else if (next === "]") {
+      // OSC
+      let j = rawIndex + 2;
+      while (j < text.length) {
+        if (text[j] === "\x07") {
+          rawIndex = j + 1;
+          break;
+        }
+        if (text[j] === ESC && j + 1 < text.length && text[j + 1] === "\\") {
+          rawIndex = j + 2;
+          break;
+        }
+        j++;
+      }
+      if (j >= text.length) rawIndex = text.length;
+    } else if (next === "_") {
+      // APC
+      let j = rawIndex + 2;
+      while (j < text.length) {
+        if (text[j] === "\x07") {
+          rawIndex = j + 1;
+          break;
+        }
+        if (text[j] === ESC && j + 1 < text.length && text[j + 1] === "\\") {
+          rawIndex = j + 2;
+          break;
+        }
+        j++;
+      }
+      if (j >= text.length) rawIndex = text.length;
+    } else if (next === "O") {
+      rawIndex += 3; // SS3
+    } else {
+      rawIndex += 2; // Two-byte escape
     }
   }
   return text.slice(0, rawIndex);
