@@ -43,8 +43,9 @@ export interface FocusableComponent extends Component {
   /**
    * Return the line and column indices where the cursor should be placed
    * when this component has focus. Returns null to hide the cursor.
+   * @param width The render width (may affect wrapped line counts).
    */
-  getCursorPosition?(): { line: number; column: number } | null;
+  getCursorPosition?(width?: number): { line: number; column: number } | null;
 }
 
 // ── Base component with theme reference ────────────────────────────────

@@ -214,14 +214,14 @@ export class Editor implements FocusableComponent {
     // No cache to clear
   }
 
-  getCursorPosition(): { line: number; column: number } | null {
+  getCursorPosition(_width?: number): { line: number; column: number } | null {
     if (!this.focused) return null;
     // Calculate visual cursor position
     const promptLen = visibleWidth(this.prompt);
-    // Cursor line within the viewport
-    const visualLine = this.cursorLine;
-    // Cursor column: prompt width + cursor position in current line
-    const visualCol = visualLine === 0 ? promptLen + this.cursorCol : this.cursorCol;
+    // Cursor line within the viewport (+1 because line 0 is the top border)
+    const visualLine = this.cursorLine + 1;
+    // Cursor column: leading space + prompt width + cursor position in current line
+    const visualCol = visualLine === 1 ? 1 + promptLen + this.cursorCol : 1 + this.cursorCol;
     return { line: visualLine, column: visualCol };
   }
 
