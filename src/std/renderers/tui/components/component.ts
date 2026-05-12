@@ -35,17 +35,15 @@ export interface Component {
 
 /**
  * Component that can receive focus for keyboard input.
+ *
+ * Cursor positioning is handled automatically via the CURSOR_MARKER
+ * mechanism: focused components embed a zero-width marker at the cursor
+ * position in their render() output, and the TUI engine extracts it.
+ * See tui.ts for the CURSOR_MARKER constant.
  */
 export interface FocusableComponent extends Component {
   /** Whether this component currently has focus. */
   focused: boolean;
-
-  /**
-   * Return the line and column indices where the cursor should be placed
-   * when this component has focus. Returns null to hide the cursor.
-   * @param width The render width (may affect wrapped line counts).
-   */
-  getCursorPosition?(width?: number): { line: number; column: number } | null;
 }
 
 // ── Base component with theme reference ────────────────────────────────
