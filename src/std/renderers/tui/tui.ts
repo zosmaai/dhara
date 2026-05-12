@@ -270,7 +270,7 @@ export class TUI {
 
     // Update cursor position if focused component specifies one
     if (this.focusedComponent?.getCursorPosition) {
-      const cursorPos = this.focusedComponent.getCursorPosition();
+      const cursorPos = this.focusedComponent.getCursorPosition(width);
       if (cursorPos) {
         this.positionCursor(lines.length, cursorPos.line, cursorPos.column);
       }

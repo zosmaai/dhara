@@ -60,6 +60,9 @@ export class DharaApp implements Component, FocusableComponent {
       placeholder: "Ask anything…  /help for commands",
       ...config.editor,
     });
+    // The editor is the actual focus target for input; DharaApp
+    // proxies handleInput to it.  Mirror our own focus state.
+    this.editor.focused = true;
 
     this.statusBar = new StatusBar(config.theme, config.status ?? {});
 
@@ -108,19 +111,20 @@ export class DharaApp implements Component, FocusableComponent {
     this.statusBar.invalidate();
   }
 
-  getCursorPosition() {
+  getCursorPosition(width?: number) {
     const p = this.editor.getCursorPosition();
     if (!p) return null;
-    const hdr = renderHeader(this.theme, this.cfg, 80).length;
+    const w = width ?? 80;
+    const hdr = renderHeader(this.theme, this.cfg, w).length;
     const msgs = renderMessages(
       this.theme,
       this.messages,
       this.streamContent,
       this.streamReasoning,
-      80,
+      w,
     ).length;
-    // +1 for separator, +1 for editor top border
-    return { line: hdr + msgs + 2 + p.line, column: p.column };
+    // +1 for the separator line between messages and editor
+    return { line: hdr + msgs + 1 + p.line, column: p.column };
   }
 
   // ── Public API ──────────────────────────────────────────────────────
@@ -305,7 +309,8 @@ function wireEvents(bus: EventBus, app: DharaApp): void {
     [
       "message:delta",
       (e) => {
-        app.streamContent += (e as { delta: string }).delta;
+        const delta = (e as { delta?: string }).delta;
+        if (typeof delta === "string") app.streamContent += delta;
         app.statusBar.update({ state: "streaming" });
         R();
       },

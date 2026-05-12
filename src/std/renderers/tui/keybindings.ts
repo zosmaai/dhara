@@ -127,7 +127,14 @@ export function resolveBinding(bindings: KeyBinding[], data: string): KeyAction 
  * Different terminals send different sequences.
  */
 export function isShiftEnter(data: string): boolean {
-  return data === `${ESC}[13;2~` || data === `${ESC}OM` || data === "\x1b\x0d";
+  return (
+    data === `${ESC}[13;2~` || // xterm
+    data === `${ESC}[27;2;13~` || // kitty/foot
+    data === `${ESC}OM` || // old xterm
+    data === "\x1b\x0d" || // ESC + CR
+    data === "\x1b\x0a" || // ESC + LF
+    data === "\x1b\r\n" // ESC + CRLF
+  );
 }
 
 /**
