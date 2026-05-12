@@ -1,28 +1,26 @@
 /**
  * TUI rendering engine with differential rendering.
  *
- * Uses the CURSOR_MARKER approach from pi-tui: focused components embed
- * a zero-width marker at the cursor position in their rendered output,
- * and the engine extracts it automatically for hardware cursor positioning.
- * This avoids fragile separate cursor-position calculations.
+ * Manages a tree of {@link Component}, renders each frame, diffs
+ * against the previous frame, and writes only changed lines to the
+ * terminal using synchronized output for flicker-free updates.
+ *
+ * Architecture:
+ * - **Root component**: A single component tree rendered each frame.
+ * - **Differential rendering**: Three strategies — first render,
+ *   full re-render (resize/overflow change), and differential
+ *   (only changed lines).
+ * - **Focus management**: One component receives keyboard input.
+ * - **Overlay system**: Components rendered on top of existing content.
  */
 import type { Component, FocusableComponent } from "./components/component.js";
 import type { Terminal } from "./terminal.js";
-import { visibleWidth } from "./components/component.js";
 import { synchronized } from "./terminal.js";
-
-// ── Cursor marker ──────────────────────────────────────────────────────
-
-/**
- * Zero-width APC (Application Program Command) sequence embedded by
- * focused components at the cursor position. The renderer finds this
- * marker, strips it from the output, and positions the hardware cursor.
- */
-export const CURSOR_MARKER = "\x1b_pi:c\x07";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
 export interface OverlayHandle {
+  /** Remove this overlay. */
   hide(): void;
 }
 
@@ -33,6 +31,19 @@ interface OverlayEntry {
 
 // ── TUI class ──────────────────────────────────────────────────────────
 
+/**
+ * The main TUI rendering engine.
+ *
+ * Usage:
+ * ```ts
+ * const terminal = new ProcessTerminal();
+ * const tui = new TUI(terminal);
+ *
+ * tui.setRoot(myRootComponent);
+ * tui.focus(myEditor);
+ * tui.start();
+ * ```
+ */
 export class TUI {
   private terminal: Terminal;
   private root: Component | null = null;
@@ -65,10 +76,12 @@ export class TUI {
 
   // ── Public API ──────────────────────────────────────────────────────
 
+  /** Set the root component to render. */
   setRoot(component: Component): void {
     this.root = component;
   }
 
+  /** Focus a component for keyboard input. */
   focus(component: FocusableComponent | null): void {
     if (this.focusedComponent) {
       this.focusedComponent.focused = false;
@@ -79,6 +92,7 @@ export class TUI {
     }
   }
 
+  /** Show an overlay on top of the current content. */
   showOverlay(component: Component): OverlayHandle {
     let hidden = false;
     const entry: OverlayEntry = {
@@ -98,8 +112,10 @@ export class TUI {
     return entry.handle;
   }
 
+  /** Request a re-render, debounced via nextTick. */
   requestRender(): void {
     if (!this.started) return;
+    // Debounce: if already scheduled, skip
     if (this.renderScheduled) return;
     this.renderScheduled = true;
     setImmediate(() => {
@@ -108,6 +124,7 @@ export class TUI {
     });
   }
 
+  /** Start the TUI: take over the terminal and begin rendering. */
   start(): void {
     if (this.started) return;
     this.started = true;
@@ -117,8 +134,13 @@ export class TUI {
       () => this.handleResize(),
     );
 
+    // Render immediately — do not defer. Some terminals clear the
+    // alt-screen shortly after the switch, so a deferred render can
+    // race and produce a blank screen.
     this.render();
 
+    // Re-render after a short delay to catch terminals that clear
+    // after the alt-screen switch completes.
     setTimeout(() => {
       if (this.started) {
         this.previousLines = [];
@@ -127,6 +149,7 @@ export class TUI {
     }, 100);
   }
 
+  /** Stop the TUI: restore terminal and release resources. */
   stop(): void {
     if (!this.started) return;
 
@@ -143,6 +166,7 @@ export class TUI {
   // ── Input handling ──────────────────────────────────────────────────
 
   private handleInput(data: string): void {
+    // Bracketed paste: wrap large pastes
     if (data === "\x1b[200~") {
       this.pasteActive = true;
       this.inputBuffer = "";
@@ -152,6 +176,10 @@ export class TUI {
       this.pasteActive = false;
       const text = this.inputBuffer;
       this.inputBuffer = "";
+      if (text.length > 10) {
+        this.writeDebug(`[pasted ${text.length} chars]`);
+      }
+      // Feed pasted content to focused component as individual inputs
       for (const char of text) {
         this.dispatchInput(char);
       }
@@ -167,17 +195,20 @@ export class TUI {
   }
 
   private dispatchInput(data: string): void {
+    // Debug key: Shift+Ctrl+D
     if (data === "\x04" && this.onDebug) {
       this.onDebug();
       return;
     }
 
+    // Route to focused component
     if (this.focusedComponent?.handleInput) {
       this.focusedComponent.handleInput(data);
       this.requestRender();
       return;
     }
 
+    // Route to root if it handles input
     if (this.root?.handleInput) {
       this.root.handleInput(data);
       this.requestRender();
@@ -185,29 +216,17 @@ export class TUI {
   }
 
   private handleResize(): void {
+    // Force full redraw on resize
     this.previousLines = [];
     this.render();
   }
 
-  // ── Cursor marker extraction ────────────────────────────────────────
+  // ── Debug output ────────────────────────────────────────────────────
 
-  /**
-   * Find CURSOR_MARKER in rendered lines, strip it, and return
-   * the position where the hardware cursor should be placed.
-   * Returns null if no marker is found.
-   */
-  private extractCursorPosition(lines: string[]): { row: number; col: number } | null {
-    for (let row = 0; row < lines.length; row++) {
-      const line = lines[row];
-      const idx = line.indexOf(CURSOR_MARKER);
-      if (idx !== -1) {
-        const col = visibleWidth(line.slice(0, idx));
-        // Remove marker from the line
-        lines[row] = line.slice(0, idx) + line.slice(idx + CURSOR_MARKER.length);
-        return { row, col };
-      }
-    }
-    return null;
+  private writeDebug(msg: string): void {
+    // Write to the last line temporarily
+    this.terminal.moveBy(this.terminal.rows);
+    this.terminal.write(`[DEBUG] ${msg}\n`);
   }
 
   // ── Rendering ───────────────────────────────────────────────────────
@@ -217,24 +236,23 @@ export class TUI {
 
     const rawWidth = this.terminal.columns;
     const height = this.terminal.rows;
+    // Cap width to prevent absurdly wide boxes on large monitors
     const width = Math.min(rawWidth, 120);
 
-    // Render all lines
+    // Collect all lines: root + overlays
     let lines = this.root.render(width, height);
 
-    // Composite overlays
+    // Render overlays on top
     for (const overlay of this.overlays) {
       const overlayLines = overlay.component.render(width, height);
       lines = this.blendOverlay(lines, overlayLines);
     }
 
-    // Extract cursor marker BEFORE padding/clipping
-    const cursorPos = this.extractCursorPosition(lines);
-
-    // Pad to terminal height to prevent layout jitter
+    // Pad to exactly terminal height to prevent layout jitter
     while (lines.length < height) {
       lines.push("");
     }
+    // Clip to terminal height (show bottom = most recent for chat)
     if (lines.length > height) {
       lines = lines.slice(-height);
     }
@@ -250,75 +268,78 @@ export class TUI {
 
     this.previousLines = lines;
 
-    // Position hardware cursor using extracted marker position
-    if (cursorPos && cursorPos.row < lines.length) {
-      this.positionCursor(lines.length, cursorPos.row, cursorPos.col);
+    // Update cursor position if focused component specifies one
+    if (this.focusedComponent?.getCursorPosition) {
+      const cursorPos = this.focusedComponent.getCursorPosition(width);
+      if (cursorPos) {
+        this.positionCursor(lines.length, cursorPos.line, cursorPos.column);
+      }
     }
   }
 
   private firstRender(lines: string[]): void {
-    // Same as fullRender but without clearing first
     const output = lines.map((l) => `\r${l}`).join("\n");
     this.terminal.write(synchronized(output));
-    // NO trailing newline — cursor stays on last content line
-    this.cursorRow = lines.length - 1;
+    this.terminal.write("\n");
+    this.cursorRow = lines.length;
   }
 
   private fullRender(lines: string[]): void {
-    // Move cursor to top of content
-    if (this.cursorRow >= 0) {
-      this.terminal.moveBy(this.cursorRow + 1);
+    // Move cursor from current position to top of content area
+    if (this.cursorRow > 0) {
+      this.terminal.moveBy(this.cursorRow);
     }
 
-    // Clear from cursor to end
+    // Clear from cursor to end, then render all lines
     this.terminal.clearFromCursor();
-
-    // Write all lines
     const output = lines.map((l) => `\r${l}`).join("\n");
     this.terminal.write(synchronized(output));
-    this.cursorRow = lines.length - 1;
+    this.terminal.write("\n");
+    this.cursorRow = lines.length;
 
     this.fullRedraws++;
   }
 
   private differentialRender(lines: string[]): void {
-    // Find first changed line
+    // Find the first changed line
     let firstChange = -1;
-    const maxLen = Math.max(lines.length, this.previousLines.length);
-    for (let i = 0; i < maxLen; i++) {
-      const oldLine = i < this.previousLines.length ? this.previousLines[i] : "";
-      const newLine = i < lines.length ? lines[i] : "";
-      if (oldLine !== newLine) {
-        firstChange = i;
-        break;
+    let lastChange = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] !== this.previousLines[i]) {
+        if (firstChange === -1) firstChange = i;
+        lastChange = i;
       }
     }
 
-    if (firstChange === -1) return;
+    if (firstChange === -1) return; // Nothing changed
 
-    // Move cursor to first changed line
+    // Move cursor from current position to first changed line
     const moveUp = this.cursorRow - firstChange;
-    if (moveUp > 0) {
-      this.terminal.moveBy(moveUp);
-    } else if (moveUp < 0) {
-      this.terminal.moveBy(moveUp); // moveBy handles negative (moves down)
-    }
+    this.terminal.moveBy(moveUp);
 
-    // Write changed lines, clearing each line first
-    let buffer = "\x1b[?2026h"; // synchronized output start
-    for (let i = firstChange; i < lines.length; i++) {
-      if (i > firstChange) buffer += "\r\n";
-      // Clear line before writing (pi-tui style)
-      buffer += "\r\x1b[2K";
-      buffer += lines[i];
-    }
-    buffer += "\x1b[?2026l"; // synchronized output end
-    this.terminal.write(buffer);
+    // Clear from first change to bottom
+    this.terminal.clearFromCursor();
 
-    this.cursorRow = lines.length - 1;
+    // Render changed lines
+    const changedLines = lines.slice(firstChange, lastChange + 1);
+    const output = changedLines.map((l) => `\r${l}`).join("\n");
+
+    this.terminal.write(synchronized(output));
+
+    // If we cut the output short, pad with newlines to clear stale content
+    const renderedCount = lastChange + 1;
+    const newlinePad = lines.length - renderedCount;
+    if (newlinePad > 0) {
+      this.terminal.write("\n".repeat(newlinePad));
+    } else {
+      this.terminal.write("\n");
+    }
+    this.cursorRow = lines.length;
   }
 
+  /** Blend overlay lines on top of base content. */
   private blendOverlay(base: string[], overlay: string[]): string[] {
+    // Center the overlay vertically
     const startRow = Math.max(0, Math.floor((base.length - overlay.length) / 2));
     const result = [...base];
 
@@ -334,12 +355,12 @@ export class TUI {
     return result;
   }
 
-  /** Position hardware cursor at the extracted marker position. */
-  private positionCursor(totalLines: number, row: number, col: number): void {
-    const moveUp = totalLines - 1 - row;
+  /** Position the terminal cursor for a focused input component. */
+  private positionCursor(totalLines: number, line: number, column: number): void {
+    const moveUp = totalLines - line;
     this.terminal.moveBy(moveUp);
-    this.terminal.write(`\x1b[${col + 1}G`);
+    this.terminal.write(`\r\x1b[${column}C`);
     this.terminal.showCursor();
-    this.cursorRow = row;
+    this.cursorRow = line;
   }
 }

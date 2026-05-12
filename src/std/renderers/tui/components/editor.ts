@@ -1,4 +1,3 @@
-import { CURSOR_MARKER } from "../tui.js";
 import {
   DEFAULT_KEYBINDINGS,
   type KeyAction,
@@ -157,20 +156,9 @@ export class Editor implements FocusableComponent {
     // Top border
     result.push(borderStyle.prefix + "─".repeat(width) + borderStyle.reset);
 
-    const cursorLineText = this.lines[this.cursorLine] ?? "";
-    const cursorBefore = cursorLineText.slice(0, this.cursorCol);
-    const cursorAfter = cursorLineText.slice(this.cursorCol);
-
     for (let i = 0; i < displayLines.length; i++) {
       const isFirstLine = i === 0;
       const lineContent = displayLines[i];
-
-      // Build the text content for this line, injecting CURSOR_MARKER
-      // if this is the cursor line and the component is focused
-      let displayText = lineContent;
-      if (this.focused && i === this.cursorLine) {
-        displayText = cursorBefore + CURSOR_MARKER + cursorAfter;
-      }
 
       if (isFirstLine) {
         const prefix = promptCode.prefix + this.prompt + promptCode.reset + textCode.prefix;
@@ -183,12 +171,12 @@ export class Editor implements FocusableComponent {
             ` ${promptCode.prefix}${this.prompt}${promptCode.reset}${placeholderCode.prefix}${truncateToWidth(this.placeholder, available)}${placeholderCode.reset}`,
           );
         } else {
-          result.push(` ${prefix}${truncateToWidth(displayText, available)}${suffix}`);
+          result.push(` ${prefix}${truncateToWidth(lineContent, available)}${suffix}`);
         }
       } else {
         // Continuation lines: indent same as prompt + space
         const indent = " ".repeat(visibleWidth(this.prompt) + 1);
-        result.push(indent + truncateToWidth(displayText, width - visibleWidth(this.prompt) - 1));
+        result.push(indent + truncateToWidth(lineContent, width - visibleWidth(this.prompt) - 1));
       }
     }
 
@@ -224,6 +212,17 @@ export class Editor implements FocusableComponent {
 
   invalidate(): void {
     // No cache to clear
+  }
+
+  getCursorPosition(_width?: number): { line: number; column: number } | null {
+    if (!this.focused) return null;
+    // Calculate visual cursor position
+    const promptLen = visibleWidth(this.prompt);
+    // Cursor line within the viewport (+1 because line 0 is the top border)
+    const visualLine = this.cursorLine + 1;
+    // Cursor column: leading space + prompt width + cursor position in current line
+    const visualCol = visualLine === 1 ? 1 + promptLen + this.cursorCol : 1 + this.cursorCol;
+    return { line: visualLine, column: visualCol };
   }
 
   // ── Get display lines (with wrapping applied) ──

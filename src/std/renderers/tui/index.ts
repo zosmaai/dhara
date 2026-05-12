@@ -1,7 +1,7 @@
 /**
  * Dhara TUI renderer — barrel exports.
  */
-export { CURSOR_MARKER, TUI } from "./tui.js";
+export { TUI } from "./tui.js";
 export type { OverlayHandle } from "./tui.js";
 export { ProcessTerminal, VirtualTerminal, synchronized } from "./terminal.js";
 export type { Terminal } from "./terminal.js";
