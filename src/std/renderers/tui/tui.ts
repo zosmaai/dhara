@@ -76,7 +76,7 @@ export class TUI {
   /** Previous terminal height — used to detect height changes. */
   private previousHeight = 0;
   /** Whether to clear empty rows when content shrinks (default: on). */
-  private clearOnShrink = process.env.PI_CLEAR_ON_SHRINK !== "0";
+  private clearOnShrink = process.env.PI_CLEAR_ON_SHRINK === "1";
 
   // ── Input handling ──────────────────────────────────────────────────
   private inputBuffer = "";
