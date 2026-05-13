@@ -1,0 +1,11 @@
+{
+  "name": "git-tools",
+  "version": "1.0.0",
+  "description": "Git operations — status, diff, log, commit — demonstrates filesystem extensions",
+  "runtime": {
+    "type": "subprocess",
+    "command": "python3 main.py",
+    "protocol": "json-rpc"
+  },
+  "capabilities": ["filesystem:read", "process:spawn"]
+}
