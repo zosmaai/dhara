@@ -1,0 +1,11 @@
+{
+  "name": "hello-extension",
+  "version": "1.0.0",
+  "description": "Example Dhara extension — hello and echo tools",
+  "runtime": {
+    "type": "subprocess",
+    "command": "node index.js",
+    "protocol": "json-rpc"
+  },
+  "capabilities": []
+}

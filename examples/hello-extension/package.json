@@ -1,0 +1,10 @@
+{
+  "name": "hello-extension",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Minimal Dhara extension example — says hello",
+  "main": "index.js",
+  "dependencies": {
+    "@zosmaai/dhara-extension": "file:../../packages/dhara-extension"
+  }
+}
