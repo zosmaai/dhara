@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+import type { Readable, Writable } from "node:stream";
 /**
  * Performance benchmarks for the extension protocol.
  *
@@ -5,14 +7,12 @@
  * concurrent request handling, and large payload performance.
  */
 import { bench, describe } from "vitest";
-import type { Readable, Writable } from "node:stream";
 import {
   createExtensionProtocol,
   createResponse,
   parseMessage,
   serializeMessage,
 } from "../core/protocol.js";
-import { EventEmitter } from "node:events";
 
 function createMockStdio() {
   const emitter = new EventEmitter();
@@ -21,17 +21,19 @@ function createMockStdio() {
     readable: true,
     read() {},
     receive(msg: unknown) {
-      emitter.emit("data", Buffer.from(JSON.stringify(msg) + "\n"));
+      emitter.emit("data", Buffer.from(`${JSON.stringify(msg)}\n`));
     },
   }) as Readable & { receive(msg: unknown): void };
   const stdout = Object.assign(new EventEmitter(), {
     writable: true,
-    write(chunk: string) { chunks.push(chunk); return true; },
+    write(chunk: string) {
+      chunks.push(chunk);
+      return true;
+    },
   }) as Writable & { chunks: string[] };
   stdout.chunks = chunks;
   return { stdin, stdout };
 }
-
 
 describe("protocol serialization benchmarks", () => {
   const toolsPayload = Array.from({ length: 100 }, (_, i) => ({
@@ -51,9 +53,7 @@ describe("protocol serialization benchmarks", () => {
   }));
 
   const largeResult = {
-    content: [
-      { type: "text", text: "X".repeat(10000) },
-    ],
+    content: [{ type: "text", text: "X".repeat(10000) }],
   };
 
   bench("serialize small request", () => {
@@ -70,12 +70,14 @@ describe("protocol serialization benchmarks", () => {
   });
 
   bench("serialize initialize result (100 tools)", () => {
-    serializeMessage(createResponse(1, {
-      protocolVersion: "0.1.0",
-      name: "test",
-      version: "1.0.0",
-      tools: toolsPayload,
-    }));
+    serializeMessage(
+      createResponse(1, {
+        protocolVersion: "0.1.0",
+        name: "test",
+        version: "1.0.0",
+        tools: toolsPayload,
+      }),
+    );
   });
 
   bench("parse small request", () => {
