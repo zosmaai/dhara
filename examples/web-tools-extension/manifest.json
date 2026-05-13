@@ -1,0 +1,11 @@
+{
+  "name": "web-tools",
+  "version": "1.0.0",
+  "description": "Fetch URLs and search the web — demonstrates network extensions",
+  "runtime": {
+    "type": "subprocess",
+    "command": "python3 main.py",
+    "protocol": "json-rpc"
+  },
+  "capabilities": ["network:outbound"]
+}
