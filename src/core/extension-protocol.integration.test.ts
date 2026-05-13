@@ -8,7 +8,7 @@ describe("Extension Protocol Integration", () => {
 
   beforeAll(async () => {
     // Spawn the echo extension as a subprocess
-    echoExt = spawn("node", ["src/core/test-extensions/echo-extension.ts"], {
+    echoExt = spawn("bash", ["src/core/test-extensions/echo-extension.sh"], {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

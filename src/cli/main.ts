@@ -127,6 +127,7 @@ const OPTION_NAMES = new Set([
   "resume",
   "repl",
   "theme",
+  "json",
   "no-context-files",
   "no-project-config",
 ]);
@@ -294,8 +295,65 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // ── Session management subcommands ───────────────────────────────
+  if (args[0] === "session") {
+    const sessionManager = new SessionManager();
+    const subcmd = args[1];
+
+    if (subcmd === "list") {
+      const sessions = sessionManager.list();
+      if (sessions.length === 0) {
+        process.stdout.write("No sessions found.\n");
+        process.exit(0);
+      }
+      // Format as table
+      for (const s of sessions) {
+        const date = new Date(s.updatedAt).toLocaleString();
+        process.stdout.write(
+          `${s.sessionId.padEnd(12)} ${date.padEnd(25)} ${String(s.entryCount).padStart(4)} entries  ${(s.fileSize / 1024).toFixed(1)} KB  ${s.cwd}\n`,
+        );
+      }
+      process.exit(0);
+    }
+
+    if (subcmd === "delete" && args[2]) {
+      try {
+        sessionManager.delete(args[2]);
+        process.stdout.write(`Session deleted: ${args[2]}\n`);
+      } catch (err) {
+        process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+      }
+      process.exit(0);
+    }
+
+    if (subcmd === "info" && args[2]) {
+      try {
+        const session = sessionManager.load(args[2]);
+        const meta = session.meta;
+        process.stdout.write(`Session:    ${meta.sessionId}\n`);
+        process.stdout.write(`Created:    ${new Date(meta.createdAt).toLocaleString()}\n`);
+        process.stdout.write(`Updated:    ${new Date(meta.updatedAt).toLocaleString()}\n`);
+        process.stdout.write(`CWD:        ${meta.cwd}\n`);
+        process.stdout.write(
+          `Model:      ${meta.model?.provider ?? "?"}/${meta.model?.id ?? "?"}\n`,
+        );
+        process.stdout.write(`Tags:       ${(meta.tags ?? []).join(", ") || "none"}\n`);
+      } catch (err) {
+        process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+      }
+      process.exit(0);
+    }
+
+    // Unknown subcommand
+    process.stderr.write("Usage: dhara session <list|delete <id>|info <id>>\n");
+    process.exit(1);
+  }
+
   const prompt = extractPrompt(args);
   const resumeSessionId = getArg(args, "resume");
+  const jsonMode = args.includes("--json");
   const disableContextFiles = args.includes("--no-context-files");
 
   // ── Extension setup (shared between REPL and one-shot) ──────────────
@@ -426,20 +484,36 @@ async function main(): Promise<void> {
     maxIterations: cfg.projectSettings?.maxIterations ?? 10,
   });
 
-  // Banner
-  const colorEnabled = useColor(process.stdout);
-  process.stderr.write(
-    `\n  ${tag(ANSI.bold, "dhara", colorEnabled)}  •  ${tag(ANSI.bold, cfg.providerName, colorEnabled)}/${tag(ANSI.bold, cfg.modelId, colorEnabled)}  •  ${tag(ANSI.dim, cfg.cwd, colorEnabled)}\n`,
-  );
-  process.stderr.write(`  ${tag(ANSI.dim, "One-shot mode", colorEnabled)}\n\n`);
-
   // Create event bus for streaming
   const eventBus = createEventBus();
-  subscribePromptEvents(eventBus, {
-    output: process.stdout,
-    errorOutput: process.stderr,
-    colorEnabled,
-  });
+
+  const colorEnabled = useColor(process.stdout);
+
+  if (jsonMode) {
+    // JSON mode: output structured JSON events to stdout
+    try {
+      const { subscribeJsonStream } = await import("../std/renderers/json-stream/index.js");
+      subscribeJsonStream(eventBus, { output: process.stdout });
+    } catch {
+      // Fallback if json-stream module is not available:
+      // subscribe to message:delta for basic output
+      eventBus.subscribe<Record<string, unknown>>("message:delta", (data) => {
+        process.stdout.write(`${JSON.stringify({ type: "delta", ...data })}\n`);
+        return { action: "allow" };
+      });
+    }
+  } else {
+    process.stderr.write(
+      `\n  ${tag(ANSI.bold, "dhara", colorEnabled)}  •  ${tag(ANSI.bold, cfg.providerName, colorEnabled)}/${tag(ANSI.bold, cfg.modelId, colorEnabled)}  •  ${tag(ANSI.dim, cfg.cwd, colorEnabled)}\n`,
+    );
+    process.stderr.write(`  ${tag(ANSI.dim, "One-shot mode", colorEnabled)}\n\n`);
+
+    subscribePromptEvents(eventBus, {
+      output: process.stdout,
+      errorOutput: process.stderr,
+      colorEnabled,
+    });
+  }
 
   try {
     await agent.run(prompt, undefined, eventBus);
