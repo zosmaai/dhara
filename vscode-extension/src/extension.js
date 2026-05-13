@@ -1,5 +1,5 @@
 const vscode = require("vscode");
-const { execSync } = require("child_process");
+const { execSync } = require("node:child_process");
 
 /**
  * Activate the Dhara VS Code extension.
@@ -79,7 +79,7 @@ async function runDhara(prompt, opts) {
       args.push(prompt);
 
       return new Promise((resolve, reject) => {
-        const { execFile } = require("child_process");
+        const { execFile } = require("node:child_process");
         const child = execFile(args[0], args.slice(1), {
           maxBuffer: 10 * 1024 * 1024,
           timeout: 120_000,
