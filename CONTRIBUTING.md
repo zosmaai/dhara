@@ -1,51 +1,90 @@
 # Contributing to Dhara
 
-Thank you for your interest in Dhara — the Agent Protocol Standard.
-
-## Our Philosophy
-
-Dhara is built on three principles:
-
-1. **Protocol over API** — Extensions communicate via a standard wire protocol, not a language-specific function call. This means anyone can write extensions in any language.
-2. **Security by design** — Capability-based sandboxing, not "review the source code." Extensions declare what they need; users approve; the sandbox enforces.
-3. **Open standard, open source** — The spec is CC-BY-4.0 (anyone can implement it). The reference implementation is MIT.
-
-## How to Contribute
-
-### Spec (spec/)
-The spec documents define the standard. Improvements here benefit every implementation.
-
-- **Language clarity** — Is something ambiguous? File an issue or PR.
-- **Gaps** — Did we miss an edge case in the protocol?
-- **JSON Schemas** — Do the schemas validate correctly?
-
-### Reference Implementation (core/, std/, cli/)
-
-- **Bug fixes** — Found a bug in the reference implementation?
-- **Standard tools** — Ideas for the standard library?
-- **Provider extensions** — Add a new LLM provider.
-
-### Registry (registry/)
-
-- **Package ideas** — What tools would make dhara useful?
-- **Registry features** — What's missing from the package registry?
-
-### Showcase Extensions
-
-Build an extension in your language of choice and publish it:
-- Python semantic search
-- Rust git integration
-- Go test runner
-- TypeScript linter
-
-## Getting Started
-
-```bash
-git clone git@github.com:zosmaai/dhara.git
-cd dhara
-# ... follow the build guide (coming soon)
-```
+Thanks for your interest! Dhara is the protocol and engine for AI coding agents.
+We welcome contributions of all kinds.
 
 ## Code of Conduct
 
-Be excellent to each other. We're building a standard for everyone.
+This project follows a [Code of Conduct](CODE_OF_CONDUCT.md). By participating,
+you agree to uphold it.
+
+## How to Contribute
+
+### Reporting Bugs
+
+Open a [bug report](https://github.com/zosmaai/dhara/issues/new?template=bug-report.md).
+Include your environment (OS, Node version, provider), reproduction steps, and
+expected vs actual behavior.
+
+### Suggesting Features
+
+Open a [feature request](https://github.com/zosmaai/dhara/issues/new?template=feature-request.md).
+Explain the problem, your proposed solution, and alternatives considered.
+
+### Writing Code
+
+1. Fork the repo and create a branch: `git checkout -b feat/my-feature`
+2. Make your changes
+3. Ensure CI passes locally:
+   ```bash
+   npm ci
+   npx biome lint .
+   npx tsc --noEmit
+   npx vitest run
+   ```
+4. Push and open a Pull Request
+
+### Commit Convention
+
+We use [conventional commits](https://www.conventionalcommits.org/):
+
+| Prefix | When to Use |
+|---|---|
+| `feat:` | New feature or enhancement |
+| `fix:` | Bug fix |
+| `spec:` | Spec/documentation changes |
+| `ci:` | CI/CD pipeline changes |
+| `chore:` | Maintenance, deps, tooling |
+| `style:` | Formatting, lint fixes |
+| `refactor:` | Code restructuring (no behavior change) |
+
+## Development Setup
+
+```bash
+git clone https://github.com/zosmaai/dhara
+cd dhara
+npm install
+npm run build      # Compile TypeScript
+npm test           # Run tests
+npm run lint       # Biome lint
+```
+
+## Running Tests
+
+```bash
+npm test                    # All tests
+npx vitest run --reporter verbose  # Verbose output
+npx vitest run path/to/test.ts     # Single file
+```
+
+## Architecture
+
+The core is intentionally minimal (< 2K lines). See [spec/architecture.md](spec/architecture.md)
+for the full architecture. Key principles:
+
+- **Core has NO LLM code, NO UI code** — interfaces only
+- **Extensions are the ONLY way to add functionality** — wire protocol, not function calls
+- **Minimal standard library** — 6 tools (read/write/edit/ls/grep/bash). Network tools are extensions.
+
+## Pull Request Checklist
+
+- [ ] `tsc --noEmit` passes
+- [ ] `biome lint .` passes (zero warnings)
+- [ ] `vitest run` passes
+- [ ] New tests cover your changes
+- [ ] Spec/docs updated if architecture changed
+- [ ] PR description explains the *why*
+
+## Questions?
+
+Open a [Discussion](https://github.com/zosmaai/dhara/discussions) or ping us on [Discord](https://discord.gg/zosmaai) (coming soon).
