@@ -1,0 +1,23 @@
+title: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for starting a discussion! Please provide context about your topic.
+  - type: textarea
+    attributes:
+      label: Topic
+      description: What would you like to discuss?
+      placeholder: Tell us what's on your mind...
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Category
+      options:
+        - Question / Help
+        - Idea / Feature Request
+        - Show and Tell
+        - General
+    validations:
+      required: true
