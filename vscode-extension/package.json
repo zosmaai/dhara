@@ -1,0 +1,57 @@
+{
+  "name": "dhara",
+  "displayName": "Dhara Agent Protocol",
+  "description": "Run Dhara coding agent commands from VS Code",
+  "version": "0.1.0",
+  "publisher": "zosmaai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zosmaai/dhara"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dhara.runPrompt",
+        "title": "Dhara: Run Prompt in Workspace"
+      },
+      {
+        "command": "dhara.runSelection",
+        "title": "Dhara: Run on Selected Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "dhara.runSelection",
+        "key": "alt+d",
+        "when": "editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "Dhara",
+      "properties": {
+        "dhara.binaryPath": {
+          "type": "string",
+          "default": "dhara",
+          "description": "Path to the dhara binary"
+        },
+        "dhara.provider": {
+          "type": "string",
+          "default": "opencode-go",
+          "description": "Default LLM provider"
+        },
+        "dhara.model": {
+          "type": "string",
+          "default": "",
+          "description": "Default model ID"
+        }
+      }
+    }
+  }
+}
