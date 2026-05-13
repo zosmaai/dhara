@@ -1,0 +1,42 @@
+{
+  "pages": [
+    {
+      "title": "Getting Started",
+      "href": "/getting-started"
+    },
+    {
+      "title": "Guides",
+      "pages": [
+        {
+          "title": "Writing Your First Extension",
+          "href": "/guides/write-first-extension"
+        }
+      ]
+    },
+    {
+      "title": "Reference",
+      "pages": [
+        {
+          "title": "Architecture",
+          "href": "https://github.com/zosmaai/dhara/blob/main/spec/architecture.md"
+        },
+        {
+          "title": "Extension Protocol",
+          "href": "https://github.com/zosmaai/dhara/blob/main/spec/extension-protocol.md"
+        },
+        {
+          "title": "Session Format",
+          "href": "https://github.com/zosmaai/dhara/blob/main/spec/session-format.md"
+        },
+        {
+          "title": "Capability Model",
+          "href": "https://github.com/zosmaai/dhara/blob/main/spec/capability-model.md"
+        }
+      ]
+    },
+    {
+      "title": "Roadmap",
+      "href": "https://github.com/zosmaai/dhara/blob/main/spec/roadmap.md"
+    }
+  ]
+}

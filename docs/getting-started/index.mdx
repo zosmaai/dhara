@@ -1,0 +1,160 @@
+---
+title: Getting Started
+description: Install, configure, and run Dhara for the first time.
+---
+
+# Getting Started
+
+## Installation
+
+```bash
+# Install globally
+npm install -g @zosmaai/dhara
+
+# Or run directly with npx
+npx @zosmaai/dhara "List files in this project"
+```
+
+## Quick Start
+
+### One-shot mode
+
+Pass a prompt as an argument:
+
+```bash
+dhara "What files are in this project?"
+```
+
+### Interactive mode
+
+Run without arguments to enter the TUI (full-screen terminal UI):
+
+```bash
+dhara
+```
+
+Or use the line-based REPL:
+
+```bash
+dhara --repl
+```
+
+## Configure a Provider
+
+Dhara needs an LLM provider to function. Set the corresponding
+environment variable and use `--provider`:
+
+<Tabs
+  items={["OpenAI", "Anthropic", "Google Gemini", "Mistral", "Groq"]}
+>
+  <Tab value="OpenAI">
+    ```bash
+    export OPENAI_API_KEY="sk-..."
+    dhara --provider openai --model gpt-4o
+    ```
+  </Tab>
+  <Tab value="Anthropic">
+    ```bash
+    export ANTHROPIC_API_KEY="sk-ant-..."
+    dhara --provider anthropic --model claude-sonnet-4-20250514
+    ```
+  </Tab>
+  <Tab value="Google Gemini">
+    ```bash
+    export GOOGLE_API_KEY="..."
+    dhara --provider google --model gemini-2.5-flash
+    ```
+  </Tab>
+  <Tab value="Mistral">
+    ```bash
+    export MISTRAL_API_KEY="..."
+    dhara --provider mistral --model mistral-large-latest
+    ```
+  </Tab>
+  <Tab value="Groq">
+    ```bash
+    export GROQ_API_KEY="gsk_..."
+    dhara --provider groq --model llama-3.3-70b-versatile
+    ```
+  </Tab>
+</Tabs>
+
+### Built-in providers (no extra deps)
+
+```bash
+# OpenAI (also works with OpenAI-compatible endpoints)
+export OPENAI_API_KEY="sk-..."
+dhara --provider openai --model gpt-4o
+
+# Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+dhara --provider anthropic
+
+# Opencode-go (default)
+export OPENCODE_API_KEY="..."
+dhara
+```
+
+### pi-ai providers (auto-detected)
+
+All pi-ai providers use their standard environment variables:
+
+| Provider | Env Var | Example |
+|---|---|---|
+| Google | `GOOGLE_API_KEY` | `dhara --provider google --model gemini-2.5-flash` |
+| Mistral | `MISTRAL_API_KEY` | `dhara --provider mistral` |
+| Groq | `GROQ_API_KEY` | `dhara --provider groq` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `dhara --provider deepseek` |
+| Amazon Bedrock | AWS credentials | `dhara --provider amazon-bedrock` |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY` | `dhara --provider azure-openai-responses` |
+| Fireworks | `FIREWORKS_API_KEY` | `dhara --provider fireworks` |
+| OpenRouter | `OPENROUTER_API_KEY` | `dhara --provider openrouter` |
+
+## Project Configuration
+
+Create a `.dhara/settings.json` in your project root:
+
+```json
+{
+  "provider": "google",
+  "model": "gemini-2.5-flash",
+  "maxIterations": 15,
+  "autoSave": true
+}
+```
+
+## Context Files
+
+Place `AGENTS.md` or `CLAUDE.md` in your project root.
+Dhara walks up from the working directory to find them.
+
+```markdown
+# AGENTS.md
+
+- Run `npm run check` before committing
+- Keep responses concise
+- Never modify production data
+```
+
+## CLI Reference
+
+```
+dhara <prompt> [options]     One-shot mode
+dhara [options]              TUI mode (default)
+dhara --repl [options]       REPL mode
+dhara session list           List saved sessions
+dhara session delete <id>    Delete a session
+dhara session info <id>      Show session details
+
+Options:
+  --provider <name>     LLM provider
+  --model <id>          Model ID
+  --base-url <url>      Custom API base URL
+  --cwd <path>          Working directory
+  --resume <id>         Resume a session
+  --json                JSON output (for CI/CD)
+  --theme <name|path>   TUI theme
+  --repl                Use REPL instead of TUI
+  --version             Show version
+  --help                Show help
+```

@@ -1,0 +1,372 @@
+---
+title: Writing Your First Extension
+description: Build a Dhara extension in any language using the JSON-RPC 2.0 protocol.
+---
+
+# Writing Your First Extension
+
+Dhara extensions are **independent processes** that communicate via
+JSON-RPC 2.0 over stdin/stdout. Any language works.
+
+## How Extensions Work
+
+```
+┌─────────┐    stdin/stdout     ┌──────────────┐
+│  Dhara  │ ←── JSON-RPC ───→  │  Extension   │
+│  Core   │                    │  (subprocess) │
+└─────────┘                    └──────────────┘
+```
+
+The lifecycle:
+
+1. Dhara reads your `manifest.json` and spawns your extension
+2. Dhara sends an `initialize` request — you respond with your tools
+3. When the LLM calls your tool, Dhara sends `tools/execute`
+4. You respond with the result
+5. Dhara sends `shutdown` when done
+
+## Hello World Extension
+
+### 1. Create the manifest
+
+```json
+{
+  "name": "hello-world",
+  "version": "1.0.0",
+  "description": "A simple hello world extension",
+  "runtime": {
+    "type": "subprocess",
+    "command": "python3 hello.py",
+    "protocol": "json-rpc"
+  },
+  "capabilities": []
+}
+```
+
+### 2. Write the extension
+
+<Tabs items={["Python", "JavaScript", "Rust"]}>
+  <Tab value="Python">
+
+```python
+# hello.py
+import sys, json
+
+for line in sys.stdin:
+    req = json.loads(line)
+
+    if req["method"] == "initialize":
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "result": {
+                "protocolVersion": "0.1.0",
+                "name": "hello-world",
+                "version": "1.0.0",
+                "tools": [{
+                    "name": "hello",
+                    "description": "Say hello to someone",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name to greet"
+                            }
+                        },
+                        "required": ["name"]
+                    }
+                }]
+            },
+            "id": req["id"]
+        }))
+
+    elif req["method"] == "tools/execute":
+        name = req["params"]["input"].get("name", "world")
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "result": {
+                "content": [{
+                    "type": "text",
+                    "text": f"Hello, {name}! 👋"
+                }]
+            },
+            "id": req["id"]
+        }))
+
+    elif req["method"] == "shutdown":
+        print(json.dumps({
+            "jsonrpc": "2.0",
+            "result": {"status": "ok"},
+            "id": req["id"]
+        }))
+        break
+
+    sys.stdout.flush()
+```
+
+  </Tab>
+  <Tab value="JavaScript">
+
+```javascript
+#!/usr/bin/env node
+// hello.js — Self-contained, no dependencies
+import { createInterface } from "node:readline";
+
+const rl = createInterface({ input: process.stdin });
+
+rl.on("line", (line) => {
+  const req = JSON.parse(line);
+
+  switch (req.method) {
+    case "initialize":
+      respond(req.id, {
+        protocolVersion: "0.1.0",
+        name: "hello-world",
+        version: "1.0.0",
+        tools: [{
+          name: "hello",
+          description: "Say hello to someone",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string" }
+            },
+            required: ["name"]
+          }
+        }]
+      });
+      break;
+
+    case "tools/execute": {
+      const name = req.params?.input?.name ?? "world";
+      respond(req.id, {
+        content: [{ type: "text", text: `Hello, ${name}! 👋` }]
+      });
+      break;
+    }
+
+    case "shutdown":
+      respond(req.id, { status: "ok" });
+      process.exit(0);
+  }
+});
+
+function respond(id, result) {
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", result, id }) + "\n");
+}
+```
+
+  </Tab>
+  <Tab value="Rust">
+
+```rust
+// hello.rs — Build with: cargo build
+use std::io::{self, BufRead, Write};
+
+#[derive(serde::Deserialize)]
+struct Request {
+    jsonrpc: String,
+    method: Option<String>,
+    id: Option<serde_json::Value>,
+    params: Option<serde_json::Value>,
+}
+
+fn main() {
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line.unwrap();
+        let req: Request = serde_json::from_str(&line).unwrap();
+
+        if req.method.as_deref() == Some("initialize") {
+            let resp = serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "protocolVersion": "0.1.0",
+                    "name": "hello-world",
+                    "version": "1.0.0",
+                    "tools": [{
+                        "name": "hello",
+                        "description": "Say hello to someone",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "name": { "type": "string" }
+                            },
+                            "required": ["name"]
+                        }
+                    }]
+                },
+                "id": req.id
+            });
+            println!("{}", serde_json::to_string(&resp).unwrap());
+        } else if req.method.as_deref() == Some("tools/execute") {
+            let name = req.params
+                .and_then(|p| p["input"]["name"].as_str().map(String::from))
+                .unwrap_or_else(|| "world".to_string());
+            let resp = serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "content": [{
+                        "type": "text",
+                        "text": format!("Hello, {}! 👋", name)
+                    }]
+                },
+                "id": req.id
+            });
+            println!("{}", serde_json::to_string(&resp).unwrap());
+        } else if req.method.as_deref() == Some("shutdown") {
+            let resp = serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": { "status": "ok" },
+                "id": req.id
+            });
+            println!("{}", serde_json::to_string(&resp).unwrap());
+            return;
+        }
+        io::stdout().flush().unwrap();
+    }
+}
+```
+
+  </Tab>
+</Tabs>
+
+### 3. Install and test
+
+```bash
+# Manual test (pipe JSON directly)
+printf '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"0.1.0","capabilities":{"tools":true}},"id":1}\n{"jsonrpc":"2.0","method":"tools/execute","params":{"toolName":"hello","input":{"name":"Dhara"}},"id":2}\n{"jsonrpc":"2.0","method":"shutdown","params":{},"id":3}\n' | python3 hello.py
+
+# Install for Dhara
+mkdir -p ~/.dhara/extensions/hello-world
+cp manifest.json hello.py ~/.dhara/extensions/hello-world/
+
+# Run Dhara — it loads the extension automatically
+dhara "Call the hello tool with my name"
+```
+
+## Protocol Reference
+
+### Initialize
+
+```
+Core → Extension:
+{
+  "jsonrpc": "2.0",
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "0.1.0",
+    "capabilities": { "tools": true }
+  },
+  "id": 1
+}
+
+Extension → Core:
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "protocolVersion": "0.1.0",
+    "name": "my-ext",
+    "version": "1.0.0",
+    "tools": [{
+      "name": "my_tool",
+      "description": "What it does",
+      "parameters": { ... },
+      "capabilities": ["filesystem:read"]
+    }]
+  },
+  "id": 1
+}
+```
+
+### Execute Tool
+
+```
+Core → Extension:
+{
+  "jsonrpc": "2.0",
+  "method": "tools/execute",
+  "params": {
+    "toolName": "my_tool",
+    "input": { ... }
+  },
+  "id": 2
+}
+
+Extension → Core:
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "content": [{ "type": "text", "text": "Result!" }],
+    "isError": false
+  },
+  "id": 2
+}
+```
+
+### Shutdown
+
+```
+Core → Extension:
+{
+  "jsonrpc": "2.0",
+  "method": "shutdown",
+  "params": {}
+}
+
+Extension → Core:
+{
+  "jsonrpc": "2.0",
+  "result": { "status": "ok" },
+  "id": 3
+}
+```
+
+## Error Codes
+
+| Code | Meaning |
+|---|---|
+| -32700 | Parse error (invalid JSON) |
+| -32600 | Invalid request |
+| -32601 | Method not found |
+| -32602 | Invalid params |
+| -32001 | Tool execution error |
+| -32002 | Capability denied |
+| -32004 | Operation cancelled |
+
+## Using the TypeScript SDK
+
+If you prefer TypeScript, use `@zosmaai/dhara-extension`:
+
+```bash
+npm install @zosmaai/dhara-extension
+```
+
+```typescript
+import { createExtension } from "@zosmaai/dhara-extension";
+
+const ext = createExtension({
+  name: "my-extension",
+  version: "1.0.0",
+  tools: [{
+    descriptor: {
+      name: "hello",
+      description: "Say hello",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string" }
+        },
+        required: ["name"]
+      }
+    },
+    handler: (input) => ({
+      content: [{ type: "text", text: `Hello, ${input.name}!` }]
+    })
+  }]
+});
+
+ext.run();
+```
+
+See the [example extension](https://github.com/zosmaai/dhara/tree/main/examples/hello-extension) for a complete working implementation.
