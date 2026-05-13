@@ -264,6 +264,17 @@ export class ConfigManager {
    *
    * @throws {ConfigError} If the provider ID is unknown or uses OAuth.
    */
+  /**
+   * Update session behaviour preferences.
+   *
+   * Merges the provided partial config into the existing session config
+   * and persists to disk.
+   */
+  setSessionConfig(session: Partial<SessionConfig>): void {
+    Object.assign(this.data.session, session);
+    this.writeConfig();
+  }
+
   setApiKey(providerId: string, apiKey: string): void {
     const provider = this.data.providers.find((p) => p.id === providerId);
     if (!provider) {

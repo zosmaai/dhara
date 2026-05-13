@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ConfigManager } from "../core/config.js";
 import { type ContextFile, loadContextFiles, reloadContextFiles } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
 import { ExtensionManager } from "../core/extension-manager.js";
@@ -18,8 +19,12 @@ import { createOpenAIProvider } from "../std/providers/openai-provider.js";
 import { createPiAiProvider } from "../std/providers/pi-ai-adapter.js";
 import { createStandardToolMap } from "../std/tools/index.js";
 import { mergeExtensionTools } from "../std/tools/index.js";
+import { generateCompletion } from "./completions.js";
+import { handleConfigSubcommand } from "./config-commands.js";
+import { runDoctor } from "./doctor.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 import { runRepl } from "./repl.js";
+import { handleSessionSubcommand } from "./session-commands.js";
 import { runTui } from "./tui-runner.js";
 
 /**
@@ -295,60 +300,28 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // ── Session management subcommands ───────────────────────────────
-  if (args[0] === "session") {
+  // ── Subcommand routing ────────────────────────────────────────────
+  if (args[0] === "session" && args.length >= 1) {
     const sessionManager = new SessionManager();
-    const subcmd = args[1];
+    handleSessionSubcommand(sessionManager, args.slice(1));
+    process.exit(0);
+  }
 
-    if (subcmd === "list") {
-      const sessions = sessionManager.list();
-      if (sessions.length === 0) {
-        process.stdout.write("No sessions found.\n");
-        process.exit(0);
-      }
-      // Format as table
-      for (const s of sessions) {
-        const date = new Date(s.updatedAt).toLocaleString();
-        process.stdout.write(
-          `${s.sessionId.padEnd(12)} ${date.padEnd(25)} ${String(s.entryCount).padStart(4)} entries  ${(s.fileSize / 1024).toFixed(1)} KB  ${s.cwd}\n`,
-        );
-      }
-      process.exit(0);
-    }
+  if (args[0] === "config" && args.length >= 1) {
+    const configManager = new ConfigManager();
+    handleConfigSubcommand(configManager, args.slice(1));
+    process.exit(0);
+  }
 
-    if (subcmd === "delete" && args[2]) {
-      try {
-        sessionManager.delete(args[2]);
-        process.stdout.write(`Session deleted: ${args[2]}\n`);
-      } catch (err) {
-        process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
-        process.exit(1);
-      }
-      process.exit(0);
-    }
+  if (args[0] === "doctor") {
+    const configManager = new ConfigManager();
+    runDoctor(configManager);
+    process.exit(0);
+  }
 
-    if (subcmd === "info" && args[2]) {
-      try {
-        const session = sessionManager.load(args[2]);
-        const meta = session.meta;
-        process.stdout.write(`Session:    ${meta.sessionId}\n`);
-        process.stdout.write(`Created:    ${new Date(meta.createdAt).toLocaleString()}\n`);
-        process.stdout.write(`Updated:    ${new Date(meta.updatedAt).toLocaleString()}\n`);
-        process.stdout.write(`CWD:        ${meta.cwd}\n`);
-        process.stdout.write(
-          `Model:      ${meta.model?.provider ?? "?"}/${meta.model?.id ?? "?"}\n`,
-        );
-        process.stdout.write(`Tags:       ${(meta.tags ?? []).join(", ") || "none"}\n`);
-      } catch (err) {
-        process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
-        process.exit(1);
-      }
-      process.exit(0);
-    }
-
-    // Unknown subcommand
-    process.stderr.write("Usage: dhara session <list|delete <id>|info <id>>\n");
-    process.exit(1);
+  if (args[0] === "completion" && args[1]) {
+    generateCompletion(args[1]);
+    process.exit(0);
   }
 
   const prompt = extractPrompt(args);

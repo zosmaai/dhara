@@ -106,6 +106,7 @@ export interface Session {
   ): SessionEntry;
   fork(parentId: string, label?: string): BranchEntry;
   getEntry(id: string): Entry | undefined;
+  getEntries(): Entry[];
   getPath(branchId?: string): string[];
   getHead(): Entry | undefined;
   export(): string;
@@ -237,6 +238,10 @@ export function createSession(config: { cwd: string; model?: ModelRef; tags?: st
     return result;
   }
 
+  function getEntries(): Entry[] {
+    return Array.from(entries.values());
+  }
+
   function getHead(): Entry | undefined {
     return headId ? entries.get(headId) : undefined;
   }
@@ -296,6 +301,7 @@ export function createSession(config: { cwd: string; model?: ModelRef; tags?: st
     append,
     fork,
     getEntry,
+    getEntries,
     getPath,
     getHead,
     export: exportSession,

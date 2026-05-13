@@ -1,10 +1,13 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 /**
  * Theme loader: parses YAML theme files and returns Theme instances.
  *
  * Supports a minimal YAML subset (no external dependency).
  */
 import { type StyleDefinition, Theme, type ThemeDefinition } from "./theme.js";
+import { BUILTIN_THEMES, BUILTIN_THEME_NAMES } from "./themes/index.js";
 
 /**
  * Parse a minimal YAML theme definition string.
@@ -122,3 +125,91 @@ export function loadThemeFile(path: string, colorEnabled = true): Theme {
 }
 
 export { parseThemeYaml };
+
+/**
+ * Directory where user-installed custom themes are stored.
+ */
+export function getUserThemeDir(): string {
+  return join(homedir(), ".dhara", "themes");
+}
+
+/**
+ * Discover and load all available themes (built-in + user custom).
+ * Returns a record keyed by theme name.
+ */
+export function discoverThemes(colorEnabled = true): Record<string, Theme> {
+  const themes: Record<string, Theme> = {};
+
+  // Built-in themes
+  for (const name of BUILTIN_THEME_NAMES) {
+    themes[name] = new Theme(BUILTIN_THEMES[name], colorEnabled);
+  }
+
+  // User custom themes from ~/.dhara/themes/
+  const userDir = getUserThemeDir();
+  if (existsSync(userDir)) {
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(userDir);
+    } catch {
+      // ignore
+    }
+
+    for (const entry of entries) {
+      if (!entry.endsWith(".yaml") && !entry.endsWith(".yml")) continue;
+      const themePath = join(userDir, entry);
+      try {
+        const theme = loadThemeFile(themePath, colorEnabled);
+        themes[theme.name] = theme;
+      } catch {
+        // skip invalid themes
+      }
+    }
+  }
+
+  return themes;
+}
+
+/**
+ * Resolve a theme by name, checking built-in themes first,
+ * then user custom themes.
+ */
+export function resolveTheme(name: string, colorEnabled = true): Theme | undefined {
+  // Built-in check
+  const builtinDef = BUILTIN_THEMES[name];
+  if (builtinDef) return new Theme(builtinDef, colorEnabled);
+
+  // User custom check — try loading from ~/.dhara/themes/{name}.yaml
+  const userFile = join(getUserThemeDir(), `${name}.yaml`);
+  if (existsSync(userFile)) {
+    try {
+      return loadThemeFile(userFile, colorEnabled);
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * List all available theme names (built-in + custom).
+ */
+export function listThemeNames(): string[] {
+  const names = new Set(BUILTIN_THEME_NAMES);
+
+  const userDir = getUserThemeDir();
+  if (existsSync(userDir)) {
+    try {
+      for (const entry of readdirSync(userDir)) {
+        if (entry.endsWith(".yaml") || entry.endsWith(".yml")) {
+          names.add(entry.replace(/\.ya?ml$/, ""));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return Array.from(names).sort();
+}

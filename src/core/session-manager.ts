@@ -175,6 +175,9 @@ export class SessionManager {
       getEntry(id: string) {
         return session.getEntry(id);
       },
+      getEntries() {
+        return session.getEntries();
+      },
       getPath(branchId?: string) {
         return session.getPath(branchId);
       },
