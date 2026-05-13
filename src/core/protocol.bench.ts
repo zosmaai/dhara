@@ -5,6 +5,7 @@
  * concurrent request handling, and large payload performance.
  */
 import { bench, describe } from "vitest";
+import type { Readable, Writable } from "node:stream";
 import {
   createExtensionProtocol,
   createResponse,
@@ -12,6 +13,25 @@ import {
   serializeMessage,
 } from "../core/protocol.js";
 import { EventEmitter } from "node:events";
+
+function createMockStdio() {
+  const emitter = new EventEmitter();
+  const chunks: string[] = [];
+  const stdin = Object.assign(emitter, {
+    readable: true,
+    read() {},
+    receive(msg: unknown) {
+      emitter.emit("data", Buffer.from(JSON.stringify(msg) + "\n"));
+    },
+  }) as Readable & { receive(msg: unknown): void };
+  const stdout = Object.assign(new EventEmitter(), {
+    writable: true,
+    write(chunk: string) { chunks.push(chunk); return true; },
+  }) as Writable & { chunks: string[] };
+  stdout.chunks = chunks;
+  return { stdin, stdout };
+}
+
 
 describe("protocol serialization benchmarks", () => {
   const toolsPayload = Array.from({ length: 100 }, (_, i) => ({
@@ -70,17 +90,7 @@ describe("protocol serialization benchmarks", () => {
 
 describe("protocol streaming benchmarks", () => {
   bench("1000 concurrent sends + receives", async () => {
-    const emitter = new EventEmitter();
-    const chunks: string[] = [];
-    const stdin = Object.assign(emitter, {
-      receive(msg: unknown) {
-        emitter.emit("data", Buffer.from(JSON.stringify(msg) + "\n"));
-      },
-    }) as unknown as NodeJS.ReadableStream;
-    const stdout = Object.assign(new EventEmitter(), {
-      write(chunk: string) { chunks.push(chunk); return true; },
-    }) as unknown as NodeJS.WritableStream;
-
+    const { stdin, stdout } = createMockStdio();
     const protocol = createExtensionProtocol({ stdin, stdout });
 
     const promises: Promise<unknown>[] = [];
@@ -89,7 +99,7 @@ describe("protocol streaming benchmarks", () => {
     }
 
     // Parse outgoing requests and respond to each
-    for (const chunk of chunks) {
+    for (const chunk of stdout.chunks) {
       const parsed = JSON.parse(chunk);
       stdin.receive({ jsonrpc: "2.0", result: { seq: parsed.params?.seq }, id: parsed.id });
     }

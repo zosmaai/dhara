@@ -2,7 +2,7 @@ import type { Readable, Writable } from "node:stream";
 
 export interface JsonRpcMessage {
   jsonrpc: "2.0";
-  id?: number;
+  id?: number | string;
   method?: string;
   params?: unknown;
   result?: unknown;
@@ -38,7 +38,7 @@ export function createExtensionProtocol({
   stdout: Writable;
 }): ExtensionProtocol {
   let nextId = 1;
-  const pending = new Map<number, PendingRequest>();
+  const pending = new Map<number | string, PendingRequest>();
   const notificationHandlers = new Map<string, ((params: unknown) => void)[]>();
   let buffer = "";
   let closed = false;
@@ -171,8 +171,6 @@ export function createExtensionProtocol({
 
 // ── Serialization helpers ───────────────────────────────────────────────────────
 
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
 /**
  * Serialize a JSON-RPC message to a JSON string.
  */
@@ -197,7 +195,7 @@ export function parseMessage(raw: string): JsonRpcMessage | undefined {
 /**
  * Create a JSON-RPC success response.
  */
-export function createResponse(id: number | string | undefined | null, result: unknown): JsonRpcMessage {
+export function createResponse(id: number | string | null | undefined, result: unknown): JsonRpcMessage {
   return { jsonrpc: "2.0", id: id ?? undefined, result };
 }
 
@@ -205,7 +203,7 @@ export function createResponse(id: number | string | undefined | null, result: u
  * Create a JSON-RPC error response.
  */
 export function createErrorResponse(
-  id: number | string | undefined | null,
+  id: number | string | null | undefined,
   code: number,
   message: string,
   data?: unknown,

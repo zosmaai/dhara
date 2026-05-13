@@ -22,6 +22,7 @@ import { mergeExtensionTools } from "../std/tools/index.js";
 import { generateCompletion } from "./completions.js";
 import { handleConfigSubcommand } from "./config-commands.js";
 import { runDoctor } from "./doctor.js";
+import { handleRegistrySubcommand } from "./registry-commands.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 import { runRepl } from "./repl.js";
 import { handleSessionSubcommand } from "./session-commands.js";
@@ -321,6 +322,12 @@ async function main(): Promise<void> {
 
   if (args[0] === "completion" && args[1]) {
     generateCompletion(args[1]);
+    process.exit(0);
+  }
+
+  if (args[0] === "registry" && args.length >= 1) {
+    const configManager = new ConfigManager();
+    await handleRegistrySubcommand(configManager as never, args.slice(1));
     process.exit(0);
   }
 
