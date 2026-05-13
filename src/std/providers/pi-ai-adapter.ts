@@ -1,9 +1,9 @@
 import { completeSimple } from "@earendil-works/pi-ai";
-import { getModel, getProviders as getPiAiProviders, getEnvApiKey } from "@earendil-works/pi-ai";
+import { getEnvApiKey, getModel, getProviders as getPiAiProviders } from "@earendil-works/pi-ai";
 import type {
+  KnownProvider,
   AssistantMessage as PiAiAssistantMessage,
   Context as PiAiContext,
-  KnownProvider,
   Message as PiAiMessage,
   Model as PiAiModel,
   Tool as PiAiTool,
@@ -46,10 +46,7 @@ export function createPiAiProvider(config: PiAiAdapterConfig): Provider {
   const apiKey = config.apiKey ?? getEnvApiKey(provider);
   const baseUrl = config.baseUrl;
 
-  async function complete(
-    params: CompleteParams,
-    signal?: AbortSignal,
-  ): Promise<AssistantMessage> {
+  async function complete(params: CompleteParams, signal?: AbortSignal): Promise<AssistantMessage> {
     // Resolve the pi-ai model
     let piModel: PiAiModel<string>;
     try {
@@ -128,7 +125,10 @@ function convertToPiAiMessage(msg: ProviderMessage): PiAiMessage {
     }
 
     case "assistant": {
-      const content: Array<{ type: "text"; text: string } | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> }> = [];
+      const content: Array<
+        | { type: "text"; text: string }
+        | { type: "toolCall"; id: string; name: string; arguments: Record<string, unknown> }
+      > = [];
       for (const c of msg.content) {
         content.push({ type: "text", text: c.text ?? "" });
       }
@@ -148,7 +148,14 @@ function convertToPiAiMessage(msg: ProviderMessage): PiAiMessage {
         api: "openai-completions" as const,
         provider: "",
         model: "",
-        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
         stopReason: "stop" as const,
         timestamp: Date.now(),
       };
