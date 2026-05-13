@@ -1,0 +1,9 @@
+{
+    "name": "docker-extension",
+    "version": "1.0.0",
+    "description": "Docker operations — ps, logs, exec, compose",
+    "runtime": {"type": "subprocess", "command": "python3 main.py", "protocol": "json-rpc"},
+    "provides": {"tools": ["docker_ps", "docker_logs", "docker_exec", "docker_compose"]},
+    "capabilities": ["process:spawn"],
+    "license": "MIT"
+}

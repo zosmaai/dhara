@@ -1,0 +1,15 @@
+{
+    "name": "code-search",
+    "version": "1.0.0",
+    "description": "Code search tool using ripgrep/fd — regex search and file finding",
+    "runtime": {
+        "type": "subprocess",
+        "command": "python3 main.py",
+        "protocol": "json-rpc"
+    },
+    "provides": {
+        "tools": ["code_search", "file_find"]
+    },
+    "capabilities": ["process:spawn"],
+    "license": "MIT"
+}

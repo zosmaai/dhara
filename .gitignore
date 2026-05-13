@@ -9,3 +9,5 @@ coverage/
 *.swp
 *.swo
 *~
+__pycache__/
+*.pyc
