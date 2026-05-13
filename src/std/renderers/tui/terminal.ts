@@ -52,6 +52,10 @@ const BRACKETED_PASTE_END = `${CSI}?2004l`;
 const ALT_SCREEN_ENTER = `${CSI}?1049h`;
 const ALT_SCREEN_EXIT = `${CSI}?1049l`;
 
+// Mouse tracking
+const MOUSE_TRACKING_START = `${CSI}?1002h${CSI}?1006h`;
+const MOUSE_TRACKING_END = `${CSI}?1002l${CSI}?1006l`;
+
 const RESIZE_POLL_MS = 50;
 
 /**
@@ -107,7 +111,10 @@ export class ProcessTerminal implements Terminal {
     this.started = true;
     this.onInputCb = onInput;
     this.onResizeCb = onResize;
-    this.refreshSize();
+
+    // Initialize dimensions from stdout (avoids 0→actual resize trigger)
+    this._columns = this.output.columns || 80;
+    this._rows = this.output.rows || 24;
 
     // Save previous raw mode state
     this.wasRaw = this.input.isRaw || false;
@@ -120,6 +127,7 @@ export class ProcessTerminal implements Terminal {
     // Enter alt-screen, enable bracketed paste, hide cursor
     this.output.write(ALT_SCREEN_ENTER);
     this.output.write(BRACKETED_PASTE_START);
+    this.output.write(MOUSE_TRACKING_START);
     this.output.write(CURSOR_HIDE);
 
     // Set up resize handler
@@ -222,6 +230,7 @@ export class ProcessTerminal implements Terminal {
     }
 
     this.output.write(CURSOR_SHOW);
+    this.output.write(MOUSE_TRACKING_END);
     this.output.write(BRACKETED_PASTE_END);
     this.output.write(ALT_SCREEN_EXIT);
     this.input.setRawMode(this.wasRaw);

@@ -96,6 +96,9 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
     eb?.emit("message:end", { entry: userEntry });
     eb?.emit("agent:prompt", { prompt: userPrompt, entryId: userEntry.id });
 
+    // Track last response for agent:end event
+    let lastUsage: { input: number; output: number } | undefined;
+
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       if (isCancelled(signal, eb)) {
         eb?.emit("agent:end", { messages: [] });
@@ -166,14 +169,24 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
 
       // If streaming content, emit deltas (for now, emit the full content)
       if (response.content.length > 0) {
+        const deltaText = response.content
+          .filter((c: { type: string; text?: string }) => c.type === "text")
+          .map((c: { text?: string }) => c.text ?? "")
+          .join("");
         eb?.emit("message:delta", {
           entry: assistantEntry,
           content: response.content,
           type: "text",
+          delta: deltaText,
         });
       }
 
       eb?.emit("message:end", { entry: assistantEntry });
+      // Track usage for agent:end
+      if (response.usage) {
+        lastUsage = response.usage;
+      }
+
       eb?.emit("agent:response", {
         entryId: assistantEntry.id,
         content: response.content,
@@ -264,7 +277,13 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       });
     }
 
-    eb?.emit("agent:end", { messages: [] });
+    // Emit agent:end with usage info so the TUI can display tokens
+    eb?.emit("agent:end", {
+      messages: [],
+      result: {
+        tokens: lastUsage,
+      },
+    });
   }
 
   return { run };

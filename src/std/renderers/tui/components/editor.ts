@@ -155,8 +155,9 @@ export class Editor implements FocusableComponent {
     const result: string[] = [];
     const displayLines = this.getDisplayLines();
 
-    // Top border
-    result.push(borderStyle.prefix + "─".repeat(width) + borderStyle.reset);
+    // Top border — full screen width with left/right padding spaces
+    const borderLine = borderStyle.prefix + "─".repeat(width) + borderStyle.reset;
+    result.push(` ${borderLine} `);
 
     const cursorLineText = this.lines[this.cursorLine] ?? "";
     const cursorBefore = cursorLineText.slice(0, this.cursorCol);
@@ -198,6 +199,9 @@ export class Editor implements FocusableComponent {
       const mlIndicator = `${dimStyle.prefix}└ ${this.lines.length} lines — Shift+Enter for newline, Enter to submit${dimStyle.reset}`;
       result.push(` ${truncateToWidth(mlIndicator, width - 2)}`);
     }
+
+    // Bottom border — same style as top border, with left/right padding
+    result.push(` ${borderLine} `);
 
     return result;
   }
