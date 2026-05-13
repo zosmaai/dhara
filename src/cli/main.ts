@@ -15,6 +15,7 @@ import { createSession } from "../core/session.js";
 import { type Skill, discoverSkills, reloadSkills } from "../core/skills.js";
 import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
 import { createOpenAIProvider } from "../std/providers/openai-provider.js";
+import { createPiAiProvider } from "../std/providers/pi-ai-adapter.js";
 import { createStandardToolMap } from "../std/tools/index.js";
 import { mergeExtensionTools } from "../std/tools/index.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
@@ -65,6 +66,7 @@ Usage:
 Options:
   --provider <name>        LLM provider.
                            Known: openai, anthropic, opencode-go
+                           Also: google, mistral, groq, deepseek, and 20+ more via pi-ai
                            Default: opencode-go
   --model <id>             Model ID (e.g. "deepseek-v4-flash", "gpt-4o")
   --base-url <url>         Custom API base URL
@@ -83,6 +85,8 @@ Environment:
     OPENAI_API_KEY     API key for openai
     ANTHROPIC_API_KEY  API key for anthropic
   For custom providers, set DHARA_API_KEY as fallback.
+  pi-ai providers (google, mistral, groq, deepseek, etc.) use their
+  own standard env vars (GOOGLE_API_KEY, MISTRAL_API_KEY, etc.).
 
 REPL commands (type /help in session):
   /exit, /quit       Exit the REPL
@@ -132,7 +136,7 @@ interface ResolvedConfig {
   modelId: string;
   baseUrl: string | undefined;
   cwd: string;
-  apiKey: string;
+  apiKey: string | undefined;
   provider: Provider;
   projectSettings?: ProjectSettings;
 }
@@ -147,15 +151,7 @@ function resolveConfig(args: string[]): ResolvedConfig {
 
   const apiKey = providerInfo
     ? (process.env[providerInfo.envVar] ?? process.env.DHARA_API_KEY)
-    : (process.env.DHARA_API_KEY ?? process.env.OPENAI_API_KEY);
-
-  if (!apiKey) {
-    const envHint = providerInfo
-      ? `Set ${providerInfo.envVar} or DHARA_API_KEY`
-      : "Set DHARA_API_KEY or OPENAI_API_KEY";
-    process.stderr.write(`Error: No API key found for "${providerName}". ${envHint}.\n`);
-    process.exit(1);
-  }
+    : undefined; // pi-ai providers auto-discover their API key
 
   // Load project-level config overrides first
   const disableProjectConfig = args.includes("--no-project-config");
@@ -168,9 +164,26 @@ function resolveConfig(args: string[]): ResolvedConfig {
   let provider: Provider;
   try {
     if (providerName === "anthropic") {
+      if (!apiKey) {
+        process.stderr.write(`Error: No API key found for "anthropic". Set ANTHROPIC_API_KEY or DHARA_API_KEY.\n`);
+        process.exit(1);
+      }
       provider = createAnthropicProvider({ apiKey, maxTokens });
-    } else {
+    } else if (providerName === "openai" || providerName === "opencode-go") {
+      if (!apiKey) {
+        process.stderr.write(`Error: No API key found for "${providerName}". Set ${providerInfo?.envVar ?? "DHARA_API_KEY"} or DHARA_API_KEY.\n`);
+        process.exit(1);
+      }
       provider = createOpenAIProvider({ apiKey, baseUrl: finalBaseUrl });
+    } else {
+      // Use pi-ai adapter for all other providers (google, mistral, groq, etc.)
+      // pi-ai auto-discovers API keys from standard environment variables.
+      provider = createPiAiProvider({
+        provider: providerName,
+        model: finalModelId,
+        apiKey,
+        baseUrl: finalBaseUrl,
+      });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

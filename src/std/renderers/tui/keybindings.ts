@@ -114,6 +114,16 @@ export const DEFAULT_KEYBINDINGS: KeyBinding[] = [
   { sequence: "\x1b[27;1u", action: "cancel", description: "Escape (CSI-u)" },
   { sequence: "\x1b[127;1u", action: "delete.left", description: "Backspace (CSI-u)" },
   { sequence: "\x1b[9;1u", action: "autocomplete", description: "Tab (CSI-u)" },
+  // Cursor keys — disambiguated CSI format (Kitty flag 1)
+  { sequence: "\x1b[1;1A", action: "history.prev", description: "Up (Kitty CSI)" },
+  { sequence: "\x1b[1;1B", action: "history.next", description: "Down (Kitty CSI)" },
+  { sequence: "\x1b[1;1C", action: "cursor.right", description: "Right (Kitty CSI)" },
+  { sequence: "\x1b[1;1D", action: "cursor.left", description: "Left (Kitty CSI)" },
+  // Cursor keys — CSI-u format (Kitty flag 1+2+4, key codes from spec)
+  { sequence: "\x1b[57361;1u", action: "history.prev", description: "Up (CSI-u)" },
+  { sequence: "\x1b[57362;1u", action: "history.next", description: "Down (CSI-u)" },
+  { sequence: "\x1b[57363;1u", action: "cursor.right", description: "Right (CSI-u)" },
+  { sequence: "\x1b[57364;1u", action: "cursor.left", description: "Left (CSI-u)" },
   { sequence: "\x1b[A", action: "history.prev" },
   { sequence: "\x1b[B", action: "history.next" },
   { sequence: "\x1b[C", action: "cursor.right" },
