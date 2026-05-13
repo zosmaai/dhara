@@ -1,0 +1,23 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+categories:
+  - title: "🚀 Features"
+    labels:
+      - "enhancement"
+      - "feature"
+  - title: "🐛 Bug Fixes"
+    labels:
+      - "bug"
+  - title: "🧰 Maintenance"
+    labels:
+      - "chore"
+      - "dependencies"
+      - "documentation"
+      - "refactor"
+change-template: "- $TITLE (#$NUMBER)"
+template: |
+  ## Changes
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/zosmaai/dhara/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
