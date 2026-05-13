@@ -4,9 +4,10 @@ import { ChatMessage, type ChatMessageConfig } from "./components/chat-message.j
  * DharaApp — the coding agent TUI application.
  *
  * Thin shell that composes sub-components and wires them to agent events.
+ * Rendering logic is extracted to standalone functions for testability.
  */
 import type { Component, FocusableComponent } from "./components/component.js";
-import { truncateToWidth, visibleWidth } from "./components/component.js";
+import { visibleWidth } from "./components/component.js";
 import { Editor, type EditorConfig } from "./components/editor.js";
 import { StatusBar, type StatusBarConfig } from "./components/status-bar.js";
 import type { Theme } from "./theme.js";
@@ -36,15 +37,7 @@ export class DharaApp implements Component, FocusableComponent {
   statusBar: StatusBar;
 
   processing = false;
-  private _focused = false;
-  get focused(): boolean {
-    return this._focused;
-  }
-  set focused(value: boolean) {
-    this._focused = value;
-    // Propagate focus to the editor for CURSOR_MARKER positioning
-    this.editor.focused = value;
-  }
+  focused = false;
 
   // Exit: double-tap Ctrl+C
   private ctrlCTapped = false;
@@ -63,10 +56,12 @@ export class DharaApp implements Component, FocusableComponent {
     this.cfg = config;
 
     this.editor = new Editor(config.theme, {
-      prompt: "> ",
-      placeholder: "Ask anything\u2026  /help for commands",
+      prompt: "▸ ",
+      placeholder: "Ask anything…  /help for commands",
       ...config.editor,
     });
+    // The editor is the actual focus target for input; DharaApp
+    // proxies handleInput to it.  Mirror our own focus state.
     this.editor.focused = true;
 
     this.statusBar = new StatusBar(config.theme, config.status ?? {});
@@ -91,7 +86,6 @@ export class DharaApp implements Component, FocusableComponent {
       ...(hasContent
         ? renderMessages(this.theme, this.messages, this.streamContent, this.streamReasoning, width)
         : renderWelcome(this.theme, width)),
-      this.theme.apply("dim", "\u2500".repeat(width)),
       ...this.editor.render(width),
       ...this.statusBar.render(width),
     ];
@@ -116,6 +110,8 @@ export class DharaApp implements Component, FocusableComponent {
     this.statusBar.invalidate();
   }
 
+  // Cursor positioning handled via CURSOR_MARKER embedded by editor
+
   // ── Public API ──────────────────────────────────────────────────────
 
   finishStream(): void {
@@ -129,6 +125,8 @@ export class DharaApp implements Component, FocusableComponent {
   addMessage(c: ChatMessageConfig): void {
     this.messages.push(c);
   }
+
+  // ── Event wiring ────────────────────────────────────────────────────
 
   setEventBus(bus: EventBus): void {
     this.disposeSubs();
@@ -207,14 +205,17 @@ function renderHeader(theme: Theme, cfg: DharaAppConfig, width: number): string[
   const result: string[] = [];
   const w = width - 2;
 
-  const brandText = `${A.prefix}\u26a1${A.reset} ${Bd.prefix}dhara${Bd.reset} ${D.prefix}${v}${D.reset}`;
-  const brandPlain = visibleWidth(`\u26a1 dhara ${v}`);
+  // Brand line
+  const brandText = `${A.prefix}⚡${A.reset} ${Bd.prefix}dhara${Bd.reset} ${D.prefix}${v}${D.reset}`;
+  const brandPlain = visibleWidth(`⚡ dhara ${v}`);
   result.push(brandText + " ".repeat(Math.max(0, w - brandPlain)));
 
+  // Model line
   const modelText = `${Bd.prefix}${p}${Bd.reset}/${Bd.prefix}${m}${Bd.reset}`;
   const modelPlain = visibleWidth(`${p}/${m}`);
   result.push(modelText + " ".repeat(Math.max(0, w - modelPlain)));
 
+  // CWD + session
   const metaText = `${D.prefix}${c}${D.reset}  ${M.prefix}#${s}${M.reset}`;
   const metaPlain = visibleWidth(`${c}  #${s}`);
   result.push(metaText + " ".repeat(Math.max(0, w - metaPlain)));
@@ -222,7 +223,7 @@ function renderHeader(theme: Theme, cfg: DharaAppConfig, width: number): string[
   return result;
 }
 
-/** Welcome message shown on first load. */
+/** Welcome message shown on first load so the screen is never empty. */
 export function renderWelcome(theme: Theme, width: number): string[] {
   const A = theme.resolve("accent");
   const D = theme.resolve("dim");
@@ -231,34 +232,23 @@ export function renderWelcome(theme: Theme, width: number): string[] {
   const S = theme.resolve("success");
 
   const w = width - 4;
-  const t = (text: string) => truncateToWidth(text, w);
-
   const result: string[] = [];
 
   result.push("");
-  result.push(`  ${A.prefix}${t("Welcome to Dhara")}${A.reset}`);
-  result.push(`  ${D.prefix}${t("A coding agent built on the Dhara protocol")}${D.reset}`);
-  result.push(`  ${D.prefix}${t("\u2500".repeat(Math.min(w, 50)))}${D.reset}`);
+  result.push(`  ${A.prefix}Welcome to Dhara${A.reset}`);
+  result.push(`  ${D.prefix}${"─".repeat(Math.min(w, 50))}${D.reset}`);
   result.push("");
-  result.push(`  ${Bd.prefix}${t("Quick start:")}${Bd.reset}`);
+  result.push(`  ${Bd.prefix}Quick start:${Bd.reset}`);
   result.push(
-    `  ${S.prefix}${t("\u25cf")}${S.reset} ${D.prefix}${t("Type a question or task and press Enter")}${D.reset}`,
+    `  ${S.prefix}●${S.reset} ${D.prefix}Type a question or task and press Enter${D.reset}`,
   );
-  result.push(
-    `  ${S.prefix}${t("\u25cf")}${S.reset} ${D.prefix}${t("Use Shift+Enter for multi-line input")}${D.reset}`,
-  );
-  result.push(
-    `  ${S.prefix}${t("\u25cf")}${S.reset} ${D.prefix}${t("/help  for commands")}${D.reset}`,
-  );
-  result.push(
-    `  ${S.prefix}${t("\u25cf")}${S.reset} ${D.prefix}${t("/clear to clear the chat")}${D.reset}`,
-  );
-  result.push(
-    `  ${S.prefix}${t("\u25cf")}${S.reset} ${D.prefix}${t("Ctrl+C to cancel, Ctrl+D to exit")}${D.reset}`,
-  );
+  result.push(`  ${S.prefix}●${S.reset} ${D.prefix}Use Shift+Enter for multi-line input${D.reset}`);
+  result.push(`  ${S.prefix}●${S.reset} ${D.prefix}/help  for commands${D.reset}`);
+  result.push(`  ${S.prefix}●${S.reset} ${D.prefix}/clear to clear the chat${D.reset}`);
+  result.push(`  ${S.prefix}●${S.reset} ${D.prefix}Ctrl+C to cancel, Ctrl+D to exit${D.reset}`);
   result.push("");
   result.push(
-    `  ${M.prefix}${t("Shortcuts: \u2191/\u2193 history  Ctrl+A/E start/end  Ctrl+K clear to end  Ctrl+U clear line")}${M.reset}`,
+    `  ${M.prefix}Shortcuts: ↑/↓ history  Ctrl+A/E start/end  Ctrl+K clear to end  Ctrl+U clear line${M.reset}`,
   );
   result.push("");
 
@@ -304,8 +294,17 @@ function wireEvents(bus: EventBus, app: DharaApp): void {
     [
       "message:delta",
       (e) => {
-        const delta = (e as { delta?: string }).delta;
-        if (typeof delta === "string") app.streamContent += delta;
+        const payload = e as { delta?: string; content?: Array<{ type: string; text?: string }> };
+        if (typeof payload.delta === "string") {
+          app.streamContent += payload.delta;
+        } else if (Array.isArray(payload.content)) {
+          // Fallback: extract text from content blocks
+          for (const block of payload.content) {
+            if (block.type === "text" && block.text) {
+              app.streamContent += block.text;
+            }
+          }
+        }
         app.statusBar.update({ state: "streaming" });
         R();
       },
@@ -320,6 +319,8 @@ function wireEvents(bus: EventBus, app: DharaApp): void {
     [
       "agent:end",
       (e) => {
+        // If streaming captured content, add it as a message
+        // If not (e.g., no delta events), try to get content from agent:response
         app.finishStream();
         const ek = e as { result?: { tokens?: { input: number; output: number } } };
         if (ek?.result?.tokens) app.statusBar.update({ tokens: ek.result.tokens });
@@ -354,7 +355,7 @@ const SLASH_HELP = [
   "Commands:  /help  /clear  /exit",
   "",
   "Shortcuts:",
-  "  \u2191/\u2193 history   Shift+Enter newline   Enter submit",
+  "  ↑/↓ history   Shift+Enter newline   Enter submit",
   "  Ctrl+A/E start/end   Ctrl+K delete to end   Ctrl+U delete line",
   "  Ctrl+W delete word   Alt+B/F word   Ctrl+C cancel/exit",
 ].join("\n");
