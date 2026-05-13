@@ -168,3 +168,49 @@ export function createExtensionProtocol({
     },
   };
 }
+
+// ── Serialization helpers ───────────────────────────────────────────────────────
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/**
+ * Serialize a JSON-RPC message to a JSON string.
+ */
+export function serializeMessage(msg: JsonRpcMessage): string {
+  return JSON.stringify(msg);
+}
+
+/**
+ * Parse a JSON string into a JSON-RPC message.
+ * Returns undefined if the input is not valid JSON-RPC.
+ */
+export function parseMessage(raw: string): JsonRpcMessage | undefined {
+  try {
+    const parsed = JSON.parse(raw) as JsonRpcMessage;
+    if (parsed.jsonrpc !== "2.0") return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Create a JSON-RPC success response.
+ */
+export function createResponse(id: number | string | undefined | null, result: unknown): JsonRpcMessage {
+  return { jsonrpc: "2.0", id: id ?? undefined, result };
+}
+
+/**
+ * Create a JSON-RPC error response.
+ */
+export function createErrorResponse(
+  id: number | string | undefined | null,
+  code: number,
+  message: string,
+  data?: unknown,
+): JsonRpcMessage {
+  const error: { code: number; message: string; data?: unknown } = { code, message };
+  if (data !== undefined) error.data = data;
+  return { jsonrpc: "2.0", id: id ?? undefined, error };
+}
