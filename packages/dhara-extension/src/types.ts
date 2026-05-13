@@ -39,11 +39,7 @@ export interface JsonRpcNotification {
   params?: Record<string, unknown>;
 }
 
-export type JsonRpcMessage =
-  | JsonRpcRequest
-  | JsonRpcSuccess
-  | JsonRpcError
-  | JsonRpcNotification;
+export type JsonRpcMessage = JsonRpcRequest | JsonRpcSuccess | JsonRpcError | JsonRpcNotification;
 
 /**
  * Tool descriptor returned during extension initialization.

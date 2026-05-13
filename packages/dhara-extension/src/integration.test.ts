@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 
 describe("Extension protocol integration", () => {
   const EXT_PATH = resolve(
@@ -58,12 +58,12 @@ describe("Extension protocol integration", () => {
               // Got all expected responses — send shutdown and resolve
               if (proc.stdin && !proc.killed) {
                 proc.stdin.write(
-                  JSON.stringify({
+                  `${JSON.stringify({
                     jsonrpc: "2.0",
                     method: "shutdown",
                     params: {},
                     id: 99,
-                  }) + "\n",
+                  })}\n`,
                 );
               }
               cleanup();
@@ -90,7 +90,7 @@ describe("Extension protocol integration", () => {
       // Send messages after a short delay to let the process start
       setImmediate(() => {
         for (const msg of messages) {
-          proc.stdin?.write(msg + "\n");
+          proc.stdin?.write(`${msg}\n`);
         }
       });
     });

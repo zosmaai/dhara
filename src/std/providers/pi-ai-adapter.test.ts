@@ -2,14 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPiAiProvider, getAvailableProviders } from "./pi-ai-adapter.js";
 
 // Build mock module using vi.hoisted - this is hoisted before vi.mock
-const { mockCompleteSimple, mockGetModel, mockGetEnvApiKey, mockGetProviders } = vi.hoisted(
-  () => ({
-    mockCompleteSimple: vi.fn(),
-    mockGetModel: vi.fn(),
-    mockGetEnvApiKey: vi.fn(),
-    mockGetProviders: vi.fn(),
-  }),
-);
+const { mockCompleteSimple, mockGetModel, mockGetEnvApiKey, mockGetProviders } = vi.hoisted(() => ({
+  mockCompleteSimple: vi.fn(),
+  mockGetModel: vi.fn(),
+  mockGetEnvApiKey: vi.fn(),
+  mockGetProviders: vi.fn(),
+}));
 
 vi.mock("@earendil-works/pi-ai", () => ({
   completeSimple: mockCompleteSimple,
@@ -234,9 +232,7 @@ describe("pi-ai adapter", () => {
       });
 
       const result = await provider.complete({
-        messages: [
-          { role: "user", content: [{ type: "text", text: "Think step by step" }] },
-        ],
+        messages: [{ role: "user", content: [{ type: "text", text: "Think step by step" }] }],
         model: { id: "claude-sonnet-4-20250514", provider: "anthropic" },
       });
 
@@ -296,12 +292,7 @@ describe("pi-ai adapter", () => {
 
   describe("getAvailableProviders", () => {
     it("returns list of providers from pi-ai", () => {
-      mockGetProviders.mockReturnValue([
-        "openai",
-        "anthropic",
-        "google",
-        "mistral",
-      ]);
+      mockGetProviders.mockReturnValue(["openai", "anthropic", "google", "mistral"]);
 
       const providers = getAvailableProviders();
       expect(providers).toEqual(["openai", "anthropic", "google", "mistral"]);

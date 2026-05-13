@@ -165,13 +165,17 @@ function resolveConfig(args: string[]): ResolvedConfig {
   try {
     if (providerName === "anthropic") {
       if (!apiKey) {
-        process.stderr.write(`Error: No API key found for "anthropic". Set ANTHROPIC_API_KEY or DHARA_API_KEY.\n`);
+        process.stderr.write(
+          `Error: No API key found for "anthropic". Set ANTHROPIC_API_KEY or DHARA_API_KEY.\n`,
+        );
         process.exit(1);
       }
       provider = createAnthropicProvider({ apiKey, maxTokens });
     } else if (providerName === "openai" || providerName === "opencode-go") {
       if (!apiKey) {
-        process.stderr.write(`Error: No API key found for "${providerName}". Set ${providerInfo?.envVar ?? "DHARA_API_KEY"} or DHARA_API_KEY.\n`);
+        process.stderr.write(
+          `Error: No API key found for "${providerName}". Set ${providerInfo?.envVar ?? "DHARA_API_KEY"} or DHARA_API_KEY.\n`,
+        );
         process.exit(1);
       }
       provider = createOpenAIProvider({ apiKey, baseUrl: finalBaseUrl });

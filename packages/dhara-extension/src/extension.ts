@@ -1,4 +1,4 @@
-import { type ToolDescriptor, type ToolHandler, ErrorCodes } from "./types.js";
+import { ErrorCodes, type ToolDescriptor, type ToolHandler } from "./types.js";
 import type { InitializeParams, InitializeResult, ToolResult } from "./types.js";
 
 /**
@@ -80,27 +80,22 @@ export function createExtension(options: ExtensionOptions) {
   }
 
   let inputBuffer = "";
-  let nextId = 0;
+  const nextId = 0;
 
   /**
    * Send a JSON-RPC response on stdout.
    */
   function sendResponse(id: string | number | null, result: unknown) {
     const message = JSON.stringify({ jsonrpc: "2.0", result, id });
-    process.stdout.write(message + "\n");
+    process.stdout.write(`${message}\n`);
   }
 
   /**
    * Send a JSON-RPC error response on stdout.
    */
-  function sendError(
-    id: string | number | null,
-    code: number,
-    message: string,
-    data?: unknown,
-  ) {
+  function sendError(id: string | number | null, code: number, message: string, data?: unknown) {
     const error = { jsonrpc: "2.0" as const, error: { code, message, data }, id };
-    process.stdout.write(JSON.stringify(error) + "\n");
+    process.stdout.write(`${JSON.stringify(error)}\n`);
   }
 
   /**
@@ -143,16 +138,15 @@ export function createExtension(options: ExtensionOptions) {
 
         case "tools/execute": {
           const toolName = (params as Record<string, unknown>)?.toolName as string;
-          const input = (params as Record<string, unknown>)?.input as Record<string, unknown> ?? {};
-          const context = (params as Record<string, unknown>)?.context as Record<string, unknown> | undefined;
+          const input =
+            ((params as Record<string, unknown>)?.input as Record<string, unknown>) ?? {};
+          const context = (params as Record<string, unknown>)?.context as
+            | Record<string, unknown>
+            | undefined;
 
           const handler = toolMap.get(toolName);
           if (!handler) {
-            sendError(
-              id ?? null,
-              ErrorCodes.METHOD_NOT_FOUND,
-              `Tool "${toolName}" not found`,
-            );
+            sendError(id ?? null, ErrorCodes.METHOD_NOT_FOUND, `Tool "${toolName}" not found`);
             break;
           }
 
@@ -169,11 +163,7 @@ export function createExtension(options: ExtensionOptions) {
 
           const cmdHandler = commandMap.get(cmdName);
           if (!cmdHandler) {
-            sendError(
-              id ?? null,
-              ErrorCodes.METHOD_NOT_FOUND,
-              `Command "${cmdName}" not found`,
-            );
+            sendError(id ?? null, ErrorCodes.METHOD_NOT_FOUND, `Command "${cmdName}" not found`);
             break;
           }
 

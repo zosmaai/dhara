@@ -60,13 +60,11 @@ function handleTool(toolName, input) {
 }
 
 function send(id, result) {
-  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", result, id }) + "\n");
+  process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", result, id })}\n`);
 }
 
 function sendError(id, code, message) {
-  process.stdout.write(
-    JSON.stringify({ jsonrpc: "2.0", error: { code, message }, id }) + "\n",
-  );
+  process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", error: { code, message }, id })}\n`);
 }
 
 let buffer = "";
@@ -120,11 +118,7 @@ process.stdin.on("data", (chunk) => {
           sendError(id ?? null, -32601, `Unknown method: ${method}`);
       }
     } catch (err) {
-      sendError(
-        id ?? null,
-        err.code ?? -32001,
-        err.message ?? String(err),
-      );
+      sendError(id ?? null, err.code ?? -32001, err.message ?? String(err));
     }
   }
 });

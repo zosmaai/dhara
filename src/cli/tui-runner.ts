@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 /**
  * TUI runner — bridges the TUI renderer with dhara's agent loop.
  */
@@ -15,9 +18,6 @@ import {
   loadThemeFile,
 } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 export interface TuiConfig {
   sessionManager: SessionManager;

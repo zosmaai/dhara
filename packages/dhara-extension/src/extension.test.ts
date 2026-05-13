@@ -48,7 +48,7 @@ describe("Dhara Extension SDK", () => {
       const originalWrite = process.stdout.write.bind(process.stdout);
 
       // Mock stdout.write
-      const writeMock = (chunk:unknown) => {
+      const writeMock = (chunk: unknown) => {
         outputs.push(String(chunk));
         return true;
       };
