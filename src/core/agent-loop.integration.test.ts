@@ -32,7 +32,8 @@ describe("Agent Loop Integration", () => {
   it("completes a full tool call cycle", async () => {
     // Create a mock provider that simulates tool call + response
     const mockProvider: Provider = {
-      complete: vi.fn()
+      complete: vi
+        .fn()
         // First call: returns a tool call
         .mockResolvedValueOnce({
           content: [],

@@ -56,9 +56,7 @@ describe("SessionManager integration", () => {
     const path = loaded.getPath();
     expect(path.length).toBeGreaterThanOrEqual(1);
     // The session should have entries after loading
-    const pathEntries = path
-      .map((id) => loaded.getEntry(id))
-      .filter(Boolean);
+    const pathEntries = path.map((id) => loaded.getEntry(id)).filter(Boolean);
     expect(pathEntries.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -100,9 +98,9 @@ describe("SessionManager integration", () => {
     const list = manager.list();
     const summary = list.find((s) => s.sessionId === session.meta.sessionId);
     expect(summary).toBeDefined();
-    expect(summary!.cwd).toBe("/test/project");
-    expect(summary!.entryCount).toBe(1);
-    expect(summary!.fileSize).toBeGreaterThan(0);
+    expect(summary?.cwd).toBe("/test/project");
+    expect(summary?.entryCount).toBe(1);
+    expect(summary?.fileSize).toBeGreaterThan(0);
   });
 
   it("throws SessionNotFoundError for non-existent session", () => {
