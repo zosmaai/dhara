@@ -1,0 +1,11 @@
+# Normalize line endings
+* text=auto eol=lf
+
+# Spec files
+spec/** linguist-documentation
+
+# Examples
+examples/** linguist-documentation
+
+# Lock file is generated
+package-lock.json linguist-generated

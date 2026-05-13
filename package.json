@@ -1,9 +1,24 @@
 {
   "name": "@zosmaai/dhara",
   "version": "0.1.0",
-  "description": "The Agent Protocol Standard — minimal, secure, language-agnostic coding agent harness",
+  "description": "Minimal, secure, language-agnostic AI coding agent harness. Agent loop, extension protocol, 20+ LLM providers, session persistence, and TUI/REPL.",
   "type": "module",
-  "keywords": ["coding-agent", "agent-harness", "protocol", "llm", "ai", "developer-tools"],
+  "keywords": [
+    "coding-agent",
+    "agent-harness",
+    "protocol",
+    "llm",
+    "ai",
+    "developer-tools",
+    "extension",
+    "json-rpc",
+    "cli",
+    "openai",
+    "anthropic",
+    "gemini",
+    "tui",
+    "terminal"
+  ],
   "homepage": "https://github.com/zosmaai/dhara",
   "bugs": {
     "url": "https://github.com/zosmaai/dhara/issues"
