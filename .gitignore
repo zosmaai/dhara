@@ -11,3 +11,4 @@ coverage/
 *~
 __pycache__/
 *.pyc
+packages/dhara-extension-rs/target/
