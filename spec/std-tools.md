@@ -8,9 +8,26 @@ A built-in set of tools that make the agent useful for coding tasks. These regis
 
 ## Philosophy
 
-The architecture spec says: "What Pi Got Wrong → Dogmatic tool count → standard library of ~8 tools, swappable."
+The standard library is NOT a comprehensive tool collection. It's the
+**absolute floor** — the minimal set of tools a coding agent needs to
+function on a codebase.
 
-Not 4 tools (Pi's philosophy), not 40. A curated set of ~8 tools that cover 99% of coding use cases. Each tool is independently replaceable — swap our `bash` for your own.
+Dhara is a **minimal coding harness**. Everything beyond these 6 tools
+belongs in extensions:
+
+| Tool | Why It's Non-Negotiable |
+|---|---|
+| `read` / `write` / `edit` | Agent must manipulate files |
+| `ls` | Agent must navigate the filesystem |
+| `grep` | Agent must search the codebase |
+| `bash` | Agent must run commands |
+
+Network tools (`web_fetch`, `web_search`), database tools, git
+operations, and domain-specific capabilities belong in **extensions**.
+This is exactly what the extension protocol is for.
+
+See [architecture.md](./architecture.md):
+"Extensions are the ONLY way to add functionality."
 
 ## Tool Catalog
 
@@ -128,37 +145,44 @@ returns:    ContentBlock[] — stdout + stderr with exit code
 - Command not in allowed list → sandbox blocks
 - Non-zero exit → return stdout + stderr, not an error (tool succeeds, LLM interprets exit code)
 
-### 7. `web_fetch` — Fetch URL Content
+### 7. Network tools (NOT in standard library)
+
+`web_fetch` and `web_search` are NOT standard tools. They belong in
+**extensions** because:
+
+- They touch the **network**, not the filesystem — a different domain entirely
+- They require API keys and rate limiting — provider/extension concerns
+- They're the **perfect extension demo** — "Write a web tools extension"
+  demonstrates exactly what the extension protocol enables
+- The sandbox already supports `network:outbound` capability checking
+  for extensions to use
+
+To build them as extensions, see:
+- [extension-protocol.md](./extension-protocol.md)
+- [package-manifest.md](./package-manifest.md)
+
+Example extension layout:
 
 ```
-name:        web_fetch
-description: Fetch content from a URL. Returns plain text.
-parameters: {
-  url: string (required) — URL to fetch
-}
-capabilities: [network:outbound]
-returns:    ContentBlock[] — page text
+web-tools/
+├── manifest.yaml
+├── index.ts          # JSON-RPC 2.0 server (handshake → register → execute)
+└── README.md
 ```
 
-**Edge cases**:
-- Domain not in allowed list → sandbox blocks
-- HTTP error → return status code + body as error
-- Timeout → return timeout error
-
-### 8. `web_search` — Web Search
-
+```yaml
+# web-tools/manifest.yaml
+name: web-tools
+description: Fetch URLs and search the web
+version: 1.0.0
+tools:
+  - name: web_fetch
+    description: Fetch content from a URL
+    capability: network:outbound
+  - name: web_search
+    description: Search the web
+    capability: network:outbound
 ```
-name:        web_search
-description: Search the web for information. Returns structured results.
-parameters: {
-  query: string (required) — search query
-  maxResults?: number        — max results (default 5)
-}
-capabilities: [network:outbound]
-returns:    ContentBlock[] — title, URL, snippet per result
-```
-
-**Note**: This tool requires a search backend (Exa, Perplexity, etc.). Initial implementation can be a stub that returns "not configured" unless a search API key is present in config.
 
 ## Tool Registration Pattern
 
@@ -208,24 +232,19 @@ if (!result.allowed) {
 
 ```
 src/std/tools/
-├── fs-read.ts          # fs_read tool (~60 lines)
-├── fs-read.test.ts     # Tests
-├── fs-write.ts         # fs_write tool (~40 lines)
-├── fs-write.test.ts    # Tests
-├── fs-edit.ts          # fs_edit tool (~80 lines)
-├── fs-edit.test.ts     # Tests
-├── fs-list.ts          # fs_list tool (~40 lines)
-├── fs-list.test.ts     # Tests
-├── fs-search.ts        # fs_search tool (~50 lines)
-├── fs-search.test.ts   # Tests
-├── bash.ts             # bash tool (~60 lines)
+├── read.ts             # read tool (~100 lines)
+├── read.test.ts        # Tests
+├── write.ts            # write tool (~60 lines)
+├── write.test.ts       # Tests
+├── edit.ts             # edit tool (~120 lines)
+├── edit.test.ts        # Tests
+├── ls.ts               # ls tool (~60 lines)
+├── ls.test.ts          # Tests
+├── grep.ts             # grep tool (~80 lines)
+├── grep.test.ts        # Tests
+├── bash.ts             # bash tool (~80 lines)
 ├── bash.test.ts        # Tests
-├── web-fetch.ts        # web_fetch tool (~50 lines)
-├── web-fetch.test.ts   # Tests
-├── web-search.ts       # web_search stub (~30 lines)
-├── web-search.test.ts  # Tests
-├── sandbox-context.ts  # Shared sandbox accessor (~15 lines)
-└── index.ts            # Export all tools as a Map (~20 lines)
+└── index.ts            # Export all tools as a Map (~30 lines)
 ```
 
 ## Tests per Tool
@@ -242,31 +261,32 @@ src/std/tools/
 
 ```typescript
 // src/std/tools/index.ts
-import { fsRead } from "./fs-read.js";
-import { fsWrite } from "./fs-write.js";
-import { fsEdit } from "./fs-edit.js";
-import { fsList } from "./fs-list.js";
-import { fsSearch } from "./fs-search.js";
-import { bash } from "./bash.js";
-import { webFetch } from "./web-fetch.js";
-import { webSearch } from "./web-search.js";
-import { createSandbox, type SandboxConfig } from "../../core/sandbox.js";
+import { createBashTool } from "./bash.js";
+import { createEditTool } from "./edit.js";
+import { createGrepTool } from "./grep.js";
+import { createLsTool } from "./ls.js";
+import { createReadTool } from "./read.js";
+import { createWriteTool } from "./write.js";
 import type { ToolRegistration } from "../../core/provider.js";
+import type { Sandbox } from "../../core/sandbox.js";
 
-export function createDefaultTools(sandboxConfig: SandboxConfig): Map<string, ToolRegistration> {
-  const sandbox = createSandbox(sandboxConfig);
-  // TODO: pass sandbox to each tool executor
-
-  return new Map([
-    ["fs_read", fsRead],
-    ["fs_write", fsWrite],
-    ["fs_edit", fsEdit],
-    ["fs_list", fsList],
-    ["fs_search", fsSearch],
-    ["bash", bash],
-    ["web_fetch", webFetch],
-    ["web_search", webSearch],
-  ]);
+export function createStandardToolMap(config: {
+  cwd: string;
+  sandbox: Sandbox;
+}): Map<string, ToolRegistration> {
+  const tools: Record<string, ToolRegistration> = {
+    read: createReadTool(config),
+    write: createWriteTool(config),
+    edit: createEditTool(config),
+    ls: createLsTool(config),
+    grep: createGrepTool(config),
+    bash: createBashTool(config),
+  };
+  const map = new Map<string, ToolRegistration>();
+  for (const [name, tool] of Object.entries(tools)) {
+    map.set(name, tool);
+  }
+  return map;
 }
 ```
 
@@ -278,7 +298,7 @@ export function createDefaultTools(sandboxConfig: SandboxConfig): Map<string, To
 4. CLI print mode → uses `index.ts` to register tools
 
 ## Success Criteria
-- All 8 tools work against real filesystem (with temp dirs in tests)
+- All 6 tools work against real filesystem (with temp dirs in tests)
 - Sandbox blocks disallowed operations
 - Path traversal correctly prevented
 - All tools follow the same `ToolRegistration` interface
