@@ -1,0 +1,35 @@
+{
+  "name": "@zosmaai/dhara-extension",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for building Dhara extensions — JSON-RPC 2.0 helpers, type definitions, and runtime support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": ["dhara", "extension", "sdk", "json-rpc", "agent"],
+  "license": "MIT",
+  "author": {
+    "name": "Zosma AI",
+    "url": "https://zosma.ai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zosmaai/dhara.git",
+    "directory": "packages/dhara-extension"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {}
+}
