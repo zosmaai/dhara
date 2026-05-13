@@ -41,6 +41,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify package contents
+        run: |
+          echo "Package files:"
+          npm pack --dry-run 2>&1 | head -30
+
       - name: Publish to npm
         run: npm publish --provenance --access public
         env:
