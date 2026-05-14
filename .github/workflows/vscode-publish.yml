@@ -42,7 +42,7 @@ jobs:
             exit 0
           fi
           if [ "$BUMP" = "patch" ]; then
-            npx @vscode/vsce publish --patch -p "$VSCE_TOKEN"
+            npx @vscode/vsce publish patch -p "$VSCE_TOKEN"
           else
             npx @vscode/vsce publish -p "$VSCE_TOKEN"
           fi
