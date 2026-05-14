@@ -16,5 +16,11 @@ jobs:
       - run: npm ci
       - name: Publish to VS Code Marketplace
         working-directory: vscode-extension
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
         run: |
-          npx vsce publish -p ${{ secrets.VSCE_TOKEN }}
+          if [ -z "$VSCE_TOKEN" ]; then
+            echo "⚠️ VSCE_TOKEN not set — skipping VS Code publish"
+            exit 0
+          fi
+          npx vsce publish -p "$VSCE_TOKEN"
