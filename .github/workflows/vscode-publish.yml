@@ -2,10 +2,6 @@ name: Publish VS Code Extension
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish (e.g. 0.2.0). Leave empty to auto-bump patch."
-        required: false
   release:
     types: [published]
 
@@ -19,24 +15,19 @@ jobs:
           node-version: "22"
       - run: npm ci
 
-      - name: Set version from tag or input
+      - name: Set version from release tag
         working-directory: vscode-extension
         id: version
         env:
           TAG: ${{ github.ref_name }}
-          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             VERSION="${TAG#v}"
             echo "Version from release tag: $VERSION"
             npm version "$VERSION" --no-git-tag-version --allow-same-version
             echo "bump=version" >> $GITHUB_OUTPUT
-          elif [ -n "$INPUT_VERSION" ]; then
-            echo "Version from input: $INPUT_VERSION"
-            npm version "$INPUT_VERSION" --no-git-tag-version --allow-same-version
-            echo "bump=version" >> $GITHUB_OUTPUT
           else
-            echo "No tag or version input — will auto-bump patch"
+            echo "No release tag ($TAG) — will auto-bump patch"
             echo "bump=patch" >> $GITHUB_OUTPUT
           fi
 
