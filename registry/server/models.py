@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -36,7 +36,7 @@ class PackageVersion(BaseModel):
     """A specific version of a package."""
     version: str
     manifest: Manifest
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     file_size: int = 0
     downloads: int = 0
 

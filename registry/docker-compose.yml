@@ -1,6 +1,22 @@
 version: "3.8"
 
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dhara
+      POSTGRES_PASSWORD: dhara
+      POSTGRES_DB: dhara_registry
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dhara"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   registry:
     build:
       context: .
@@ -8,9 +24,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DHARA_REGISTRY_STORAGE_DIR=/data
-    volumes:
-      - registry_data:/data
+      - DHARA_REGISTRY_DATABASE_URL=postgresql+asyncpg://dhara:dhara@db:5432/dhara_registry
+      - DHARA_REGISTRY_BASE_URL=http://localhost:8000
+      - DHARA_GITHUB_CLIENT_ID=${DHARA_GITHUB_CLIENT_ID:-}
+      - DHARA_GITHUB_CLIENT_SECRET=${DHARA_GITHUB_CLIENT_SECRET:-}
+      - DHARA_JWT_SECRET=${DHARA_JWT_SECRET:-}
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
-  registry_data:
+  postgres_data:

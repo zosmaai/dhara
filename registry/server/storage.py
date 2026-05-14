@@ -1,16 +1,19 @@
-"""In-memory storage backend for the Dhara extension registry.
+"""Database-backed storage for the Dhara extension registry.
 
-In production, this would be backed by PostgreSQL + S3.
-For the MVP, we store everything in memory for fast iteration.
+Supports both SQLite (development) and PostgreSQL (production) via SQLAlchemy.
 """
 
 from __future__ import annotations
 
 import json
-import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from .database import Base, PackageORM, VersionORM, get_database_url
 from .models import Manifest, PackageDetail, PackageSummary, PackageVersion
 
 
@@ -22,20 +25,212 @@ class PackageNotFoundError(Exception):
     """Package not found."""
 
 
-class VersionNotFoundError(Exception):
-    """Package version not found."""
-
-
 class RegistryStore:
-    """In-memory registry storage."""
+    """Async database-backed registry storage."""
 
-    def __init__(self):
-        self._packages: dict[str, dict[str, Any]] = {}
-        self._seed_data()
+    def __init__(self, database_url: str | None = None):
+        url = database_url or get_database_url()
+        self.engine = create_async_engine(url, echo=False)
+        self.session_factory = sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
 
-    def _seed_data(self):
-        """Seed with some initial packages for demo purposes."""
-        demos = [
+    async def init_db(self):
+        """Create all tables."""
+        async with self.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        # Seed demo packages
+        for demo in self._seed_data():
+            try:
+                await self._ensure_seeded(demo)
+            except Exception:
+                pass  # Already exists
+
+    async def close(self):
+        """Dispose of the engine."""
+        await self.engine.dispose()
+
+    async def _ensure_seeded(self, demo: dict[str, Any]):
+        """Insert a demo package if it doesn't exist."""
+        async with self.session_factory() as session:
+            result = await session.execute(select(PackageORM).where(PackageORM.name == demo["name"]))
+            if result.scalar_one_or_none():
+                return
+
+            now = datetime.now(timezone.utc)
+            pkg = PackageORM(
+                name=demo["name"],
+                description=demo["description"],
+                author=demo["author"],
+                license=demo["license"],
+                tools=json.dumps(demo["tools"]),
+                capabilities=json.dumps(demo["capabilities"]),
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(pkg)
+
+            for v in demo["versions"]:
+                ver = VersionORM(
+                    package_name=demo["name"],
+                    version=v,
+                    manifest_json=json.dumps({
+                        "name": demo["name"],
+                        "version": v,
+                        "description": demo["description"],
+                    }),
+                    file_size=2048,
+                )
+                session.add(ver)
+
+            await session.commit()
+
+    async def search(self, query: str = "", limit: int = 50) -> list[PackageSummary]:
+        """Search packages by name and description."""
+        async with self.session_factory() as session:
+            stmt = select(PackageORM)
+            if query:
+                q = f"%{query.lower()}%"
+                stmt = stmt.where(
+                    (PackageORM.name.ilike(q)) | (PackageORM.description.ilike(q))
+                )
+            stmt = stmt.order_by(PackageORM.downloads.desc()).limit(limit)
+            result = await session.execute(stmt)
+            packages = result.scalars().all()
+
+            return [
+                PackageSummary(
+                    name=pkg.name,
+                    description=pkg.description,
+                    version=await self._latest_version(session, pkg.name),
+                    author=pkg.author,
+                    license=pkg.license,
+                    downloads=pkg.downloads,
+                    capabilities=json.loads(pkg.capabilities or "[]"),
+                    tools=json.loads(pkg.tools or "[]"),
+                    updated_at=pkg.updated_at.isoformat() if pkg.updated_at else "",
+                )
+                for pkg in packages
+            ]
+
+    async def _latest_version(self, session: AsyncSession, name: str) -> str:
+        """Get the latest version string for a package."""
+        stmt = (
+            select(VersionORM.version)
+            .where(VersionORM.package_name == name)
+            .order_by(VersionORM.created_at.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        row = result.scalar_one_or_none()
+        return row or ""
+
+    async def get_package(self, name: str) -> PackageDetail:
+        """Get full package details."""
+        async with self.session_factory() as session:
+            result = await session.execute(select(PackageORM).where(PackageORM.name == name))
+            pkg = result.scalar_one_or_none()
+            if not pkg:
+                raise PackageNotFoundError(name)
+
+            versions_result = await session.execute(
+                select(VersionORM)
+                .where(VersionORM.package_name == name)
+                .order_by(VersionORM.created_at.desc())
+            )
+            versions = versions_result.scalars().all()
+
+            return PackageDetail(
+                name=pkg.name,
+                description=pkg.description,
+                author=pkg.author,
+                license=pkg.license,
+                repository=pkg.repository or "",
+                created_at=pkg.created_at.isoformat() if pkg.created_at else "",
+                updated_at=pkg.updated_at.isoformat() if pkg.updated_at else "",
+                downloads=pkg.downloads,
+                versions=[
+                    PackageVersion(
+                        version=v.version,
+                        manifest=Manifest(**json.loads(v.manifest_json)),
+                        file_size=v.file_size,
+                        downloads=v.downloads,
+                    )
+                    for v in versions
+                ],
+                tools=json.loads(pkg.tools or "[]"),
+                capabilities=json.loads(pkg.capabilities or "[]"),
+            )
+
+    async def publish(self, name: str, version: str, manifest: Manifest) -> PackageDetail:
+        """Publish a new package or version."""
+        async with self.session_factory() as session:
+            result = await session.execute(select(PackageORM).where(PackageORM.name == name))
+            pkg = result.scalar_one_or_none()
+
+            now = datetime.now(timezone.utc)
+
+            if pkg:
+                # Check if version exists
+                v_result = await session.execute(
+                    select(VersionORM).where(
+                        (VersionORM.package_name == name) & (VersionORM.version == version)
+                    )
+                )
+                if v_result.scalar_one_or_none():
+                    raise PackageConflictError(f"{name}@{version} already exists")
+
+                pkg.description = manifest.description or pkg.description
+                pkg.author = manifest.author or pkg.author
+                pkg.license = manifest.license or pkg.license
+                pkg.tools = json.dumps(manifest.provides.get("tools", []))
+                pkg.capabilities = json.dumps(manifest.capabilities)
+                pkg.updated_at = now
+            else:
+                pkg = PackageORM(
+                    name=name,
+                    description=manifest.description,
+                    author=manifest.author,
+                    license=manifest.license,
+                    repository=manifest.repository,
+                    tools=json.dumps(manifest.provides.get("tools", [])),
+                    capabilities=json.dumps(manifest.capabilities),
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(pkg)
+
+            ver = VersionORM(
+                package_name=name,
+                version=version,
+                manifest_json=json.dumps(manifest.model_dump()),
+                file_size=len(json.dumps(manifest.model_dump())),
+            )
+            session.add(ver)
+
+            await session.commit()
+            return await self.get_package(name)
+
+    async def record_download(self, name: str, version: str | None = None):
+        """Increment download count."""
+        async with self.session_factory() as session:
+            result = await session.execute(select(PackageORM).where(PackageORM.name == name))
+            pkg = result.scalar_one_or_none()
+            if not pkg:
+                raise PackageNotFoundError(name)
+            pkg.downloads += 1
+            if version:
+                v_result = await session.execute(
+                    select(VersionORM).where(
+                        (VersionORM.package_name == name) & (VersionORM.version == version)
+                    )
+                )
+                ver = v_result.scalar_one_or_none()
+                if ver:
+                    ver.downloads += 1
+            await session.commit()
+
+    def _seed_data(self) -> list[dict[str, Any]]:
+        """Return seed data for initial demo packages."""
+        return [
             {
                 "name": "hello-ext",
                 "description": "A friendly hello world extension",
@@ -91,127 +286,3 @@ class RegistryStore:
                 "versions": ["1.0.0"],
             },
         ]
-
-        for demo in demos:
-            now = "2026-05-14T00:00:00Z"
-            pkg = {
-                "name": demo["name"],
-                "description": demo["description"],
-                "author": demo["author"],
-                "license": demo["license"],
-                "repository": "https://github.com/zosmaai/dhara",
-                "created_at": now,
-                "updated_at": now,
-                "downloads": 0,
-                "tools": demo["tools"],
-                "capabilities": demo["capabilities"],
-                "versions": {},
-            }
-            for v in demo["versions"]:
-                pkg["versions"][v] = {
-                    "version": v,
-                    "manifest": {
-                        "name": demo["name"],
-                        "version": v,
-                        "description": demo["description"],
-                    },
-                    "created_at": now,
-                    "file_size": 2048,
-                    "downloads": 0,
-                }
-            self._packages[demo["name"]] = pkg
-
-    def search(self, query: str = "", limit: int = 50) -> list[PackageSummary]:
-        """Search packages by name and description."""
-        q = query.lower()
-        results = []
-        for pkg in self._packages.values():
-            if q and q not in pkg["name"].lower() and q not in pkg["description"].lower():
-                continue
-            latest_version = max(pkg["versions"].keys()) if pkg["versions"] else ""
-            results.append(PackageSummary(
-                name=pkg["name"],
-                description=pkg["description"],
-                version=latest_version,
-                author=pkg["author"],
-                license=pkg["license"],
-                downloads=pkg["downloads"],
-                capabilities=pkg["capabilities"],
-                tools=pkg["tools"],
-                updated_at=pkg["updated_at"],
-            ))
-        return sorted(results, key=lambda p: p.downloads, reverse=True)[:limit]
-
-    def get_package(self, name: str) -> PackageDetail:
-        """Get full package details."""
-        pkg = self._packages.get(name)
-        if not pkg:
-            raise PackageNotFoundError(name)
-
-        versions = [
-            PackageVersion(
-                version=v_data["version"],
-                manifest=Manifest(**v_data["manifest"]),
-                file_size=v_data["file_size"],
-                downloads=v_data["downloads"],
-            )
-            for v_data in pkg["versions"].values()
-        ]
-
-        return PackageDetail(
-            name=pkg["name"],
-            description=pkg["description"],
-            author=pkg["author"],
-            license=pkg["license"],
-            repository=pkg.get("repository", ""),
-            created_at=pkg["created_at"],
-            updated_at=pkg["updated_at"],
-            downloads=pkg["downloads"],
-            versions=versions,
-            tools=pkg["tools"],
-            capabilities=pkg["capabilities"],
-        )
-
-    def publish(self, name: str, version: str, manifest: Manifest) -> PackageDetail:
-        """Publish a new package or version."""
-        now = datetime.utcnow().isoformat() + "Z"
-
-        if name in self._packages:
-            pkg = self._packages[name]
-            if version in pkg["versions"]:
-                raise PackageConflictError(f"{name}@{version} already exists")
-        else:
-            pkg = {
-                "name": name,
-                "description": manifest.description,
-                "author": manifest.author,
-                "license": manifest.license,
-                "repository": manifest.repository,
-                "created_at": now,
-                "updated_at": now,
-                "downloads": 0,
-                "tools": manifest.provides.get("tools", []),
-                "capabilities": manifest.capabilities,
-                "versions": {},
-            }
-            self._packages[name] = pkg
-
-        pkg["versions"][version] = {
-            "version": version,
-            "manifest": manifest.model_dump(),
-            "created_at": now,
-            "file_size": len(json.dumps(manifest.model_dump())),
-            "downloads": 0,
-        }
-        pkg["updated_at"] = now
-
-        return self.get_package(name)
-
-    def record_download(self, name: str, version: str | None = None):
-        """Increment download count."""
-        pkg = self._packages.get(name)
-        if not pkg:
-            raise PackageNotFoundError(name)
-        pkg["downloads"] += 1
-        if version and version in pkg["versions"]:
-            pkg["versions"][version]["downloads"] += 1

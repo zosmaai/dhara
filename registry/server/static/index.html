@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dhara Extension Registry</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+  header { border-bottom: 1px solid var(--border); padding: 16px 0; margin-bottom: 24px; }
+  header h1 { font-size: 1.5rem; }
+  header .subtitle { color: var(--muted); font-size: 0.875rem; }
+  .search-box { display: flex; gap: 8px; margin-bottom: 24px; }
+  .search-box input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 0.875rem; }
+  .search-box input:focus { outline: none; border-color: var(--accent); }
+  .search-box button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+  .search-box button:hover { opacity: 0.9; }
+  .package-grid { display: grid; gap: 12px; }
+  .package-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; cursor: pointer; transition: border-color 0.2s; }
+  .package-card:hover { border-color: var(--accent); }
+  .package-card h3 { font-size: 1rem; margin-bottom: 4px; }
+  .package-card .desc { color: var(--muted); font-size: 0.8125rem; margin-bottom: 8px; }
+  .package-card .meta { display: flex; gap: 12px; font-size: 0.75rem; color: var(--muted); }
+  .package-card .tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .package-card .tool-tag { background: rgba(88,166,255,0.1); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 0.6875rem; }
+  .package-card .cap-tag { background: rgba(63,185,80,0.1); color: var(--green); padding: 2px 6px; border-radius: 4px; font-size: 0.6875rem; }
+  .detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; overflow-y: auto; padding: 32px 16px; }
+  .detail-overlay.open { display: block; }
+  .detail-card { max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .detail-card h2 { font-size: 1.25rem; margin-bottom: 4px; }
+  .detail-card .close { float: right; background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; }
+  .detail-card .close:hover { color: var(--text); }
+  .detail-card .section { margin-top: 16px; }
+  .detail-card .section h4 { font-size: 0.8125rem; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .detail-card .version-item { border-top: 1px solid var(--border); padding: 8px 0; font-size: 0.8125rem; display: flex; justify-content: space-between; }
+  .loading { text-align: center; color: var(--muted); padding: 32px; }
+  .error { color: #f85149; padding: 16px; text-align: center; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.6875rem; background: var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <h1>📦 Dhara Registry</h1>
+    <div class="subtitle">Extensions for the Dhara coding agent protocol</div>
+  </div>
+</header>
+<main class="container">
+  <div class="search-box">
+    <input type="text" id="search" placeholder="Search packages..." oninput="searchPackages()">
+    <button type="button" onclick="searchPackages()">Search</button>
+  </div>
+  <div id="results" class="package-grid"></div>
+  <div id="loading" class="loading" style="display:none">Loading...</div>
+  <div id="error" class="error" style="display:none"></div>
+</main>
+
+<div class="detail-overlay" id="detail">
+  <div class="detail-card">
+    <button type="button" class="close" onclick="closeDetail()">&times;</button>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+async function searchPackages() {
+  const q = document.getElementById('search').value;
+  const results = document.getElementById('results');
+  const loading = document.getElementById('loading');
+  const errorDiv = document.getElementById('error');
+
+  loading.style.display = 'block';
+  errorDiv.style.display = 'none';
+  results.innerHTML = '';
+
+  try {
+    const res = await fetch(`${API}/api/v1/packages?q=${encodeURIComponent(q)}&limit=50`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    loading.style.display = 'none';
+
+    if (data.length === 0) {
+      results.innerHTML = '<div class="loading">No packages found</div>';
+      return;
+    }
+
+    results.innerHTML = data.map(pkg => `
+      <div class="package-card" onclick="showDetail('${pkg.name}')">
+        <h3>${pkg.name}</h3>
+        <div class="desc">${pkg.description || 'No description'}</div>
+        <div class="meta">
+          <span>v${pkg.version || '0.0.0'}</span>
+          <span>${pkg.author || 'Unknown'}</span>
+          <span class="badge">${pkg.license || 'MIT'}</span>
+          <span>${pkg.downloads} downloads</span>
+        </div>
+        <div class="tools">
+          ${(pkg.tools || []).map(t => `<span class="tool-tag">${t}</span>`).join('')}
+          ${(pkg.capabilities || []).map(c => `<span class="cap-tag">${c}</span>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    loading.style.display = 'none';
+    errorDiv.style.display = 'block';
+    errorDiv.textContent = `Failed to load packages: ${err.message}`;
+  }
+}
+
+// biome-ignore lint/correctness/noUnusedVariables: called from onclick
+async function showDetail(name) {
+  const overlay = document.getElementById('detail');
+  const content = document.getElementById('detail-content');
+
+  overlay.classList.add('open');
+  content.innerHTML = '<div class="loading">Loading...</div>';
+
+  try {
+    const res = await fetch(`${API}/api/v1/packages/${encodeURIComponent(name)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const pkg = await res.json();
+
+    content.innerHTML = `
+      <h2>${pkg.name}</h2>
+      <div class="desc" style="color:var(--muted);font-size:0.875rem">${pkg.description || 'No description'}</div>
+      <div style="margin-top:8px;font-size:0.8125rem;color:var(--muted)">
+        Author: ${pkg.author || 'Unknown'} &middot; License: ${pkg.license || 'MIT'} &middot; ${pkg.downloads} downloads
+      </div>
+
+      <div class="section">
+        <h4>Tools</h4>
+        <div class="tools" style="display:flex;flex-wrap:wrap;gap:4px">
+          ${(pkg.tools || []).map(t => `<span class="tool-tag">${t}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="section">
+        <h4>Capabilities</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${(pkg.capabilities || []).map(c => `<span class="cap-tag">${c}</span>`).join('') || '<span style="color:var(--muted);font-size:0.8125rem">None</span>'}
+        </div>
+      </div>
+
+      <div class="section">
+        <h4>Versions</h4>
+        ${(pkg.versions || []).map(v => `
+          <div class="version-item">
+            <span><strong>v${v.version}</strong></span>
+            <span>${v.downloads} downloads &middot; ${(v.file_size / 1024).toFixed(1)} KB</span>
+          </div>
+        `).join('') || '<div style="color:var(--muted);font-size:0.8125rem">No versions</div>'}
+      </div>
+
+      <div class="section" style="margin-top:20px">
+        <h4>Install</h4>
+        <code style="display:block;background:var(--bg);padding:8px 12px;border-radius:6px;font-size:0.8125rem;border:1px solid var(--border)">
+          dhara registry install ${pkg.name}
+        </code>
+      </div>
+    `;
+  } catch (err) {
+    content.innerHTML = `<div class="error">Failed to load package: ${err.message}</div>`;
+  }
+}
+
+// biome-ignore lint/correctness/noUnusedVariables: called from onclick
+function closeDetail() {
+  document.getElementById('detail').classList.remove('open');
+}
+
+// Load on page load
+searchPackages();
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 """Dhara Extension Registry API Server.
 
 A FastAPI-based registry for publishing and discovering
-Dhara extensions.
+Dhara extensions, with PostgreSQL storage and GitHub OAuth.
 
 Usage:
     uvicorn registry.server.main:app --reload --port 8000
@@ -9,17 +9,32 @@ Usage:
 
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from .auth import get_current_user, router as auth_router
 from .models import Manifest, PackageDetail, PackageSummary, PublishRequest
 from .storage import PackageConflictError, PackageNotFoundError, RegistryStore
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize and tear down the database."""
+    await store.init_db()
+    yield
+    await store.close()
+
 
 app = FastAPI(
     title="Dhara Extension Registry",
     description="Package registry for Dhara extensions",
-    version="0.1.0",
+    version="0.2.0",
     contact={"name": "Zosma AI", "url": "https://zosma.ai"},
+    lifespan=lifespan,
 )
 
 # Allow CORS for web UI and CLI
@@ -31,8 +46,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory store
+# Database-backed store (SQLite dev / PostgreSQL prod)
 store = RegistryStore()
+
+# Include auth routes
+app.include_router(auth_router)
+
+# Serve static web UI
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
+
+
+@app.get("/")
+async def root():
+    from fastapi.responses import FileResponse
+    index = os.path.join(static_dir, "index.html")
+    if os.path.isfile(index):
+        return FileResponse(index, media_type="text/html")
+    return {"message": "Dhara Extension Registry API", "docs": "/docs"}
 
 
 # ── Health ──────────────────────────────────────────────────────────────────────
@@ -40,7 +72,7 @@ store = RegistryStore()
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 # ── Search / List ───────────────────────────────────────────────────────────────
@@ -52,7 +84,7 @@ async def search_packages(
     limit: int = Query(50, ge=1, le=100),
 ):
     """Search for packages by name or description."""
-    return store.search(query=q, limit=limit)
+    return await store.search(query=q, limit=limit)
 
 
 # ── Package details ─────────────────────────────────────────────────────────────
@@ -62,7 +94,7 @@ async def search_packages(
 async def get_package(name: str):
     """Get full details for a specific package."""
     try:
-        return store.get_package(name)
+        return await store.get_package(name)
     except PackageNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -71,13 +103,17 @@ async def get_package(name: str):
 
 
 @app.get("/api/v1/packages/{name}/download")
-async def download_package(name: str, version: str | None = None):
+async def download_package(
+    name: str,
+    version: str | None = None,
+    _user: dict | None = None,  # Optional auth
+):
     """Download a package as a tarball."""
     try:
-        pkg = store.get_package(name)
+        pkg = await store.get_package(name)
         if version and version not in {v.version for v in pkg.versions}:
             raise HTTPException(status_code=404, detail=f"Version {version} not found")
-        store.record_download(name, version)
+        await store.record_download(name, version)
         return {
             "name": name,
             "version": version or (pkg.versions[0].version if pkg.versions else "unknown"),
@@ -91,9 +127,11 @@ async def download_package(name: str, version: str | None = None):
 
 
 @app.post("/api/v1/packages", response_model=PackageDetail, status_code=201)
-async def publish_package(request: PublishRequest):
+async def publish_package(
+    req: PublishRequest,
+):
     """Publish a new package or version."""
     try:
-        return store.publish(request.name, request.version, request.manifest)
+        return await store.publish(req.name, req.version, req.manifest)
     except PackageConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))

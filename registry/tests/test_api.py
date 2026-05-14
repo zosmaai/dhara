@@ -1,31 +1,47 @@
-"""Tests for the Dhara extension registry API server."""
+"""Tests for the Dhara extension registry API server.
+
+Uses SQLite in-memory database for fast test execution.
+Run from registry/ directory:
+    python -m pytest tests/ -v
+"""
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from .main import app
+
+from server.main import app
 
 
-@pytest.fixture
-def client():
+@pytest_asyncio.fixture
+async def client():
+    """Create a test client with in-memory SQLite."""
+    from server.storage import RegistryStore
+    import server.main as main_mod
+
+    store = RegistryStore("sqlite+aiosqlite://")
+    await store.init_db()
+    main_mod.store = store
+
     transport = ASGITransport(app=app)
-    return AsyncClient(transport=transport, base_url="http://test")
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_health(client):
     resp = await client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_search_empty(client):
     resp = await client.get("/api/v1/packages?q=zzzznotfound")
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_search_seeded(client):
     resp = await client.get("/api/v1/packages?q=git")
     assert resp.status_code == 200
@@ -34,7 +50,7 @@ async def test_search_seeded(client):
     assert any(p["name"] == "git-tools" for p in data)
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_get_package(client):
     resp = await client.get("/api/v1/packages/git-tools")
     assert resp.status_code == 200
@@ -43,13 +59,13 @@ async def test_get_package(client):
     assert "git_status" in data["tools"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_get_package_not_found(client):
     resp = await client.get("/api/v1/packages/nonexistent")
     assert resp.status_code == 404
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_publish_new(client):
     payload = {
         "name": "test-pkg",
@@ -70,22 +86,27 @@ async def test_publish_new(client):
     assert "test_tool" in data["tools"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_publish_duplicate_version(client):
     payload = {
-        "name": "test-pkg",
+        "name": "dup-pkg",
         "version": "1.0.0",
         "manifest": {
-            "name": "test-pkg",
+            "name": "dup-pkg",
             "version": "1.0.0",
-            "description": "Duplicate",
+            "description": "First publish",
         },
     }
+    # First publish succeeds
+    resp = await client.post("/api/v1/packages", json=payload)
+    assert resp.status_code == 201
+
+    # Second publish of same version fails
     resp = await client.post("/api/v1/packages", json=payload)
     assert resp.status_code == 409
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_download(client):
     resp = await client.get("/api/v1/packages/git-tools/download")
     assert resp.status_code == 200
