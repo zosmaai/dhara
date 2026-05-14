@@ -1,9 +1,21 @@
+import { createPermissionStore } from "./permission-store.js";
+
 /**
  * A capability represents a permission that an extension can request.
  *
  * Examples: `"filesystem:read"`, `"network:outbound"`, `"process:spawn"`
  */
 export type Capability = string;
+
+/**
+ * Payload for the `capability:denied` event.
+ * Blocking hooks can return `{ action: "allow" }` to override.
+ */
+export interface CapabilityDeniedEvent {
+  capability: string;
+  reason: string;
+  details?: Record<string, unknown>;
+}
 
 /**
  * Result of a sandbox permission check.
@@ -35,6 +47,23 @@ export interface SandboxConfig {
   allowedCommands?: string[];
   /** Optional audit log callback */
   onAudit?: (entry: AuditEntry) => void;
+  /**
+   * Event bus for emitting capability:denied events.
+   * When set, denied capabilities emit an event that blocking
+   * hooks can intercept (e.g., user approval flow).
+   */
+  eventBus?: import("./events.js").EventBus;
+  /**
+   * Permission store for caching approved user decisions.
+   * If omitted, an in-memory store is created automatically.
+   */
+  permissionStore?: import("./permission-store.js").PermissionStore;
+  /**
+   * Hard timeout (ms) for tool execution.
+   * When set, tool execution that exceeds this timeout is
+   * treated as a denied capability.
+   */
+  toolTimeoutMs?: number;
 }
 
 /**
@@ -125,6 +154,40 @@ export function createSandbox(config: SandboxConfig): Sandbox {
   const allowedDomains = config.allowedDomains;
   const allowedCommands = config.allowedCommands;
   const onAudit = config.onAudit;
+  const eventBus = config.eventBus;
+  const permStore = config.permissionStore ?? createPermissionStore();
+
+  function checkWithHook(capability: string, details?: Record<string, unknown>): PermissionResult {
+    const result = checkGeneric(capability);
+    audit(capability, result, details);
+
+    if (result.allowed) return result;
+
+    // If we have an event bus, try the capability:denied hook
+    if (eventBus) {
+      // Check permission store first
+      const capabilityKey = details ? `${capability}:${JSON.stringify(details)}` : capability;
+      if (permStore.has(capabilityKey)) {
+        return { allowed: true };
+      }
+
+      const deniedEvent: CapabilityDeniedEvent = {
+        capability,
+        reason: result.reason,
+        details,
+      };
+
+      const emitResult = eventBus.emit("capability:denied", deniedEvent);
+
+      // A blocking hook can allow the denied capability (user approval)
+      if (!emitResult.blocked) {
+        permStore.grant(capabilityKey);
+        return { allowed: true };
+      }
+    }
+
+    return result;
+  }
 
   function audit(
     capability: string,
@@ -150,17 +213,12 @@ export function createSandbox(config: SandboxConfig): Sandbox {
 
   return {
     check(capability: string): PermissionResult {
-      const result = checkGeneric(capability);
-      audit(capability, result);
-      return result;
+      return checkWithHook(capability);
     },
 
     checkFileRead(path: string): PermissionResult {
-      const capResult = checkGeneric("filesystem:read");
-      if (!capResult.allowed) {
-        audit("filesystem:read", capResult, { path });
-        return capResult;
-      }
+      const capResult = checkWithHook("filesystem:read", { path });
+      if (!capResult.allowed) return capResult;
 
       if (!isWithinCwd(cwd, path)) {
         const result: PermissionResult = {
@@ -176,11 +234,8 @@ export function createSandbox(config: SandboxConfig): Sandbox {
     },
 
     checkFileWrite(path: string): PermissionResult {
-      const capResult = checkGeneric("filesystem:write");
-      if (!capResult.allowed) {
-        audit("filesystem:write", capResult, { path });
-        return capResult;
-      }
+      const capResult = checkWithHook("filesystem:write", { path });
+      if (!capResult.allowed) return capResult;
 
       if (!isWithinCwd(cwd, path)) {
         const result: PermissionResult = {
@@ -196,11 +251,8 @@ export function createSandbox(config: SandboxConfig): Sandbox {
     },
 
     checkNetworkOutbound(url: string): PermissionResult {
-      const capResult = checkGeneric("network:outbound");
-      if (!capResult.allowed) {
-        audit("network:outbound", capResult, { url });
-        return capResult;
-      }
+      const capResult = checkWithHook("network:outbound", { url });
+      if (!capResult.allowed) return capResult;
 
       if (allowedDomains && allowedDomains.length > 0) {
         const domain = parseDomain(url);
@@ -219,11 +271,8 @@ export function createSandbox(config: SandboxConfig): Sandbox {
     },
 
     checkProcessSpawn(command: string): PermissionResult {
-      const capResult = checkGeneric("process:spawn");
-      if (!capResult.allowed) {
-        audit("process:spawn", capResult, { command });
-        return capResult;
-      }
+      const capResult = checkWithHook("process:spawn", { command });
+      if (!capResult.allowed) return capResult;
 
       if (allowedCommands && allowedCommands.length > 0) {
         const cmd = parseCommand(command);
