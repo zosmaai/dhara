@@ -1,5 +1,7 @@
 name: Publish Python SDK to PyPI
 
+# Triggered by tag push or manual dispatch
+
 on:
   push:
     tags:
