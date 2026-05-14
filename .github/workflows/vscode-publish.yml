@@ -31,6 +31,16 @@ jobs:
             echo "bump=patch" >> $GITHUB_OUTPUT
           fi
 
+      - name: Unpublish old extension (one-time: zosmaai.dhara → zosmaai.zosma-code)
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+        run: |
+          if [ -z "$VSCE_TOKEN" ]; then
+            echo "⚠️ VSCE_TOKEN not set — skipping"
+            exit 0
+          fi
+          npx @vscode/vsce unpublish zosmaai.dhara -p "$VSCE_TOKEN" --force || echo "Already unpublished or not found"
+
       - name: Publish to VS Code Marketplace
         working-directory: vscode-extension
         env:
