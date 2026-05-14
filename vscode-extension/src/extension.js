@@ -5,13 +5,13 @@ const { execSync } = require("node:child_process");
  * Activate the Dhara VS Code extension.
  */
 function activate(context) {
-  console.log("[dhara] Extension activated");
+  console.log("[zosma-code] Extension activated");
 
   // Command: Run a custom prompt
   const runPrompt = vscode.commands.registerCommand("dhara.runPrompt", async () => {
     const prompt = await vscode.window.showInputBox({
-      placeHolder: "Enter a prompt for Dhara (e.g., 'Explain this file')",
-      prompt: "Dhara Prompt",
+      placeHolder: "Enter a prompt for Zosma Code (e.g., 'Explain this file')",
+      prompt: "Zosma Code: Run Prompt",
     });
 
     if (!prompt) return;
@@ -42,7 +42,7 @@ function activate(context) {
 
     const prompt = await vscode.window.showInputBox({
       placeHolder: "What do you want to do with the selected code?",
-      prompt: "Dhara: Selected Code",
+      prompt: "Zosma Code: Selected Code",
       value: "Review this code",
     });
 
@@ -69,7 +69,7 @@ async function runDhara(prompt, opts) {
   const result = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Running Dhara...",
+      title: "Running Zosma Code...",
       cancellable: true,
     },
     async (progress, token) => {

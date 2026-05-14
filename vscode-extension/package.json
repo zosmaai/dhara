@@ -1,7 +1,7 @@
 {
   "name": "dhara",
-  "displayName": "Dhara Agent Protocol",
-  "description": "Run Dhara coding agent commands from VS Code",
+  "displayName": "Zosma Code",
+  "description": "Minimal is the best. Highly customizable coding agent with extensions and skills — and no lock-in. Built on the Dhara Agent Protocol.",
   "version": "0.1.0",
   "publisher": "zosmaai",
   "license": "MIT",
@@ -12,18 +12,18 @@
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["Other"],
+  "categories": ["Programming Languages", "Other"],
   "activationEvents": [],
   "main": "./src/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "dhara.runPrompt",
-        "title": "Dhara: Run Prompt in Workspace"
+        "title": "Zosma Code: Run Prompt"
       },
       {
         "command": "dhara.runSelection",
-        "title": "Dhara: Run on Selected Code"
+        "title": "Zosma Code: Run on Selected Code"
       }
     ],
     "keybindings": [
@@ -34,7 +34,7 @@
       }
     ],
     "configuration": {
-      "title": "Dhara",
+      "title": "Zosma Code",
       "properties": {
         "dhara.binaryPath": {
           "type": "string",
