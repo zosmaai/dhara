@@ -10,12 +10,12 @@ import { createSession } from "./session.js";
 
 describe("Agent Loop Integration", () => {
   let tmpDir: string;
-  let sandbox: ReturnType<typeof createSandbox>;
+  let _sandbox: ReturnType<typeof createSandbox>;
   let session: ReturnType<typeof createSession>;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "dhara-agent-test-"));
-    sandbox = createSandbox({
+    _sandbox = createSandbox({
       granted: ["filesystem:read", "filesystem:write"],
       cwd: tmpDir,
     });
@@ -100,7 +100,7 @@ describe("Agent Loop Integration", () => {
       maxIterations: 10,
     });
 
-    const result = await agent.run("Write a test file", undefined, eventBus);
+    const _result = await agent.run("Write a test file", undefined, eventBus);
 
     // Verify events fired in order
     expect(events).toContain("start");
@@ -158,7 +158,7 @@ describe("Agent Loop Integration", () => {
       maxIterations: 10,
     });
 
-    const result = await agent.run("Run the failing tool", undefined, eventBus);
+    const _result = await agent.run("Run the failing tool", undefined, eventBus);
 
     // Agent should continue even after tool error
     // The tool result should be recorded in the session
@@ -207,7 +207,7 @@ describe("Agent Loop Integration", () => {
       maxIterations: 3, // Only 3 iterations
     });
 
-    const result = await agent.run("Loop forever", undefined, eventBus);
+    const _result = await agent.run("Loop forever", undefined, eventBus);
 
     // Should have stopped after 3 iterations
     // (2 provider calls for the 2 tool calls + 1 for final response that might get cut)

@@ -11,13 +11,22 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
     "test": "vitest run"
   },
-  "keywords": ["dhara", "extension", "sdk", "json-rpc", "agent"],
+  "keywords": [
+    "dhara",
+    "extension",
+    "sdk",
+    "json-rpc",
+    "agent"
+  ],
   "license": "MIT",
   "author": {
     "name": "Zosma AI",

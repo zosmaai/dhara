@@ -1,10 +1,10 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import {
-  type JsonRpcMessage,
-  createExtensionProtocol,
   createErrorResponse,
+  createExtensionProtocol,
   createResponse,
+  type JsonRpcMessage,
   parseMessage,
   serializeMessage,
 } from "./protocol.js";

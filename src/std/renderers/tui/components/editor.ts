@@ -1,10 +1,10 @@
 import {
   DEFAULT_KEYBINDINGS,
-  type KeyAction,
-  type KeyBinding,
   decodePrintableKey,
   isPrintable,
   isShiftEnter,
+  type KeyAction,
+  type KeyBinding,
   mergeBindings,
   resolveBinding,
 } from "../keybindings.js";

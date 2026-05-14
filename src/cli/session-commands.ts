@@ -4,8 +4,8 @@
  * These operate on session files stored in ~/.dhara/sessions/.
  */
 import { readFileSync } from "node:fs";
-import type { SessionManager } from "../core/session-manager.js";
 import type { SessionEntry } from "../core/session.js";
+import type { SessionManager } from "../core/session-manager.js";
 
 // ── Help ───────────────────────────────────────────────────────────────────────
 

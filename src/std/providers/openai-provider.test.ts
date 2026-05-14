@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CompleteParams, ProviderMessage } from "../../core/provider.js";
 import { createOpenAIProvider } from "./openai-provider.js";
 
 describe("OpenAI Provider", () => {

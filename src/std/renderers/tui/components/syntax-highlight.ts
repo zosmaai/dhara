@@ -124,7 +124,7 @@ const JSON_LANG: LangPatterns = {
   numbers: /\b(?:-?\d+\.?\d*(?:[eE][+-]?\d+)?)\b/,
   functions: /(?!)/,
   types: /(?!)/,
-  operators: /[:{},\[\]]/,
+  operators: /[:{},[\]]/,
   properties: /"(\w+)"\s*:/,
   tags: /(?!)/,
   attributes: /(?!)/,

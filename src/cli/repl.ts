@@ -7,7 +7,7 @@ import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import type { ContextFile } from "../core/context-loader.js";
 import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
-import { type Sandbox, createSandbox } from "../core/sandbox.js";
+import { createSandbox, type Sandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
 import type { Skill } from "../core/skills.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";

@@ -1,11 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ToolRegistration } from "../../core/provider.js";
-import { createSandbox } from "../../core/sandbox.js";
 import type { Sandbox } from "../../core/sandbox.js";
+import { createSandbox } from "../../core/sandbox.js";
 import { createReadTool } from "./read.js";
 
 describe("read tool", () => {

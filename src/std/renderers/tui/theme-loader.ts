@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 /**
@@ -7,7 +7,7 @@ import { join } from "node:path";
  * Supports a minimal YAML subset (no external dependency).
  */
 import { type StyleDefinition, Theme, type ThemeDefinition } from "./theme.js";
-import { BUILTIN_THEMES, BUILTIN_THEME_NAMES } from "./themes/index.js";
+import { BUILTIN_THEME_NAMES, BUILTIN_THEMES } from "./themes/index.js";
 
 /**
  * Parse a minimal YAML theme definition string.

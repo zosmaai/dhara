@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { ToolRegistration } from "../../core/provider.js";
 import type { Sandbox } from "../../core/sandbox.js";

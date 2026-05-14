@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConfigCorruptError, ConfigError, ConfigManager, DEFAULT_CONFIG } from "./config.js";
+import { ConfigCorruptError, ConfigError, ConfigManager } from "./config.js";
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "dhara-config-"));
@@ -24,7 +24,7 @@ describe("ConfigManager", () => {
   describe("constructor", () => {
     it("creates the storage directory when it does not exist", () => {
       const nestedDir = join(storageDir, "nested", "sub");
-      const m = new ConfigManager({ storageDir: nestedDir });
+      const _m = new ConfigManager({ storageDir: nestedDir });
       expect(existsSync(nestedDir)).toBe(true);
     });
 

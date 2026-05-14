@@ -1,5 +1,5 @@
+import type { InitializeParams, InitializeResult } from "./types.js";
 import { ErrorCodes, type ToolDescriptor, type ToolHandler } from "./types.js";
-import type { InitializeParams, InitializeResult, ToolResult } from "./types.js";
 
 /**
  * Options for creating a Dhara extension.
@@ -80,7 +80,7 @@ export function createExtension(options: ExtensionOptions) {
   }
 
   let inputBuffer = "";
-  const nextId = 0;
+  const _nextId = 0;
 
   /**
    * Send a JSON-RPC response on stdout.

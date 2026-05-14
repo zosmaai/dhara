@@ -1,7 +1,7 @@
 import {
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   renameSync,
   rmSync,
   statSync,
@@ -11,11 +11,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import {
   type BranchEntry,
+  createSession,
   type ModelRef,
   type Session,
   type SessionEntry,
   type SessionMeta,
-  createSession,
 } from "./session.js";
 
 /**
@@ -81,11 +81,7 @@ export class SessionManager {
    * Create a new session, persist it immediately, and return a
    * {@link PersistedSession} that auto-saves on every `append` or `fork`.
    */
-  create(config: {
-    cwd: string;
-    model?: ModelRef;
-    tags?: string[];
-  }): PersistedSession {
+  create(config: { cwd: string; model?: ModelRef; tags?: string[] }): PersistedSession {
     this.ensureStorageDir();
     const session = createSession(config);
     const persisted = this.wrap(session);

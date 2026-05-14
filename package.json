@@ -42,7 +42,13 @@
   "bin": {
     "dhara": "./dist/cli/main.js"
   },
-  "files": ["dist", "spec", "README.md", "LICENSE", "LICENSE-SPEC.md"],
+  "files": [
+    "dist",
+    "spec",
+    "README.md",
+    "LICENSE",
+    "LICENSE-SPEC.md"
+  ],
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
@@ -54,13 +60,13 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.19.18",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@biomejs/biome": "^2.4.15",
+    "@types/node": "^25.7.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.3",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "lint-staged": "^17.0.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.74.0"
