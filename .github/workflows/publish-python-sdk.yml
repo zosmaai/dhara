@@ -34,7 +34,7 @@ with open('pyproject.toml', 'w') as f:
 "
             echo "Version set to: $VERSION"
           else
-            echo "No valid semver tag (got: $TAG) — using existing version"
+            echo "No valid semver tag (got: $TAG) -- using existing version"
           fi
 
       - name: Install build tools
