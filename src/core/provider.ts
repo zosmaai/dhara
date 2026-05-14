@@ -28,12 +28,33 @@ export interface ProviderMessage {
 }
 
 /**
+ * An approval request for a tool call that requires human-in-the-loop.
+ */
+export interface ApprovalRequest {
+  /** Unique identifier for this approval request (sessionId:toolCallId) */
+  id: string;
+  /** Tool name being requested */
+  toolName: string;
+  /** Parsed tool input parameters */
+  input: Record<string, unknown>;
+  /** Tool description */
+  description: string;
+  /** Session context (e.g. last user message preview) */
+  context?: string;
+}
+
+/**
  * Definition of a tool exposed to the LLM.
  */
 export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
+  /**
+   * If true, always require human approval before execution.
+   * If a function, called with parsed input to decide dynamically.
+   */
+  needsApproval?: boolean | ((input: Record<string, unknown>) => boolean);
 }
 
 /**

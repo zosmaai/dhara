@@ -1,5 +1,11 @@
 import type { EventBus } from "./events.js";
-import type { AssistantMessage, Provider, ProviderMessage, ToolRegistration } from "./provider.js";
+import type {
+  ApprovalRequest,
+  AssistantMessage,
+  Provider,
+  ProviderMessage,
+  ToolRegistration,
+} from "./provider.js";
 import type { Session, ToolResult } from "./session.js";
 
 /**
@@ -231,6 +237,67 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
           break;
         }
 
+        // ── Human-in-the-loop approval ──────────────────────────────────
+        const toolReg = tools.get(toolCall.name);
+        if (toolReg && eb && needsApprovalCheck(toolReg.definition, toolCall.input)) {
+          const approvalReq: ApprovalRequest = {
+            id: `${session.meta.sessionId ?? "sess"}:${toolCall.id}`,
+            toolName: toolCall.name,
+            input: toolCall.input,
+            description: toolReg.definition.description,
+            context: userPrompt.slice(0, 200),
+          };
+
+          const emitResult = eb.emit("tool:approval_required", approvalReq);
+
+          if (emitResult.blocked) {
+            // Approval denied — inject rejection as tool result
+            eb?.emit("tool:approval_denied", {
+              toolName: toolCall.name,
+              input: toolCall.input,
+              reason: emitResult.reason ?? "Approval denied",
+            });
+
+            const rejectionResult: ToolResult = {
+              content: [
+                {
+                  type: "text",
+                  text: `Tool call "${toolCall.name}" was rejected: ${emitResult.reason ?? "Approval denied by human"}`,
+                },
+              ],
+              isError: true,
+            };
+
+            const toolEntry = session.append({
+              role: "tool_result",
+              content: rejectionResult.content,
+              toolCallId: toolCall.id,
+              toolName: toolCall.name,
+              isError: true,
+            });
+
+            eb?.emit("tool:execution_end", {
+              toolCallId: toolCall.id,
+              toolName: toolCall.name,
+              result: rejectionResult,
+              isError: true,
+            });
+
+            toolResults.push({
+              entry: toolEntry,
+              toolName: toolCall.name,
+              toolCallId: toolCall.id,
+            });
+            continue;
+          }
+
+          // Approval granted
+          eb?.emit("tool:approval_granted", {
+            toolName: toolCall.name,
+            input: toolCall.input,
+          });
+        }
+
         const result = await executeTool(toolCall.name, toolCall.input, tools, signal);
 
         // Check if tool was cancelled
@@ -287,6 +354,20 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
   }
 
   return { run };
+}
+
+/**
+ * Check whether a tool call requires human approval.
+ */
+function needsApprovalCheck(
+  def: import("./provider.js").ToolDefinition,
+  input: Record<string, unknown>,
+): boolean {
+  if (def.needsApproval === undefined) return false;
+  if (typeof def.needsApproval === "function") {
+    return def.needsApproval(input);
+  }
+  return def.needsApproval === true;
 }
 
 function buildMessages(session: Session): ProviderMessage[] {
