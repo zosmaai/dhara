@@ -4,9 +4,9 @@
 [![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/zosmaai.dhara)](https://marketplace.visualstudio.com/items?itemName=zosmaai.dhara)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Run AI coding agent prompts directly from VS Code — with any LLM provider, zero lock-in.**
+**Minimal is the best. Highly customizable with extensions and skills — and no lock-in.**
 
-Zosma Code is a lightweight VS Code wrapper around [Dhara](https://github.com/zosmaai/dhara), the open-source agent protocol. Select code, press `Alt+D`, type a prompt, and get results in a new editor tab — no context switching, no proprietary models, no subscription fees.
+Zosma Code is a lightweight VS Code wrapper around [Dhara](https://github.com/zosmaai/dhara), the open-source agent protocol. Use any LLM, write extensions in any language, and keep full control of your workflow. Select code, press `Alt+D`, type a prompt, and get results in a new editor tab — no context switching, no proprietary models, no subscription fees.
 
 ---
 

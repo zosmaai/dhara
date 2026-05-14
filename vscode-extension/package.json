@@ -1,8 +1,8 @@
 {
   "name": "dhara",
   "displayName": "Zosma Code",
-  "description": "Minimal coding agent built on the Dhara Agent Protocol. Run prompts, review code, automate workflows — all from VS Code.",
-  "version": "0.2.0",
+  "description": "Minimal is the best. Highly customizable coding agent with extensions and skills — and no lock-in. Built on the Dhara Agent Protocol.",
+  "version": "0.1.0",
   "publisher": "zosmaai",
   "license": "MIT",
   "repository": {
