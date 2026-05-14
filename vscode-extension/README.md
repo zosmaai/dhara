@@ -1,7 +1,7 @@
 # Zosma Code for VS Code
 
-[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/zosmaai.dhara?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=zosmaai.dhara)
-[![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/zosmaai.dhara)](https://marketplace.visualstudio.com/items?itemName=zosmaai.dhara)
+[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/zosmaai.zosma-code?label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=zosmaai.zosma-code)
+[![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/zosmaai.zosma-code)](https://marketplace.visualstudio.com/items?itemName=zosmaai.zosma-code)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Minimal is the best. Highly customizable with extensions and skills — and no lock-in.**
