@@ -54,7 +54,7 @@ describe("Dhara Extension SDK", () => {
       };
       process.stdout.write = writeMock as typeof process.stdout.write;
 
-      const ext = createExtension({
+      const _ext = createExtension({
         name: "test-ext",
         version: "1.0.0",
         tools: [
@@ -73,7 +73,7 @@ describe("Dhara Extension SDK", () => {
 
       // Call the initialize handler directly via the message handler
       // We access the internal run loop by sending data through stdin
-      const input = JSON.stringify({
+      const _input = JSON.stringify({
         jsonrpc: "2.0",
         method: "initialize",
         params: {

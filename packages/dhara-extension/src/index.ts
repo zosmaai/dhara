@@ -28,19 +28,19 @@
  * ```
  */
 
-export { createExtension } from "./extension.js";
 export type { ExtensionOptions } from "./extension.js";
+export { createExtension } from "./extension.js";
 export type {
+  ContentBlock,
+  ErrorCodes,
+  InitializeParams,
+  InitializeResult,
+  JsonRpcError,
+  JsonRpcNotification,
+  JsonRpcRequest,
+  JsonRpcSuccess,
+  ToolContext,
   ToolDescriptor,
   ToolHandler,
   ToolResult,
-  ContentBlock,
-  ToolContext,
-  InitializeParams,
-  InitializeResult,
-  JsonRpcRequest,
-  JsonRpcSuccess,
-  JsonRpcError,
-  JsonRpcNotification,
-  ErrorCodes,
 } from "./types.js";

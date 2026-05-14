@@ -3,8 +3,7 @@
  *
  * These operate on the ~/.dhara/config.json file via ConfigManager.
  */
-import type { ConfigManager } from "../core/config.js";
-import type { ProviderConfig } from "../core/config.js";
+import type { ConfigManager, ProviderConfig } from "../core/config.js";
 
 // ── Help ───────────────────────────────────────────────────────────────────────
 

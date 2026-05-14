@@ -1,5 +1,3 @@
-import { completeSimple } from "@earendil-works/pi-ai";
-import { getEnvApiKey, getModel, getProviders as getPiAiProviders } from "@earendil-works/pi-ai";
 import type {
   KnownProvider,
   AssistantMessage as PiAiAssistantMessage,
@@ -7,6 +5,12 @@ import type {
   Message as PiAiMessage,
   Model as PiAiModel,
   Tool as PiAiTool,
+} from "@earendil-works/pi-ai";
+import {
+  completeSimple,
+  getEnvApiKey,
+  getModel,
+  getProviders as getPiAiProviders,
 } from "@earendil-works/pi-ai";
 import type {
   AssistantMessage,

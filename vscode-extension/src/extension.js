@@ -1,5 +1,4 @@
 const vscode = require("vscode");
-const { execSync } = require("node:child_process");
 
 /**
  * Activate the Dhara VS Code extension.
@@ -72,7 +71,7 @@ async function runDhara(prompt, opts) {
       title: "Running Zosma Code...",
       cancellable: true,
     },
-    async (progress, token) => {
+    async (_progress, token) => {
       const args = [binary, "--json"];
       if (provider) args.push("--provider", provider);
       if (model) args.push("--model", model);

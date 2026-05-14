@@ -195,7 +195,10 @@ export function parseMessage(raw: string): JsonRpcMessage | undefined {
 /**
  * Create a JSON-RPC success response.
  */
-export function createResponse(id: number | string | null | undefined, result: unknown): JsonRpcMessage {
+export function createResponse(
+  id: number | string | null | undefined,
+  result: unknown,
+): JsonRpcMessage {
   return { jsonrpc: "2.0", id: id ?? undefined, result };
 }
 

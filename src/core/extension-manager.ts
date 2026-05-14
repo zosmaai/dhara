@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ExtensionProtocol, createExtensionProtocol } from "./protocol.js";
+import { createExtensionProtocol, type ExtensionProtocol } from "./protocol.js";
 import type { ContentBlock, ToolRegistration } from "./provider.js";
 
 /** Default grace period (ms) before sending SIGTERM after cancellation. */

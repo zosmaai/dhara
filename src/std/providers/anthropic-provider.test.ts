@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CompleteParams } from "../../core/provider.js";
 import { createAnthropicProvider } from "./anthropic-provider.js";
 
 describe("Anthropic Provider", () => {

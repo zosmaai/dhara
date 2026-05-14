@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type ExtensionProtocol, createExtensionProtocol } from "./protocol.js";
+import { createExtensionProtocol, type ExtensionProtocol } from "./protocol.js";
 
 describe("Extension Protocol Integration", () => {
   let echoExt: ChildProcess;

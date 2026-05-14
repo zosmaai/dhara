@@ -1,9 +1,9 @@
 {
-    "name": "test-runner",
-    "version": "1.0.0",
-    "description": "Test runner — auto-detect and run vitest/pytest/cargo/go tests",
-    "runtime": {"type": "subprocess", "command": "python3 main.py", "protocol": "json-rpc"},
-    "provides": {"tools": ["run_tests", "list_tests"]},
-    "capabilities": ["process:spawn"],
-    "license": "MIT"
+  "name": "test-runner",
+  "version": "1.0.0",
+  "description": "Test runner — auto-detect and run vitest/pytest/cargo/go tests",
+  "runtime": { "type": "subprocess", "command": "python3 main.py", "protocol": "json-rpc" },
+  "provides": { "tools": ["run_tests", "list_tests"] },
+  "capabilities": ["process:spawn"],
+  "license": "MIT"
 }

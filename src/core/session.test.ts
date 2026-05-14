@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type BranchEntry, type SessionEntry, createSession } from "./session.js";
+import { createSession } from "./session.js";
 
 describe("Session Format", () => {
   describe("append + getEntry", () => {
@@ -83,7 +83,7 @@ describe("Session Format", () => {
     it("returns path through a branch", () => {
       const session = createSession({ cwd: "/tmp/test" });
       const e1 = session.append({ role: "user", content: [] });
-      const e2 = session.append({ role: "assistant", content: [] }, e1.id);
+      const _e2 = session.append({ role: "assistant", content: [] }, e1.id);
       const branch = session.fork(e1.id);
       const e3 = session.append({ role: "assistant", content: [] }, branch.id);
 
