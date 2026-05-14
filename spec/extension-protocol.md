@@ -534,14 +534,32 @@ Same tool, different language, same protocol. The core doesn't know or care that
 
 ### Ours (Rust, via protocol)
 ```rust
-// A Rust extension — same protocol, compiled binary
-fn main() {
-    let stdin = std::io::stdin();
-    for line in stdin.lock().lines() {
-        let request: Value = serde_json::from_str(&line?)?;
-        let response = handle_request(request);
-        println!("{}", serde_json::to_string(&response)?);
-    }
+// With Rust SDK (published as `dhara-extension` on crates.io)
+use dhara_extension::Extension;
+use serde_json::json;
+
+fn main() -> std::io::Result<()> {
+    Extension::new("grep", "1.0.0")
+        .description("Search for patterns in files")
+        .tool(
+            "grep",
+            "Search files with regex",
+            json!({"type": "object"}),
+            |input| {
+                let result = std::process::Command::new("grep")
+                    .args(["-rn", &input["pattern"].as_str().unwrap_or("")])
+                    .output()
+                    .unwrap();
+                dhara_extension::ToolResult {
+                    content: vec![dhara_extension::ContentBlock {
+                        block_type: "text".to_string(),
+                        text: Some(String::from_utf8_lossy(&result.stdout).to_string()),
+                    }],
+                    is_error: None,
+                }
+            },
+        )
+        .run()
 }
 ```
 
@@ -549,26 +567,29 @@ fn main() {
 
 While the protocol is the standard, we provide **optional SDKs** for popular languages that handle the JSON-RPC boilerplate:
 
-- `@project/sdk-typescript` — TypeScript helper
-- `project-sdk-python` — Python helper
-- `project-sdk-rust` — Rust helper
+- `@zosmaai/dhara-extension` — TypeScript zero-dependency SDK
+- `dhara-extension` (PyPI) — Python SDK
+- `dhara-extension` (crates.io) — Rust SDK
 
 These SDKs are NOT required. You can implement the protocol directly. The SDKs just make it easier.
 
 ```python
-# With Python SDK
-from project_sdk import Extension, Tool
+# With Python SDK (published as `dhara-extension` on PyPI)
+from dhara_extension import create_extension
 
-ext = Extension("grep")
+ext = create_extension("grep")
 
 @ext.tool(
     name="grep",
     description="Search for patterns in files",
     capabilities=["filesystem:read"]
 )
-def grep(pattern: str, path: str = "."):
+def grep(input: dict) -> dict:
+    import subprocess
+    pattern = input.get("pattern", "")
+    path = input.get("path", ".")
     result = subprocess.run(["grep", "-rn", pattern, path], capture_output=True, text=True)
-    return result.stdout
+    return {"content": [{"type": "text", "text": result.stdout}]}
 
-ext.run()  # Handles JSON-RPC loop automatically
+ext.run()  # Handles JSON-RPC stdin/stdout loop automatically
 ```
