@@ -20,12 +20,12 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          if [ -n "$TAG" ]; then
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             VERSION="${TAG#v}"
             echo "Injecting version: $VERSION"
             npm version "$VERSION" --no-git-tag-version --allow-same-version
           else
-            echo "No tag — using existing version"
+            echo "No valid semver tag (got: $TAG) — using existing version"
           fi
 
       - name: Publish to VS Code Marketplace
