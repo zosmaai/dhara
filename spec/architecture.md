@@ -33,14 +33,20 @@ All three conflate three things that should be separate:
 │                                                     │
 │   Agent Loop  ·  Tool Interface  ·  Session Format  │
 │   Event Bus  ·  Sandbox                             │
-│   (< 2,000 lines, no LLM code, no UI code)         │
+│   (~3,000 lines, no LLM code)                       │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
-## What's in the Core (< 2K lines)
+## What's in the Core (~3K lines)
 
-The core contains **only** the machinery that can't be an extension:
+The core contains the machinery that can't be an extension:
+
+> **Note on size**: The core production source is ~3,000 lines across 12 files.
+> This exceeds the original < 2K target because the extension manager,
+> session format, and config system required more complexity than anticipated.
+> It remains minimal relative to peers (Pi's equivalent packages are 10x+ larger).
+>
 
 ### 1. Agent Loop (`loop.ts`)
 The state machine that drives LLM ↔ tool interaction:
@@ -59,11 +65,11 @@ The loop accepts an **AbortSignal** that can cancel in-progress LLM calls
 and tool executions at any point. See [extension-protocol.md](./extension-protocol.md)
 for the cancellation protocol.
 
-The loop knows nothing about:
-- Which LLM provider to use (that's a provider extension)
-- What tools are available (that's tool extensions)
-- How to display output (that's a renderer extension)
-- Where sessions are stored (that's a session manager extension)
+The loop is **provider-agnostic** and **renderer-agnostic** — it emits typed
+[events](#4-event-bus-events.ts) rather than calling UI code or provider APIs
+directly. The built-in providers (OpenAI, Anthropic, pi-ai) and the TUI
+renderer live in `src/std/` and are wired in at the CLI entry point, not in
+the core.
 
 ### 2. Tool Interface (`protocol.ts`)
 The contract for what a tool looks like:
@@ -148,10 +154,10 @@ Capability enforcement. See [capability-model.md](./capability-model.md).
 
 | Concern | Why It's Not Core | Where It Lives |
 |---|---|---|
-| LLM API calls | Providers differ, new ones emerge | Provider extensions |
-| LLM providers | Multi-provider support is an extension concern | `std/providers/` |
-| Terminal UI | Presentation is separate from agent logic | Renderer extension |
-| File operations | Tools are extensions, even "default" ones | `std/tools/` |
+| LLM API calls | Providers differ, new ones emerge | Built-in providers in `std/providers/`; additional as extensions |
+| LLM providers | Multi-provider support is an infrastructure concern | `std/providers/` (OpenAI, Anthropic, pi-ai 20+) |
+| Terminal UI | Presentation is separate from agent logic | TUI built in `std/renderers/tui/`; alternative renderers as extensions |
+| File operations | Core only provides interface | `std/tools/` (6 built-in tools) |
 | Package management | Registry is a service, not agent logic | `registry/` |
 | System prompt | User-controlled, project-specific | Configuration |
 | Context files | Project instructions, loaded at startup | AGENTS.md / CLAUDE.md walk-up |
@@ -160,7 +166,12 @@ Capability enforcement. See [capability-model.md](./capability-model.md).
 
 ## The Extension Layer
 
-Extensions are the ONLY way to add functionality. The core does nothing useful without them.
+Extensions are the primary way to add functionality beyond the built-in defaults.
+
+The core ships with practical built-ins (6 tools, 3 provider adapters, TUI)
+so users have a working agent out of the box. The extension protocol lets you
+add anything beyond these defaults — custom tools, new providers, alternative
+renderers, security hooks, and more — without touching the core.
 
 ### Extension Types
 
@@ -500,9 +511,13 @@ Our approach (3 layers, protocol-coupled):
   ecosystem (packages, themes, skills, prompts)
 ```
 
-Pi bundles the LLM API (`pi-ai`) into a core package. We make it an extension. Pi bundles the TUI (`pi-tui`) into a core package. We make it an extension. Pi's extension API is a TypeScript function signature. Ours is a wire protocol.
+Pi bundles the LLM API (`pi-ai`) into a core package. We make providers and the TUI
+configurable via `src/std/` — they ship with the binary but are wired through
+abstract interfaces, not hard-coded. Pi's extension API is a TypeScript function
+signature. Ours is a language-agnostic wire protocol.
 
-The result: a core that's genuinely minimal (under 2K lines) and genuinely language-agnostic.
+The result: a core that's genuinely minimal (~3K lines, no LLM or UI code)
+and genuinely language-agnostic for extensions.
 
 ## Permission Model Gaps (Post-MVP)
 
