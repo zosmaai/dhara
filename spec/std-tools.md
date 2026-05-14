@@ -26,8 +26,11 @@ Network tools (`web_fetch`, `web_search`), database tools, git
 operations, and domain-specific capabilities belong in **extensions**.
 This is exactly what the extension protocol is for.
 
-See [architecture.md](./architecture.md):
-"Extensions are the ONLY way to add functionality."
+See the [architecture](./architecture.md#the-extension-layer) for the extension model.
+
+> **Note**: While extensions are the primary way to add functionality, Dhara ships
+> with practical built-ins (6 tools, 3 provider adapters, TUI) so users have a
+> working agent out of the box. Everything beyond these defaults should be an extension.
 
 ## Tool Catalog
 

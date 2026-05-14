@@ -1,0 +1,48 @@
+name: Publish Python SDK to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/dhara-extension-py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Inject version from release tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            VERSION="${TAG#v}"
+            echo "Injecting version: $VERSION"
+            python3 -c "
+import re
+with open('pyproject.toml') as f:
+    content = f.read()
+content = re.sub(r'^version = \".*\"', 'version = \"$VERSION\"', content, count=1, flags=re.MULTILINE)
+with open('pyproject.toml', 'w') as f:
+    f.write(content)
+"
+            echo "Version set to: $VERSION"
+          else
+            echo "No valid semver tag (got: $TAG) -- using existing version"
+          fi
+
+      - name: Install build tools
+        run: pip install build twine
+      - name: Build package
+        run: python3 -m build
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/*

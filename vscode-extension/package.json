@@ -1,0 +1,60 @@
+{
+  "name": "zosma-code",
+  "displayName": "Zosma Code",
+  "description": "Minimal is the best. Highly customizable coding agent with extensions and skills — and no lock-in. Built on the Dhara Agent Protocol.",
+  "version": "0.1.1",
+  "publisher": "zosmaai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zosmaai/dhara"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dhara.runPrompt",
+        "title": "Zosma Code: Run Prompt"
+      },
+      {
+        "command": "dhara.runSelection",
+        "title": "Zosma Code: Run on Selected Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "dhara.runSelection",
+        "key": "alt+d",
+        "when": "editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "Zosma Code",
+      "properties": {
+        "dhara.binaryPath": {
+          "type": "string",
+          "default": "dhara",
+          "description": "Path to the dhara binary"
+        },
+        "dhara.provider": {
+          "type": "string",
+          "default": "opencode-go",
+          "description": "Default LLM provider"
+        },
+        "dhara.model": {
+          "type": "string",
+          "default": "",
+          "description": "Default model ID"
+        }
+      }
+    }
+  }
+}

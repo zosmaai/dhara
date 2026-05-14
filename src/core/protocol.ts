@@ -2,7 +2,7 @@ import type { Readable, Writable } from "node:stream";
 
 export interface JsonRpcMessage {
   jsonrpc: "2.0";
-  id?: number;
+  id?: number | string;
   method?: string;
   params?: unknown;
   result?: unknown;
@@ -38,7 +38,7 @@ export function createExtensionProtocol({
   stdout: Writable;
 }): ExtensionProtocol {
   let nextId = 1;
-  const pending = new Map<number, PendingRequest>();
+  const pending = new Map<number | string, PendingRequest>();
   const notificationHandlers = new Map<string, ((params: unknown) => void)[]>();
   let buffer = "";
   let closed = false;
@@ -167,4 +167,48 @@ export function createExtensionProtocol({
       pending.clear();
     },
   };
+}
+
+// ── Serialization helpers ───────────────────────────────────────────────────────
+
+/**
+ * Serialize a JSON-RPC message to a JSON string.
+ */
+export function serializeMessage(msg: JsonRpcMessage): string {
+  return JSON.stringify(msg);
+}
+
+/**
+ * Parse a JSON string into a JSON-RPC message.
+ * Returns undefined if the input is not valid JSON-RPC.
+ */
+export function parseMessage(raw: string): JsonRpcMessage | undefined {
+  try {
+    const parsed = JSON.parse(raw) as JsonRpcMessage;
+    if (parsed.jsonrpc !== "2.0") return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Create a JSON-RPC success response.
+ */
+export function createResponse(id: number | string | null | undefined, result: unknown): JsonRpcMessage {
+  return { jsonrpc: "2.0", id: id ?? undefined, result };
+}
+
+/**
+ * Create a JSON-RPC error response.
+ */
+export function createErrorResponse(
+  id: number | string | null | undefined,
+  code: number,
+  message: string,
+  data?: unknown,
+): JsonRpcMessage {
+  const error: { code: number; message: string; data?: unknown } = { code, message };
+  if (data !== undefined) error.data = data;
+  return { jsonrpc: "2.0", id: id ?? undefined, error };
 }

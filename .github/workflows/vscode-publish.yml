@@ -1,0 +1,48 @@
+name: Publish VS Code Extension
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+
+      - name: Set version from release tag
+        working-directory: vscode-extension
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            VERSION="${TAG#v}"
+            echo "Version from release tag: $VERSION"
+            npm version "$VERSION" --no-git-tag-version --allow-same-version
+            echo "bump=version" >> $GITHUB_OUTPUT
+          else
+            echo "No release tag ($TAG) -- will auto-bump patch"
+            echo "bump=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to VS Code Marketplace
+        working-directory: vscode-extension
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+          BUMP: ${{ steps.version.outputs.bump }}
+        run: |
+          if [ -z "$VSCE_TOKEN" ]; then
+            echo "VSCE_TOKEN not set -- skipping"
+            exit 0
+          fi
+          if [ "$BUMP" = "patch" ]; then
+            npx @vscode/vsce publish patch -p "$VSCE_TOKEN"
+          else
+            npx @vscode/vsce publish -p "$VSCE_TOKEN"
+          fi

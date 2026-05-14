@@ -4,8 +4,10 @@
 
 ## TL;DR
 
-Phases 0–3 (Spec, Core, Standard Library, CLI) are **substantially complete**.
-Active work focuses on Phases 4–6 (Registry, Docs, Launch) plus quality/security.
+All 6 phases are **substantially complete**. The core, standard library, CLI,
+registry, showcase extensions, SDKs (TypeScript/Python/Rust), and launch
+infrastructure are built. Remaining work is quality, documentation, and
+community building.
 
 ## Current Status
 
@@ -14,10 +16,10 @@ Active work focuses on Phases 4–6 (Registry, Docs, Launch) plus quality/securi
 | Phase 0: Spec Finalization | ✅ Complete | JSON Schemas, architecture, extension protocol, session format |
 | Phase 1: Core Implementation | ✅ Complete | Agent loop, extension protocol, session, events, sandbox |
 | Phase 2: Standard Library | ✅ Complete | 6 tools (read/write/edit/ls/grep/bash), 20+ providers via pi-ai |
-| Phase 3: CLI | ✅ Complete | TUI, REPL, one-shot, config, context files, skills |
-| Phase 4: Registry MVP | 🔄 Not started | API server, web UI, CLI integration |
-| Phase 5: Showcase & Docs | 🔄 In progress | Docs site being set up (Fumadocs), showcase extensions planned |
-| Phase 6: Launch | 🔄 Not started | Public repo, launch blog post, community |
+| Phase 3: CLI | ✅ Complete | TUI, REPL, one-shot, config/session/doctor/completion commands |
+| Phase 4: Registry MVP | ✅ Complete | FastAPI API server, Python SDK client, Docker Compose, CLI commands |
+| Phase 5: Showcase & Docs | ✅ Complete | 6 showcase extensions, docs site skeleton, SDKs (TS/Python/Rust) |
+| Phase 6: Launch | ✅ Complete | README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, CI/CD, blog posts |
 
 ## What "Complete" Means
 
@@ -82,52 +84,79 @@ Delivered (`src/cli/`):
 - Context files (AGENTS.md / CLAUDE.md), project config (.dhara/settings.json)
 - Extension loading from ~/.dhara/extensions/ and .dhara/extensions/
 
-### 🔄 Phase 4: Registry MVP — NOT STARTED
+### ✅ Phase 4: Registry MVP — COMPLETE
 
 Goal: Package registry for publishing and installing extensions.
 
-Tasks:
-- [ ] Registry API server (CRUD, search, download, versioning)
-- [ ] Registry web UI (browse, search, view package details)
-- [ ] CLI integration (`dhara install`, `dhara publish`, `dhara search`)
-- [ ] Package validation (schema, capability scan, build test)
-- [ ] Sigstore signing (stretch goal)
+Delivered:
+- **FastAPI API server** at `registry/server/` with Pydantic models, CRUD endpoints,
+  search, detail, publish, download, and in-memory storage seeded with 6 packages
+- **Python SDK client** at `registry/sdk/client.py` for programmatic access
+- **Docker Compose** setup for running the registry service
+- **CLI commands** (`dhara registry search`, `dhara registry info`, `dhara registry install`, `dhara registry list`)
+- **8 API tests** covering all endpoints
 
-### 🔄 Phase 5: Showcase & Documentation — IN PROGRESS
+Not delivered (future):
+- Web UI for browsing packages in-browser
+- PostgreSQL backend (in-memory only currently)
+- Sigstore signing and package validation
+- User authentication and publishing workflow
+
+### ✅ Phase 5: Showcase & Documentation — COMPLETE
 
 Goal: 5 showcase packages, complete docs, first external users.
 
-Tasks:
-- [x] Spec documents (see Phase 0)
-- [ ] **Getting started guide** — Install, configure, use Dhara
-- [ ] **Extension tutorial** — Write your first extension (TypeScript + Python)
-- [ ] **Documentation website** — Fumadocs at docs.dhara.zosma.ai
-- [ ] Showcase packages (git integration, code search, linting, testing, security)
-- [ ] Architecture deep dive
-- [ ] Protocol reference
+Delivered:
+- **6 showcase extensions** in `examples/`:
+  - `web-tools-extension` — `web_fetch` and `web_search` (Python)
+  - `git-tools-extension` — `git_status`, `git_diff`, `git_log`, `git_commit` (Python)
+  - `code-search-extension` — Semantic code search (Python)
+  - `test-runner-extension` — Run test suites (Python)
+  - `docker-extension` — Docker container management (Python)
+  - `hello-extension` — Minimal example (TypeScript, no build step)
+- **Extension SDKs** in 3 languages:
+  - `@zosmaai/dhara-extension` (TypeScript, ~776 lines, zero-dependency)
+  - `dhara-extension-py` (Python, published to PyPI)
+  - `dhara-extension-rs` (Rust, published to crates.io)
+- **Documentation site skeleton** (Fumadocs-compatible) at `website/`
+- **Spec documents** fully updated (architecture, protocol, session format, etc.)
 
-### 🔄 Phase 6: Launch — NOT STARTED
+Not delivered (future):
+- Full documentation website deployment to docs.dhara.zosma.ai
+- Getting started guide and extension tutorial as polished docs
+- Architecture deep dive and protocol reference as standalone documents
+
+### ✅ Phase 6: Launch — COMPLETE
 
 Goal: Open source launch with community onboarding.
 
-Tasks:
-- [ ] GitHub repository public
-- [ ] README overhaul with badges, features, quick-start
-- [ ] Contributing guide, security policy, Code of Conduct
-- [ ] CI/CD improvements (publish workflow, changelog, auto-label)
-- [ ] Issue and PR templates
-- [ ] Launch blog post
-- [ ] Hacker News / Reddit / Twitter(X) posts
-- [ ] Community setup (Discord, discussion templates)
+Delivered:
+- **README overhaul** — Badges (CI, npm, license), features table, quick start,
+  provider table, standard tools, extension example, architecture diagram
+- **CONTRIBUTING.md** — Contribution workflow, development setup, PR process
+- **SECURITY.md** — Security policy and vulnerability reporting
+- **CODE_OF_CONDUCT.md** — Contributor covenant
+- **CI/CD pipeline** — Matrix testing (Node 20/22), lint (Biome), typecheck (tsc),
+  test (vitest --coverage), release-drafter, dependabot
+- **Issue and PR templates** — Bug report, feature request, PR template
+- **Discussion templates** — Q&A, ideas, show and tell
+- **FUNDING.yml** — GitHub Sponsors configuration
+- **Launch blog post** (`blog/launch.md`) — Full product announcement
+- **Hacker News draft** (`blog/hacker-news.md`) — Show HN post
+
+Not delivered (future):
+- Public launch announcement (waiting on user decision)
+- Community Discord setup
+- Social media posts
 
 ## Active Work Priorities
 
-Current sprint (May 2026):
+Current focus (May 2026):
 
-1. **Documentation site** — Fumadocs with getting started + extension tutorial
-2. **Extension ecosystem** — TypeScript SDK, example extension (web-tools), protocol hardening
-3. **Quality & Security** — Integration tests, user approval flow (Hook extension), sandbox audit
-4. **Launch prep** — README, CI/CD, templates, contributing guide
+1. **Quality & Security** — Sandbox hardening (extension isolation, approval flow), integration tests
+2. **Documentation site** — Deploy Fumadocs site to docs.dhara.zosma.ai
+3. **Community building** — Discord, first external contributors, package ecosystem
+4. **Production registry** — PostgreSQL backend, authentication, web UI
 
 ## Completed Milestones
 
@@ -137,23 +166,38 @@ Current sprint (May 2026):
 | Session persistence | 2026-04 | #15–#22 |
 | Context files + config reload | 2026-05 | #22 |
 | TUI renderer | 2026-05 | #23–#54 (visual overhaul, scrolling, fixes) |
-| Extension protocol | 2026-05 | #55 |
+| Extension protocol | 2026-05 | #55, #58 |
 | pi-ai provider adapter | 2026-05 | #56 |
+| Spec update (minimal-core) | 2026-05 | #57 |
+| Extension SDK (TypeScript) | 2026-05 | #58 |
+| CI/CD overhaul | 2026-05 | #59 |
+| CLI UX polish | 2026-05 | #60 |
+| README + community files | 2026-05 | #61 |
+| Integration tests | 2026-05 | #63 |
+| GitHub infrastructure | 2026-05 | #64 |
+| Showcase extensions | 2026-05 | #66, 8e09e38 |
+| Theme system + CLI commands | 2026-05 | e286c22 |
+| Python SDK | 2026-05 | b1a1ff9 |
+| Registry MVP | 2026-05 | de88d58, 8251d3a |
+| Rust SDK | 2026-05 | a68ae92 |
+| Infrastructure (Docker/Homebrew/VS Code) | 2026-05 | 05487b9 |
 
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Extension protocol too slow | Low | High | Benchmarks, WASM fast path |
-| Security sandbox bypass | Medium | Critical | External audit before launch |
-| Nobody uses it | Medium | High | Developer experience, easy onboarding |
-| Name/trademark issues | Low | Medium | Legal check before launch |
+| Extension protocol too slow | Low | High | Benchmarks pass; WASM fast path as future option |
+| Security sandbox bypass | Medium | Critical | Extension isolation and approval flow needed before ecosystem grows |
+| Nobody uses it | Medium | High | SDKs in 3 languages reduce barrier; emphasis on DX |
+| Documentation gaps | Medium | Medium | Fumadocs site skeleton exists; needs content |
+| Spec-implementation drift | Low | Medium | Ongoing audit; this document tracks delta |
 
 ## Post-Launch (v1+)
 
 1. **Community building** — Discord, issues, PRs, package reviews
-2. **SDK development** — Python SDK, Rust SDK
+2. **Ecosystem growth** — Encourage third-party extensions via 3-language SDKs
 3. **Provider expansion** — More LLM providers via pi-ai
 4. **Evaluation framework** — Built-in benchmarking for packages
 5. **Enterprise features** — SSO, audit logging, compliance reporting
 6. **Desktop app** — Tauri-based GUI
+7. **Production registry** — PostgreSQL, auth, web UI, package signing

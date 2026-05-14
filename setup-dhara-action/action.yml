@@ -1,0 +1,40 @@
+name: "Setup Dhara"
+description: "Install the Dhara agent harness in your GitHub Actions workflow"
+author: "Zosma AI"
+
+branding:
+  icon: "terminal"
+  color: "purple"
+
+inputs:
+  version:
+    description: "Version of Dhara to install (e.g. 0.1.0, latest)"
+    required: false
+    default: "latest"
+  node-version:
+    description: "Node.js version to use"
+    required: false
+    default: "22"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install Dhara
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          npm install -g @zosmaai/dhara
+        else
+          npm install -g @zosmaai/dhara@${{ inputs.version }}
+        fi
+        echo "dhara $(dhara --version) installed"
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        dhara --help > /dev/null 2>&1 && echo "✅ Dhara is ready" || echo "⚠️  Dhara installation issue"

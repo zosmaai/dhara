@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta:__legacy__"
+
+[project]
+name = "dhara-extension"
+version = "0.1.0"
+description = "Python SDK for building Dhara extensions"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Zosma AI", email = "dev@zosma.ai" }
+]
+requires-python = ">=3.9"
+keywords = ["dhara", "extension", "json-rpc", "ai", "coding-agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

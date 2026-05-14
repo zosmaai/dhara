@@ -1,6 +1,13 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { type JsonRpcMessage, createExtensionProtocol } from "./protocol.js";
+import {
+  type JsonRpcMessage,
+  createExtensionProtocol,
+  createErrorResponse,
+  createResponse,
+  parseMessage,
+  serializeMessage,
+} from "./protocol.js";
 
 interface MockStdin extends NodeJS.ReadableStream {
   receive(msg: JsonRpcMessage): void;
@@ -130,5 +137,95 @@ describe("ExtensionProtocol", () => {
     stdin.receive({ jsonrpc: "2.0", result: "orphan", id: 999 });
 
     expect(stdout.chunks).toHaveLength(1);
+  });
+});
+
+describe("serializeMessage / parseMessage", () => {
+  it("request round-trip", () => {
+    const msg: JsonRpcMessage = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "0.1.0" },
+    };
+    const raw = serializeMessage(msg);
+    const parsed = parseMessage(raw);
+    expect(parsed).toEqual(msg);
+  });
+
+  it("success response round-trip", () => {
+    const msg: JsonRpcMessage = {
+      jsonrpc: "2.0",
+      id: 2,
+      result: { status: "ok", tools: [] },
+    };
+    const raw = serializeMessage(msg);
+    const parsed = parseMessage(raw);
+    expect(parsed).toEqual(msg);
+  });
+
+  it("error response round-trip", () => {
+    const msg: JsonRpcMessage = {
+      jsonrpc: "2.0",
+      id: 3,
+      error: { code: -32601, message: "Method not found" },
+    };
+    const raw = serializeMessage(msg);
+    const parsed = parseMessage(raw);
+    expect(parsed).toEqual(msg);
+  });
+
+  it("error with data round-trip", () => {
+    const msg: JsonRpcMessage = {
+      jsonrpc: "2.0",
+      id: 4,
+      error: {
+        code: -32000,
+        message: "Tool error",
+        data: { toolName: "bash", exitCode: 1 },
+      },
+    };
+    const raw = serializeMessage(msg);
+    const parsed = parseMessage(raw);
+    expect(parsed).toEqual(msg);
+  });
+
+  it("request without params round-trip", () => {
+    const msg: JsonRpcMessage = {
+      jsonrpc: "2.0",
+      id: 5,
+      method: "shutdown",
+    };
+    const raw = serializeMessage(msg);
+    const parsed = parseMessage(raw);
+    expect(parsed).toEqual(msg);
+  });
+
+  it("parseMessage returns undefined for invalid JSON", () => {
+    expect(parseMessage("not json")).toBeUndefined();
+  });
+
+  it("parseMessage returns undefined for non-JSON-RPC", () => {
+    expect(parseMessage('{"foo":"bar"}')).toBeUndefined();
+  });
+
+  it("createResponse creates success response", () => {
+    const msg = createResponse(1, { done: true });
+    expect(msg.jsonrpc).toBe("2.0");
+    expect(msg.id).toBe(1);
+    expect(msg.result).toEqual({ done: true });
+  });
+
+  it("createErrorResponse creates error response", () => {
+    const msg = createErrorResponse(2, -32001, "Not found");
+    expect(msg.jsonrpc).toBe("2.0");
+    expect(msg.id).toBe(2);
+    expect(msg.error?.code).toBe(-32001);
+    expect(msg.error?.message).toBe("Not found");
+  });
+
+  it("createErrorResponse with data", () => {
+    const msg = createErrorResponse(3, -32000, "Fail", { detail: "timeout" });
+    expect(msg.error?.data).toEqual({ detail: "timeout" });
   });
 });
