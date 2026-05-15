@@ -13,6 +13,11 @@
     "indentWidth": 2,
     "lineWidth": 100
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
@@ -20,6 +25,6 @@
     }
   },
   "files": {
-    "includes": ["**", "!dist", "!node_modules", "!coverage"]
+    "includes": ["**", "!dist", "!node_modules", "!coverage", "!website/.next", "!website/.source"]
   }
 }

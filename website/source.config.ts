@@ -1,12 +1,12 @@
-import { defineConfig } from "fumadocs-mdx/config";
+import { remarkHeading } from "fumadocs-core/mdx-plugins";
+import { defineConfig, defineDocs } from "fumadocs-mdx/config";
+
+export const docs = defineDocs({
+  dir: "../docs",
+});
 
 export default defineConfig({
   mdxOptions: {
-    // Use existing docs directory
-    cwd: "../",
+    remarkPlugins: [remarkHeading],
   },
-  // Where to find MDX files
-  contentDir: "../docs",
-  // Output source types
-  outDir: "./.fumadocs",
 });
