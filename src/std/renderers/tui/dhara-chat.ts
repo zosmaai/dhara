@@ -12,7 +12,7 @@ import { Editor, type EditorConfig } from "./components/editor.js";
 import { StatusBar, type StatusBarConfig } from "./components/status-bar.js";
 import type { Theme } from "./theme.js";
 
-// ── Types ──────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────
 
 export interface DharaAppConfig {
   theme: Theme;
@@ -131,6 +131,7 @@ export class DharaApp implements Component, FocusableComponent {
   setEventBus(bus: EventBus): void {
     this.disposeSubs();
     wireEvents(bus, this);
+    wireToolEvents(bus, this);
   }
 
   private disposeSubs(): void {
@@ -351,11 +352,86 @@ function wireEvents(bus: EventBus, app: DharaApp): void {
   }
 }
 
+// ── Tool event wiring ───────────────────────────────────────────────────
+
+function wireToolEvents(bus: EventBus, app: DharaApp): void {
+  const R = () => app.onRender?.();
+
+  // Listen for tool calls and display them (non-blocking)
+  bus.subscribe("tool:call_start", (e) => {
+    const payload = e as { toolName: string; toolCallId: string; input: Record<string, unknown> };
+    const toolCall = `${payload.toolName} ${JSON.stringify(payload.input)}`;
+    app.addMessage({
+      role: "assistant",
+      content: "",
+      toolCall,
+    });
+    R();
+    return { action: "allow" };
+  });
+
+  // Listen for tool results (non-blocking)
+  bus.subscribe("tool:execution_end", (e) => {
+    const payload = e as {
+      toolCallId: string;
+      toolName: string;
+      output: string;
+      isError?: boolean;
+    };
+    const isError = payload.isError ? "error" : "tool";
+    app.addMessage({
+      role: isError,
+      content: payload.output,
+    });
+    R();
+    return { action: "allow" };
+  });
+
+  // Listen for approval events (non-blocking)
+  bus.subscribe("tool:approval_required", () => {
+    app.addMessage({
+      role: "system",
+      content: "Waiting for approval...",
+    });
+    R();
+    return { action: "allow" };
+  });
+
+  bus.subscribe("tool:approval_granted", () => {
+    app.addMessage({
+      role: "system",
+      content: "Approval granted, executing...",
+    });
+    R();
+    return { action: "allow" };
+  });
+
+  bus.subscribe("tool:approval_denied", (e) => {
+    const payload = e as { toolCallId: string; toolName: string; reason: string };
+    app.addMessage({
+      role: "error",
+      content: `Tool ${payload.toolName} denied: ${payload.reason}`,
+    });
+    R();
+    return { action: "allow" };
+  });
+
+  bus.subscribe("tool:call_cancelled", (e) => {
+    const payload = e as { toolCallId: string; toolName: string };
+    app.addMessage({
+      role: "system",
+      content: `Tool ${payload.toolName} cancelled.`,
+    });
+    R();
+    return { action: "allow" };
+  });
+}
+
 const SLASH_HELP = [
   "Commands:  /help  /clear  /exit",
   "",
   "Shortcuts:",
   "  ↑/↓ history   Shift+Enter newline   Enter submit",
-  "  Ctrl+A/E start/end   Ctrl+K delete to end   Ctrl+U delete line",
+  "  Ctrl+A/E start/end   Ctrl+K clear to end   Ctrl+U clear line",
   "  Ctrl+W delete word   Alt+B/F word   Ctrl+C cancel/exit",
 ].join("\n");

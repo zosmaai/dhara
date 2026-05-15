@@ -382,7 +382,10 @@ export class TUI {
   private firstRender(lines: string[], height: number): void {
     const output = lines.map((l) => `\r${l}`).join("\n");
     this.terminal.write(synchronized(output));
-    this.hardwareCursorRow = lines.length - 1;
+    // After writing all lines, the terminal cursor is at the last line
+    // on screen. Cap at height-1 since lines beyond the terminal height
+    // scroll off and end up at the bottom row.
+    this.hardwareCursorRow = Math.min(lines.length - 1, height - 1);
     this.viewportTop = this.getViewportTop(lines.length, height);
     this.maxLinesRendered = lines.length;
   }
@@ -461,7 +464,12 @@ export class TUI {
     if (scrollLines > 0) {
       // If we were already showing bottom of content, the terminal
       // will scroll naturally. We just need to handle the new viewport.
-      buffer += "\r\n".repeat(Math.min(scrollLines, height));
+      const scrolledLines = Math.min(scrollLines, height);
+      buffer += "\r\n".repeat(scrolledLines);
+      // Update hardware cursor row to account for the scroll.
+      // \r\n moves the cursor down; if it hits the terminal bottom
+      // it stays at height-1 (terminal scrolls).
+      this.hardwareCursorRow = Math.min(this.hardwareCursorRow + scrolledLines, height - 1);
     }
 
     // Move cursor to first changed visible line (screen-relative)
