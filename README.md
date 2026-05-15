@@ -1,12 +1,38 @@
-# Dhara
+<p align="center">
+  <img src="assets/dhara-logo.svg" width="120" height="120" alt="Dhara logo">
+</p>
 
-[![CI](https://github.com/zosmaai/dhara/actions/workflows/ci.yml/badge.svg)](https://github.com/zosmaai/dhara/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@zosmaai/dhara)](https://www.npmjs.com/package/@zosmaai/dhara)
-[![npm downloads](https://img.shields.io/npm/dm/@zosmaai/dhara)](https://www.npmjs.com/package/@zosmaai/dhara)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
+<h1 align="center">Dhara</h1>
 
-**A minimal, secure, language-agnostic coding agent harness.**
+<p align="center">
+  <strong>A minimal, secure, language-agnostic coding agent harness.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/zosmaai/dhara/actions/workflows/ci.yml">
+    <img src="https://github.com/zosmaai/dhara/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://www.npmjs.com/package/@zosmaai/dhara">
+    <img src="https://img.shields.io/npm/v/@zosmaai/dhara" alt="npm version">
+  </a>
+  <a href="https://www.npmjs.com/package/@zosmaai/dhara">
+    <img src="https://img.shields.io/npm/dm/@zosmaai/dhara" alt="npm downloads">
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+  <a href="https://nodejs.org">
+    <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://dhara.zosma.ai">📖 Docs</a>
+  ·
+  <a href="docs/getting-started.md">🚀 Getting Started</a>
+  ·
+  <a href="spec/roadmap.md">🗺️ Roadmap</a>
+</p>
 
 Dhara (धारा, "flow" in Sanskrit) is the engine that powers AI coding agents.
 It provides the agent loop, tool management, session persistence, and extension
@@ -107,7 +133,7 @@ Install: copy to `~/.dhara/extensions/my-extension/` with a `manifest.json`.
 
 ## Documentation
 
-Full documentation is at **[docs.dhara.zosma.ai](https://docs.dhara.zosma.ai)** (coming soon).
+Full documentation is at **[dhara.zosma.ai](https://dhara.zosma.ai)**.
 
 - [Getting Started Guide](docs/getting-started.md)
 - [Writing Your First Extension](docs/write-first-extension.md)
