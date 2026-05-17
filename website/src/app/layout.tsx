@@ -18,7 +18,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           theme={{
             attribute: "class",
             defaultTheme: "dark",
-            forcedTheme: "dark",
             disableTransitionOnChange: true,
           }}
         >

@@ -1,0 +1,158 @@
+---
+title: Architecture
+description: How Dhara is structured — core, standard library, extensions, and ecosystem.
+---
+
+# Architecture
+
+Dhara is a minimal, secure, language-agnostic AI coding agent harness. It follows a **layered architecture** where the core stays small (~3K lines) and everything else plugs in via extensions.
+
+## The Problem with Existing Approaches
+
+Most coding agents are monolithic: provider code, tools, UI, and session management all live in one codebase. This means:
+
+- **Language lock-in** — Extensions must be written in the same language as the core
+- **No isolation** — A buggy extension can crash the entire agent
+- **Hard to swap providers** — Adding a new LLM requires modifying core code
+- **Tight coupling** — UI, tools, and provider logic are intertwined
+
+## The Three Layers
+
+```
+┌─────────────────────────────────────────┐
+│  Ecosystem Layer                        │
+│  Registry · Packages · SDKs (TS/Py/Rust)│
+├─────────────────────────────────────────┤
+│  Extension Layer                        │
+│  Web tools · Git · Docker · Custom      │
+│  JSON-RPC 2.0 over stdin/stdout         │
+├─────────────────────────────────────────┤
+│  Core (~3K lines)                       │
+│  Agent Loop · Protocol · Session        │
+│  Events · Sandbox · Config              │
+└─────────────────────────────────────────┘
+```
+
+### 1. Core Layer
+
+The core defines **only interfaces and orchestration** — no provider implementations, no UI code:
+
+| Module | Responsibility |
+|---|---|
+| `agent-loop.ts` | LLM → tool → LLM cycle with streaming and cancellation |
+| `protocol.ts` | JSON-RPC 2.0 message types for tool calls |
+| `session.ts` | Session entry types and tree representation |
+| `events.ts` | Typed event bus with hooks and streaming deltas |
+| `sandbox.ts` | Capability checking, path validation, audit logging |
+| `config.ts` | Global `~/.dhara/config.json` management |
+| `context-loader.ts` | AGENTS.md / CLAUDE.md walk-up loading |
+| `skills.ts` | Agent Skills discovery and loading |
+| `provider.ts` | Provider interface (single method) |
+| `project-config.ts` | `.dhara/settings.json` loading |
+
+**Total:** ~2,200 lines across 12 files.
+
+### 2. Extension Layer
+
+Extensions are **independent processes** that communicate via JSON-RPC 2.0 over stdin/stdout:
+
+```
+┌─────────┐    stdin/stdout     ┌──────────────┐
+│  Dhara  │ ←── JSON-RPC ───→  │  Extension   │
+│  Core   │                    │  (subprocess) │
+└─────────┘                    └──────────────┘
+```
+
+The lifecycle:
+
+1. Dhara reads the extension manifest and spawns the process
+2. Sends `initialize` — extension responds with tool definitions
+3. When the LLM calls a tool, Dhara sends `tools/execute`
+4. Extension responds with results
+5. Dhara sends `shutdown` when done
+
+Extensions can be written in **any language** — Python, Rust, Go, Ruby, etc.
+
+### 3. Ecosystem Layer
+
+A purpose-built registry for agent extensions (not npm keyword scraping):
+
+- **Package discovery** — Search by tool name, category, or description
+- **Quality gates** — Manifest validation, capability review
+- **SDKs** — TypeScript, Python, and Rust SDKs for building extensions
+- **Versioning** — Semantic versioning with dependency resolution
+
+## What's NOT in the Core
+
+The core deliberately excludes:
+
+- **Provider implementations** — Live in `std/providers/` (OpenAI, Anthropic, pi-ai adapter)
+- **UI code** — TUI and REPL are separate modules
+- **Network tools** — Web fetch, web search belong in extensions
+- **Git operations** — Belong in a git extension
+
+## Context Conventions
+
+Dhara loads context files automatically:
+
+1. Walks up from CWD looking for `AGENTS.md` or `CLAUDE.md`
+2. Content is injected verbatim into the system prompt
+3. Supports YAML frontmatter (optional)
+4. Reload with `/reload` in REPL mode
+
+## Project Configuration
+
+Create `.dhara/settings.json` in your project root:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "maxIterations": 15,
+  "autoSave": true
+}
+```
+
+Configuration precedence (highest to lowest):
+
+1. CLI flags
+2. `.dhara/settings.json` (project)
+3. `~/.dhara/config.json` (global)
+
+## Global Directory (`~/.dhara/`)
+
+```
+~/.dhara/
+├── config.json              # Global settings
+├── sessions/                # Saved sessions (JSONL)
+├── extensions/              # Installed extensions
+│   └── <name>/
+│       ├── manifest.json
+│       └── ...
+└── context.md               # Global context file
+```
+
+## Skills Discovery
+
+Dhara discovers agent skills automatically:
+
+1. Checks `.dhara/skills/` in the project
+2. Walks up for `AGENTS.md` or `CLAUDE.md` skill references
+3. Reads `SKILL.md` files and injects into system prompt
+4. Skills are markdown files with optional YAML frontmatter
+
+## Embedding
+
+Dhara can be embedded as a library:
+
+```typescript
+import { createAgentLoop } from "@zosmaai/dhara/core";
+import { createOpenAIProvider } from "@zosmaai/dhara/providers/openai";
+
+const agent = await createAgentLoop({
+  provider: createOpenAIProvider(),
+  cwd: process.cwd(),
+});
+
+const result = await agent.run("Explain this codebase");
+```

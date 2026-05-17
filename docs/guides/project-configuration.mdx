@@ -1,0 +1,105 @@
+---
+title: Project Configuration
+description: Configure Dhara per-project with .dhara/settings.json.
+---
+
+# Project Configuration
+
+Dhara reads configuration from three sources, applied in order of precedence:
+
+1. **CLI flags** (highest priority)
+2. **`.dhara/settings.json`** (project-level)
+3. **`~/.dhara/config.json`** (global, lowest priority)
+
+## Project Settings
+
+Create `.dhara/settings.json` in your project root:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "maxIterations": 15,
+  "maxTokens": 4096,
+  "autoSave": true,
+  "security": {
+    "level": "standard"
+  }
+}
+```
+
+## Settings Schema
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `provider` | `string` | — | LLM provider name |
+| `model` | `string` | — | Model ID |
+| `baseUrl` | `string` | — | Custom API base URL (OpenAI-compatible) |
+| `maxIterations` | `number` | `10` | Max tool-use loop iterations per prompt |
+| `maxTokens` | `number` | Provider default | Max tokens per response |
+| `autoSave` | `boolean` | `true` | Auto-save session on exit |
+| `security.level` | `string` | `"standard"` | Security level (`paranoid`, `standard`, `trusted`, `yolo`) |
+
+## Discovery
+
+Dhara walks up from the current working directory looking for `.dhara/settings.json`. The first match wins. This means:
+
+- `/home/user/projects/my-app/.dhara/settings.json` applies when running in `my-app/` or any subdirectory
+- `/home/user/.dhara/config.json` is the global fallback
+
+## Global Configuration
+
+The global config at `~/.dhara/config.json` sets defaults for all projects:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o",
+  "autoSave": true,
+  "theme": "catppuccin"
+}
+```
+
+## Per-Project Security
+
+Different projects can have different security levels:
+
+```json
+// Trusted project — auto-approve known extensions
+{
+  "security": {
+    "level": "trusted",
+    "trustedAuthors": ["zosmaai"]
+  }
+}
+```
+
+```json
+// Untrusted code — paranoid mode
+{
+  "security": {
+    "level": "paranoid"
+  }
+}
+```
+
+## Ignoring .dhara/
+
+Add `.dhara/` to your `.gitignore` if it contains API keys or sensitive config:
+
+```
+# .gitignore
+.dhara/settings.json
+```
+
+Share only non-sensitive settings via a template:
+
+```json
+// .dhara/settings.template.json (safe to commit)
+{
+  "maxIterations": 15,
+  "security": {
+    "level": "standard"
+  }
+}
+```

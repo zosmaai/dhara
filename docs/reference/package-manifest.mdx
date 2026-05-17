@@ -1,0 +1,228 @@
+---
+title: Package Manifest
+description: Extension manifest schema — name, version, tools, capabilities, and entry point.
+---
+
+# Package Manifest
+
+Every Dhara extension requires a `manifest.json` file at the package root. This file declares metadata, tool definitions, and required capabilities.
+
+## Schema
+
+```json
+{
+  "$schema": "https://dhara.zosma.ai/schemas/manifest.json",
+  "type": "object",
+  "required": ["name", "version", "main"],
+  "properties": {
+    "name": { "type": "string" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "main": { "type": "string" },
+    "author": { "type": "string" },
+    "license": { "type": "string" },
+    "repository": { "type": "string" },
+    "engines": { "type": "object" },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tools": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/toolDefinition" }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}
+```
+
+## Required Fields
+
+### name
+
+Package name (lowercase, hyphens allowed):
+
+```json
+{ "name": "web-tools" }
+```
+
+### version
+
+Semantic version:
+
+```json
+{ "version": "1.2.3" }
+```
+
+### main
+
+Entry point — path to the executable script or binary:
+
+```json
+{ "main": "dist/index.js" }
+```
+
+Or for compiled binaries:
+
+```json
+{ "main": "./bin/my-extension" }
+```
+
+## Optional Fields
+
+### description
+
+Short description shown in registry listings:
+
+```json
+{ "description": "Web scraping and search tools for AI agents" }
+```
+
+### author
+
+Package author (used for trusted author matching):
+
+```json
+{ "author": "zosmaai" }
+```
+
+### license
+
+SPDX license identifier:
+
+```json
+{ "license": "MIT" }
+```
+
+### repository
+
+Git repository URL:
+
+```json
+{ "repository": "https://github.com/zosmaai/dhara-web-tools" }
+```
+
+### engines
+
+Runtime requirements:
+
+```json
+{
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.10"
+  }
+}
+```
+
+### capabilities
+
+Declared capabilities (security permissions):
+
+```json
+{
+  "capabilities": [
+    "network:fetch",
+    "network:dns",
+    "filesystem:read"
+  ]
+}
+```
+
+### tools
+
+Static tool definitions (alternative to dynamic discovery via `initialize`):
+
+```json
+{
+  "tools": [
+    {
+      "name": "fetch_url",
+      "description": "Fetch a URL and extract readable content",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" }
+        },
+        "required": ["url"]
+      }
+    }
+  ]
+}
+```
+
+### dependencies
+
+Other Dhara extensions required:
+
+```json
+{
+  "dependencies": {
+    "filesystem-tools": "^1.0.0"
+  }
+}
+```
+
+## Complete Example
+
+```json
+{
+  "name": "web-tools",
+  "version": "2.1.0",
+  "description": "Web scraping and search tools for AI agents",
+  "main": "dist/index.js",
+  "author": "zosmaai",
+  "license": "MIT",
+  "repository": "https://github.com/zosmaai/dhara-web-tools",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "capabilities": [
+    "network:fetch",
+    "network:dns"
+  ],
+  "tools": [
+    {
+      "name": "fetch_url",
+      "description": "Fetch URL and extract markdown content",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "maxTokens": { "type": "integer" }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "web_search",
+      "description": "Search the web using multiple engines",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "maxResults": { "type": "integer", "default": 5 }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}
+```
+
+## Validation
+
+Validate your manifest:
+
+```bash
+dhara doctor --verify-extensions
+```
+
+Or validate a specific file:
+
+```bash
+dhara doctor --validate-manifest ./manifest.json
+```

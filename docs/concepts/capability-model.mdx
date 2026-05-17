@@ -1,0 +1,168 @@
+---
+title: Capability Model
+description: How Dhara secures extensions through declared capabilities, user approval, and sandbox enforcement.
+---
+
+# Capability Model
+
+Dhara uses **capability-based security** — the same model used by Android, Deno, and WASI. Extensions declare what they need, users approve, and the sandbox enforces.
+
+## Three Layers of Defense
+
+```
+1. DECLARE  — Extensions list capabilities in their manifest
+2. APPROVE  — Users review and approve capabilities before first run
+3. ENFORCE  — The sandbox blocks any capability not explicitly approved
+```
+
+## Capability Catalog
+
+### Filesystem
+
+| Capability | Description |
+|---|---|
+| `filesystem:read` | Read files from the filesystem |
+| `filesystem:write` | Create or modify files |
+| `filesystem:delete` | Delete files or directories |
+
+### Network
+
+| Capability | Description |
+|---|---|
+| `network:fetch` | Make HTTP requests |
+| `network:dns` | Resolve DNS names |
+
+### Process
+
+| Capability | Description |
+|---|---|
+| `process:spawn` | Execute shell commands |
+| `process:env` | Read environment variables |
+
+### Secrets
+
+| Capability | Description |
+|---|---|
+| `secrets:read` | Access secret stores (e.g., keychain) |
+
+### Session
+
+| Capability | Description |
+|---|---|
+| `session:read` | Read session history |
+| `session:write` | Modify session data |
+
+### Clipboard & UI
+
+| Capability | Description |
+|---|---|
+| `clipboard:read` | Read system clipboard |
+| `clipboard:write` | Write to system clipboard |
+
+### Agent
+
+| Capability | Description |
+|---|---|
+| `agent:loop` | Control agent iteration loop |
+
+## Manifest Declaration
+
+Extensions declare required capabilities in their manifest:
+
+```json
+{
+  "name": "web-tools",
+  "version": "1.0.0",
+  "capabilities": [
+    "network:fetch",
+    "network:dns"
+  ]
+}
+```
+
+## User Approval Flow
+
+### First Install
+
+When an extension is installed for the first time, Dhara shows:
+
+```
+Extension: web-tools v1.0.0
+Author: zosmaai
+Capabilities requested:
+  [ ] network:fetch   — Make HTTP requests
+  [ ] network:dns     — Resolve DNS names
+
+Approve? (y/n/d: deny all)
+```
+
+### Granular Approval
+
+Users can approve individual capabilities — not just all-or-nothing per extension.
+
+### Permission Persistence
+
+Approved permissions are stored in `~/.dhara/permissions.json` and persist across sessions. Revoke with:
+
+```bash
+dhara config permissions revoke web-tools network:fetch
+```
+
+## Sandbox Enforcement
+
+### Subprocess Sandboxing
+
+Extensions run as separate processes. The sandbox:
+
+- Validates tool calls against approved capabilities
+- Restricts filesystem access to allowed paths
+- Logs all capability checks for audit trail
+- Supports `capability:denied` hooks for custom denial handling
+
+### What Gets Intercepted
+
+| Action | Intercepted By |
+|---|---|
+| File read/write | Sandbox path validation |
+| Shell execution | Capability check + path whitelist |
+| Network requests | Capability check (extension must declare `network:fetch`) |
+| Env var access | Capability check (`process:env`) |
+
+## Security Levels
+
+Users choose their security posture in `.dhara/settings.json`:
+
+```json
+{
+  "security": {
+    "level": "standard"
+  }
+}
+```
+
+| Level | Behavior |
+|---|---|
+| `paranoid` | Approve every capability individually |
+| `standard` | Approve at package level, audit trail on (default) |
+| `trusted` | Auto-approve packages from trusted authors |
+| `yolo` | No sandboxing — NOT recommended |
+
+## Audit Trail
+
+Every capability check is logged:
+
+```json
+{
+  "timestamp": "2026-05-14T10:00:00Z",
+  "extension": "web-tools",
+  "capability": "network:fetch",
+  "action": "allowed",
+  "details": { "url": "https://api.example.com" }
+}
+```
+
+View audit log:
+
+```bash
+dhara doctor --audit-log
+```

@@ -1,0 +1,139 @@
+---
+title: Session Format
+description: How Dhara persists conversations — append-only JSONL, branches, and compaction.
+---
+
+# Session Format
+
+Dhara uses an **open, schema-validated session format** for persistence. Sessions are stored as plain files on disk — no databases, no proprietary formats.
+
+## Design Goals
+
+- **Human-readable** — Plain JSONL you can `cat` and `grep`
+- **Append-only** — Entries are never modified; history is immutable
+- **Branchable** — Fork conversations for experiments
+- **Compactable** — Reduce context window pressure with tiered memory
+- **Interoperable** — Import/export between agents
+
+## Session Directory Structure
+
+Each session lives in `~/.dhara/sessions/<id>/`:
+
+```
+sessions/abc123/
+├── meta.json       # Session metadata
+├── entries.jsonl   # Append-only conversation log
+└── tree.json       # Branch tree structure
+```
+
+### meta.json
+
+```json
+{
+  "id": "abc123",
+  "title": "Refactor auth module",
+  "createdAt": "2026-05-14T10:00:00Z",
+  "updatedAt": "2026-05-14T11:30:00Z",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "formatVersion": "0.1.0",
+  "cwd": "/home/user/my-project"
+}
+```
+
+### entries.jsonl
+
+Each line is a JSON object representing one entry:
+
+```json
+{"id":"msg_001","type":"message","role":"user","content":[{"type":"text","text":"Refactor the auth module"}],"timestamp":"2026-05-14T10:00:00Z"}
+{"id":"call_001","type":"tool_call","toolName":"read","input":{"path":"src/auth.ts"},"parentMessageId":"msg_002","timestamp":"2026-05-14T10:00:01Z"}
+{"id":"result_001","type":"tool_result","callId":"call_001","content":[{"type":"text","text":"... file contents ..."}],"isError":false,"timestamp":"2026-05-14T10:00:01Z"}
+```
+
+### Entry Types
+
+| Type | Description |
+|---|---|
+| `message` | User or assistant message |
+| `tool_call` | LLM requested a tool execution |
+| `tool_result` | Result of a tool execution |
+| `system` | System prompt or context injection |
+| `compaction` | Compacted memory entry |
+
+### tree.json
+
+Tracks branch structure:
+
+```json
+{
+  "root": "branch_main",
+  "branches": [
+    {
+      "id": "branch_main",
+      "parentBranchId": null,
+      "entryIds": ["msg_001", "call_001", "result_001", "msg_002"],
+      "createdAt": "2026-05-14T10:00:00Z"
+    }
+  ]
+}
+```
+
+## Compaction
+
+Long conversations exceed context windows. Dhara uses **tiered memory compaction**:
+
+1. **Working set** — Recent entries kept in full detail
+2. **Compacted** — Older entries summarized into `compaction` entries
+3. **Archived** — Ancient entries moved to separate archive file
+
+The compaction process:
+
+- Asks the LLM to summarize a range of entries
+- Replaces detailed entries with a single summary entry
+- Preserves tool results for reproducibility
+- Maintains branch structure across compaction
+
+## Interoperability
+
+### Import from Other Agents
+
+Dhara can import sessions from other formats:
+
+```bash
+dhara session import --format claude --file conversation.json
+```
+
+Supported import formats: Claude, Pi, OpenAI Chat.
+
+### Export
+
+Export to plain text or JSON:
+
+```bash
+dhara session export abc123 --format json > session.json
+dhara session export abc123 --format markdown > session.md
+```
+
+### Replay
+
+Replay a session for debugging or sharing:
+
+```bash
+dhara session replay abc123
+```
+
+## Schema Validation
+
+All entries are validated against JSON schemas in `spec/schemas/`:
+
+- `entry.json` — Entry schema
+- `meta.json` — Session metadata schema
+- `tree.json` — Branch tree schema
+- `compaction.json` — Compaction entry schema
+
+To validate a session:
+
+```bash
+dhara doctor --check-sessions
+```

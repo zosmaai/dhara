@@ -1,0 +1,141 @@
+---
+title: Configure Providers
+description: Set up LLM providers — from built-in OpenAI and Anthropic to 20+ via pi-ai.
+---
+
+# Configure Providers
+
+Dhara supports multiple LLM providers through three adapter layers:
+
+1. **Built-in providers** — OpenAI and Anthropic (zero extra dependencies)
+2. **pi-ai adapter** — 20+ providers via `@earendil-works/pi-ai`
+3. **Custom providers** — Implement the `Provider` interface for any API
+
+## Built-in Providers
+
+### OpenAI
+
+```bash
+export OPENAI_API_KEY="sk-..."
+dhara --provider openai --model gpt-4o
+```
+
+Works with any OpenAI-compatible endpoint:
+
+```bash
+dhara --provider openai --model your-model --base-url https://api.custom.ai/v1
+```
+
+### Anthropic
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+dhara --provider anthropic --model claude-sonnet-4-20250514
+```
+
+## pi-ai Providers
+
+The pi-ai adapter provides access to 20+ providers with no additional dependencies:
+
+<Tabs items={["Google Gemini", "Mistral", "Groq", "DeepSeek", "Amazon Bedrock"]}>
+  <Tab value="Google Gemini">
+    ```bash
+    export GOOGLE_API_KEY="..."
+    dhara --provider google --model gemini-2.5-flash
+    ```
+  </Tab>
+  <Tab value="Mistral">
+    ```bash
+    export MISTRAL_API_KEY="..."
+    dhara --provider mistral --model mistral-large-latest
+    ```
+  </Tab>
+  <Tab value="Groq">
+    ```bash
+    export GROQ_API_KEY="gsk_..."
+    dhara --provider groq --model llama-3.3-70b-versatile
+    ```
+  </Tab>
+  <Tab value="DeepSeek">
+    ```bash
+    export DEEPSEEK_API_KEY="..."
+    dhara --provider deepseek --model deepseek-chat
+    ```
+  </Tab>
+  <Tab value="Amazon Bedrock">
+    ```bash
+    # Configure AWS credentials via aws cli or env vars
+    dhara --provider amazon-bedrock --model anthropic.claude-3-5-sonnet-20241022-v2:0
+    ```
+  </Tab>
+</Tabs>
+
+### Full Provider List
+
+| Provider | Flag | Env Var |
+|---|---|---|
+| Google Gemini | `--provider google` | `GOOGLE_API_KEY` |
+| Google Vertex | `--provider google-vertex` | GCP credentials |
+| Mistral | `--provider mistral` | `MISTRAL_API_KEY` |
+| Groq | `--provider groq` | `GROQ_API_KEY` |
+| DeepSeek | `--provider deepseek` | `DEEPSEEK_API_KEY` |
+| Amazon Bedrock | `--provider amazon-bedrock` | AWS credentials |
+| Azure OpenAI | `--provider azure-openai-responses` | `AZURE_OPENAI_API_KEY` |
+| Cerebras | `--provider cerebras` | `CEREBRAS_API_KEY` |
+| Fireworks | `--provider fireworks` | `FIREWORKS_API_KEY` |
+| OpenRouter | `--provider openrouter` | `OPENROUTER_API_KEY` |
+
+## Setting a Default Provider
+
+Set your default provider in the global config:
+
+```bash
+# Edit global config
+nano ~/.dhara/config.json
+```
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o"
+}
+```
+
+Or set it per-project in `.dhara/settings.json`:
+
+```json
+{
+  "provider": "google",
+  "model": "gemini-2.5-flash"
+}
+```
+
+## Streaming Support
+
+Both built-in providers support SSE streaming. When enabled, you'll see tokens appear progressively:
+
+```bash
+# Streaming is automatic — no extra flags needed
+dhara --provider openai --model gpt-4o
+```
+
+In JSON mode (`--json`), streaming events are emitted as `message:delta` objects.
+
+## Custom Provider
+
+Implement the `Provider` interface for any API:
+
+```typescript
+import type { Provider, CompleteParams, CompleteResult } from "@zosmaai/dhara/core";
+
+class MyProvider implements Provider {
+  async complete(params: CompleteParams): Promise<CompleteResult> {
+    // Call your API here
+    // Optionally stream via params.eventBus
+    return {
+      content: [{ type: "text", text: "Response from my provider" }],
+      usage: { inputTokens: 100, outputTokens: 50 },
+    };
+  }
+}
+```

@@ -1,0 +1,104 @@
+---
+title: Context Files
+description: Inject project instructions using AGENTS.md or CLAUDE.md.
+---
+
+# Context Files
+
+Dhara automatically loads context files to inject project-specific instructions into every conversation. This is how you tell the agent about your codebase conventions, coding standards, and operational constraints.
+
+## Supported Files
+
+Dhara looks for these files (in order of preference):
+
+1. `AGENTS.md` — Universal agent instruction file
+2. `CLAUDE.md` — Anthropic Claude convention (also supported)
+
+## How It Works
+
+When Dhara starts, it walks up from the current working directory looking for context files:
+
+```
+/home/user/projects/my-app/src/components/    ← cwd
+  ↑ no context file
+/home/user/projects/my-app/                   ← finds AGENTS.md here ✅
+  ↑ loads this file
+/home/user/projects/                          ← stops walking
+/home/user/                                   └─ ~/.dhara/context.md (global fallback)
+```
+
+The file content is injected verbatim into the system prompt before every user message.
+
+## Example AGENTS.md
+
+```markdown
+# Project Instructions
+
+## Tech Stack
+- TypeScript 5.4+, React 18, Next.js 14
+- Tailwind CSS for styling
+- Vitest for testing
+
+## Conventions
+- Run `npm run check` before committing
+- Keep responses concise — under 3 paragraphs
+- Use functional components with hooks
+- Name test files `*.test.ts` matching source files
+
+## Constraints
+- Never modify production data
+- Always add tests for new features
+- Use `pnpm` as the package manager (not npm/yarn)
+- Do not commit `.env` files
+```
+
+## YAML Frontmatter (Optional)
+
+Context files support optional YAML frontmatter:
+
+```markdown
+---
+priority: high
+scope: frontend
+---
+
+# Frontend Guidelines
+- Use React Server Components by default
+- Client components only when interactivity is needed
+```
+
+## Reloading Context
+
+In REPL or TUI mode, reload context files without restarting:
+
+```
+/reload
+```
+
+This re-reads `AGENTS.md`/`CLAUDE.md` and updates the system prompt for subsequent messages.
+
+## Global Context
+
+Set a global context file at `~/.dhara/context.md` that applies to all projects:
+
+```markdown
+# Personal Guidelines
+- Always explain your reasoning before making changes
+- Prefer simple solutions over clever ones
+- Ask before running destructive commands
+```
+
+## Disabling Context Files
+
+Skip context loading entirely:
+
+```bash
+dhara --no-context "Your prompt here"
+```
+
+## Tips
+
+- **Keep it concise** — The system prompt has limited space; prioritize critical instructions
+- **Be specific** — "Use pnpm" is better than "use a package manager"
+- **Update regularly** — Context files should evolve with your project
+- **Test them** — Run `dhara --repl` and check `/status` to verify context is loaded

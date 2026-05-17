@@ -1,0 +1,253 @@
+---
+title: Sandbox Security
+description: Harden your Dhara installation with sandboxing, capability controls, and audit trails.
+---
+
+# Sandbox Security
+
+Dhara's security model is built on **defense in depth** — multiple layers of protection that work together to keep extensions from doing damage.
+
+## How the Sandbox Works
+
+### Process Isolation
+
+Each extension runs as a separate subprocess. If an extension crashes or hangs, it doesn't affect the core:
+
+```
+┌─────────┐         ┌──────────────┐
+│  Dhara  │ ←──→   │  Extension A │   (separate process)
+│  Core   │         └──────────────┘
+│         │         ┌──────────────┐
+│         │ ←──→   │  Extension B │   (separate process)
+└─────────┘         └──────────────┘
+```
+
+### Capability Enforcement
+
+Extensions declare required capabilities in their manifest. Dhara validates every tool call against approved capabilities:
+
+1. Extension requests `network:fetch`
+2. Sandbox checks if capability was approved
+3. If approved → request proceeds
+4. If denied → error returned to extension
+
+### Path Validation
+
+Filesystem operations are restricted to allowed paths:
+
+```json
+{
+  "security": {
+    "allowedPaths": [
+      "/home/user/projects/my-app",
+      "/tmp/dhara-workspace"
+    ],
+    "deniedPaths": [
+      "/etc/shadow",
+      "~/.ssh/"
+    ]
+  }
+}
+```
+
+## Security Levels
+
+Choose your security posture in `.dhara/settings.json`:
+
+### Paranoid
+
+Approve every capability individually:
+
+```json
+{
+  "security": {
+    "level": "paranoid"
+  }
+}
+```
+
+Every extension install prompts for each capability separately. Best for untrusted code.
+
+### Standard (Default)
+
+Approve at package level with audit trail:
+
+```json
+{
+  "security": {
+    "level": "standard"
+  }
+}
+```
+
+One-time approval per package, but all capability checks are logged.
+
+### Trusted
+
+Auto-approve packages from trusted authors:
+
+```json
+{
+  "security": {
+    "level": "trusted",
+    "trustedAuthors": ["zosmaai"]
+  }
+}
+```
+
+Packages from listed authors are auto-approved; others require manual review.
+
+### Yolo
+
+No sandboxing (NOT recommended):
+
+```json
+{
+  "security": {
+    "level": "yolo"
+  }
+}
+```
+
+All capabilities granted automatically. Only use in fully isolated environments.
+
+## Managing Permissions
+
+### View Current Permissions
+
+```bash
+# List all extension permissions
+dhara config permissions list
+
+# Check a specific extension
+dhara config permissions show web-tools
+```
+
+Output:
+
+```
+Extension: web-tools v1.0.0
+  [approved] network:fetch
+  [approved] network:dns
+  [denied]   filesystem:write
+```
+
+### Revoke Permissions
+
+```bash
+# Revoke a single capability
+dhara config permissions revoke web-tools network:fetch
+
+# Revoke all permissions for an extension
+dhara config permissions reset web-tools
+```
+
+### Edit Permissions File
+
+Permissions are stored in `~/.dhara/permissions.json`:
+
+```json
+{
+  "web-tools": {
+    "version": "1.0.0",
+    "capabilities": {
+      "network:fetch": "approved",
+      "network:dns": "approved"
+    }
+  }
+}
+```
+
+## Audit Trail
+
+Every capability check is logged to `~/.dhara/audit.jsonl`:
+
+```bash
+# View recent audit entries
+dhara doctor --audit-log
+
+# Filter by extension
+dhara doctor --audit-log --extension web-tools
+
+# Filter by denied actions
+dhara doctor --audit-log --denied-only
+```
+
+### Audit Entry Format
+
+```json
+{
+  "timestamp": "2026-05-14T10:00:00Z",
+  "extension": "web-tools",
+  "capability": "network:fetch",
+  "action": "allowed",
+  "details": {
+    "url": "https://api.example.com/data"
+  }
+}
+```
+
+## Human-in-the-Loop (HITL)
+
+For high-stakes operations, require user confirmation:
+
+### Approve Mode
+
+Prompt before each tool execution:
+
+```bash
+dhara --mode approve "Refactor the auth module"
+```
+
+Before each tool call, you'll see:
+
+```
+[read] src/auth.ts (42 lines)
+Approve? (y/n/q) y
+```
+
+### Review Mode
+
+Run tools automatically but show results for review before continuing:
+
+```bash
+dhara --mode review "Add unit tests for auth"
+```
+
+## Best Practices
+
+1. **Start with `standard`** — Default security level for most use cases
+2. **Use `paranoid` for untrusted code** — Review every capability manually
+3. **Set trusted authors** — Auto-approve packages you trust explicitly
+4. **Check audit logs regularly** — Look for unexpected capability usage
+5. **Pin extension versions** — Use version ranges in manifests to avoid surprise updates
+6. **Review before installing** — Read extension source before granting permissions
+
+## Troubleshooting
+
+### Extension Denied Access
+
+If an extension can't perform an action:
+
+```bash
+# Check if capability is approved
+dhara config permissions show <extension-name>
+
+# Approve the missing capability
+dhara config permissions approve <extension-name> <capability>
+```
+
+### False Positives in Audit Log
+
+Filter noisy entries:
+
+```json
+{
+  "security": {
+    "auditIgnorePatterns": [
+      "**/node_modules/**",
+      "**/.cache/**"
+    ]
+  }
+}
+```
