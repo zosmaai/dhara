@@ -1,0 +1,264 @@
+---
+title: CLI Reference
+description: Complete reference for all Dhara CLI commands and flags.
+---
+
+# CLI Reference
+
+## Basic Usage
+
+```bash
+dhara [command] [options]
+```
+
+## Commands
+
+### One-Shot Mode
+
+Run a single prompt and exit:
+
+```bash
+dhara "Explain the architecture of this codebase"
+```
+
+Options:
+
+| Flag | Description |
+|---|---|
+| `--provider <name>` | LLM provider (openai, anthropic, google, etc.) |
+| `--model <name>` | Model ID |
+| `--max-iterations <n>` | Max tool-use loop iterations (default: 10) |
+| `--max-tokens <n>` | Max tokens per response |
+| `--json` | JSON output mode |
+| `--no-context` | Skip context file loading |
+| `--no-autosave` | Don't save session |
+
+### REPL Mode
+
+Interactive chat with persistent state:
+
+```bash
+dhara --repl
+```
+
+#### REPL Commands
+
+| Command | Description |
+|---|---|
+| `/exit` or `/q` | Quit REPL |
+| `/clear` | Clear conversation history |
+| `/status` | Show current session info and context files loaded |
+| `/reload` | Reload context files (AGENTS.md / CLAUDE.md) |
+| `/session <id>` | Switch to a different session |
+| `/help` | Show available commands |
+
+### Approve Mode
+
+Prompt before each tool execution:
+
+```bash
+dhara --mode approve "Refactor the auth module"
+```
+
+### Review Mode
+
+Run tools automatically, show results for review between iterations:
+
+```bash
+dhara --mode review "Add unit tests for auth"
+```
+
+### TUI Mode
+
+Full terminal UI with real-time streaming:
+
+```bash
+dhara --tui
+```
+
+## Session Management
+
+### List Sessions
+
+```bash
+dhara session list [--provider <name>] [--search <query>]
+```
+
+### Resume Session
+
+```bash
+dhara --session <id>
+```
+
+### Rename Session
+
+```bash
+dhara session rename <id> [new-title]
+```
+
+### Delete Session
+
+```bash
+dhara session delete <id> [--force]
+```
+
+### Export Session
+
+```bash
+dhara session export <id> --format <json|markdown|text> [output-file]
+```
+
+### Import Session
+
+```bash
+dhara session import --format <claude|pi|openai-chat> --file <path>
+```
+
+### Replay Session
+
+```bash
+dhara session replay <id> [--headless]
+```
+
+### Branch Session
+
+```bash
+dhara session branch <id> --name <branch-name>
+```
+
+### Compact Session
+
+```bash
+dhara session compact <id> --keep <n>
+```
+
+## Extension Management
+
+### Install Extension
+
+```bash
+dhara extension install <package-name>
+```
+
+### Uninstall Extension
+
+```bash
+dhara extension uninstall <package-name>
+```
+
+### List Extensions
+
+```bash
+dhara extension list
+```
+
+### Update Extension
+
+```bash
+dhara extension update <package-name>
+dhara extension update --all
+```
+
+## Configuration
+
+### View Config
+
+```bash
+dhara config show
+```
+
+### Edit Config
+
+Opens the global config in your default editor:
+
+```bash
+dhara config edit
+```
+
+### Set Config Value
+
+```bash
+dhara config set provider openai
+dhara config set model gpt-4o
+```
+
+### Permissions
+
+```bash
+# List all permissions
+dhara config permissions list
+
+# Show extension permissions
+dhara config permissions show <extension>
+
+# Approve a capability
+dhara config permissions approve <extension> <capability>
+
+# Revoke a capability
+dhara config permissions revoke <extension> <capability>
+
+# Reset all permissions for an extension
+dhara config permissions reset <extension>
+```
+
+## Health Checks
+
+### Doctor
+
+Run diagnostics:
+
+```bash
+dhara doctor
+```
+
+Options:
+
+| Flag | Description |
+|---|---|
+| `--check-sessions` | Validate session files against schema |
+| `--audit-log` | Show recent audit log entries |
+| `--verify-extensions` | Verify installed extension manifests |
+
+### Version
+
+```bash
+dhara --version
+```
+
+## Print Modes
+
+Control output format:
+
+```bash
+# Default — human-readable with colors
+dhara "Explain this code"
+
+# JSON mode — machine-parseable output
+dhara --json "Explain this code"
+
+# Quiet mode — only final result, no tool output
+dhara --quiet "Explain this code"
+```
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI API key |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `GOOGLE_API_KEY` | Google Gemini API key |
+| `MISTRAL_API_KEY` | Mistral API key |
+| `GROQ_API_KEY` | Groq API key |
+| `DHARA_PROVIDER` | Default provider name |
+| `DHARA_MODEL` | Default model ID |
+| `DHARA_CONFIG_DIR` | Override config directory (default: `~/.dhara/`) |
+
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | General error |
+| 2 | Configuration error |
+| 3 | Provider error (API key missing, rate limited, etc.) |
+| 4 | Extension error (spawn failed, protocol violation) |

@@ -1,0 +1,255 @@
+---
+title: Event Types
+description: Complete list of Dhara event types — agent lifecycle, tool execution, streaming, and session management.
+---
+
+# Event Types
+
+Dhara uses a typed event bus for all internal communication. Events are emitted during the agent loop and can be subscribed to via hooks or consumed in JSON output mode.
+
+## Agent Lifecycle
+
+### agent:start
+
+Fired when the agent loop begins:
+
+```json
+{
+  "type": "agent:start",
+  "sessionId": "abc123",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "cwd": "/home/user/project"
+}
+```
+
+### agent:end
+
+Fired when the agent loop completes:
+
+```json
+{
+  "type": "agent:end",
+  "sessionId": "abc123",
+  "iterations": 5,
+  "totalInputTokens": 1200,
+  "totalOutputTokens": 800,
+  "durationMs": 15234
+}
+```
+
+### agent:iteration:start
+
+Fired at the start of each iteration:
+
+```json
+{
+  "type": "agent:iteration:start",
+  "iteration": 3,
+  "maxIterations": 10
+}
+```
+
+### agent:iteration:end
+
+Fired at the end of each iteration:
+
+```json
+{
+  "type": "agent:iteration:end",
+  "iteration": 3,
+  "inputTokens": 200,
+  "outputTokens": 150
+}
+```
+
+## Message Events
+
+### message:user
+
+User sent a message:
+
+```json
+{
+  "type": "message:user",
+  "id": "msg_001",
+  "content": [{ "type": "text", "text": "Refactor the auth module" }]
+}
+```
+
+### message:assistant
+
+Assistant sent a message:
+
+```json
+{
+  "type": "message:assistant",
+  "id": "msg_002",
+  "content": [{ "type": "text", "text": "I'll start by reading the auth file..." }]
+}
+```
+
+### message:delta
+
+Streaming token update:
+
+```json
+{
+  "type": "message:delta",
+  "id": "msg_002",
+  "delta": "I'll start"
+}
+```
+
+## Tool Events
+
+### tool:call
+
+LLM requested a tool execution:
+
+```json
+{
+  "type": "tool:call",
+  "id": "call_001",
+  "toolName": "read",
+  "input": { "path": "src/auth.ts" },
+  "parentMessageId": "msg_002"
+}
+```
+
+### tool:result
+
+Tool execution completed:
+
+```json
+{
+  "type": "tool:result",
+  "callId": "call_001",
+  "content": [{ "type": "text", "text": "// File contents..." }],
+  "isError": false,
+  "durationMs": 45
+}
+```
+
+### tool:progress
+
+Progress update from a long-running tool:
+
+```json
+{
+  "type": "tool:progress",
+  "callId": "call_001",
+  "message": "Downloading... 50%"
+}
+```
+
+## Session Events
+
+### session:saved
+
+Session was saved to disk:
+
+```json
+{
+  "type": "session:saved",
+  "sessionId": "abc123",
+  "path": "~/.dhara/sessions/abc123/entries.jsonl"
+}
+```
+
+### session:loaded
+
+Existing session was loaded:
+
+```json
+{
+  "type": "session:loaded",
+  "sessionId": "abc123",
+  "entryCount": 42
+}
+```
+
+## Context Events
+
+### context:loaded
+
+Context file was loaded:
+
+```json
+{
+  "type": "context:loaded",
+  "file": "/home/user/project/AGENTS.md",
+  "size": 1234
+}
+```
+
+## Extension Events
+
+### extension:loaded
+
+Extension was loaded successfully:
+
+```json
+{
+  "type": "extension:loaded",
+  "name": "web-tools",
+  "version": "1.0.0",
+  "toolCount": 3
+}
+```
+
+### extension:error
+
+Extension encountered an error:
+
+```json
+{
+  "type": "extension:error",
+  "name": "web-tools",
+  "error": "Process exited with code 1"
+}
+```
+
+## Error Events
+
+### error
+
+General error occurred:
+
+```json
+{
+  "type": "error",
+  "code": "PROVIDER_ERROR",
+  "message": "API key not configured",
+  "details": {
+    "provider": "openai"
+  }
+}
+```
+
+## Subscribing to Events
+
+### In JSON Mode
+
+All events are emitted as JSON lines:
+
+```bash
+dhara --json "Explain this codebase" | grep '"type"'
+```
+
+### Via Hooks (Programmatic)
+
+```typescript
+import { createAgentLoop } from "@zosmaai/dhara/core";
+
+const agent = await createAgentLoop({
+  provider: createOpenAIProvider(),
+  hooks: {
+    onEvent(event) {
+      if (event.type === "tool:call") {
+        console.log(`Tool called: ${event.toolName}`);
+      }
+    },
+  },
+});
+```

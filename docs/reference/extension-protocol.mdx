@@ -1,0 +1,230 @@
+---
+title: Extension Protocol
+description: JSON-RPC 2.0 protocol for extension communication — lifecycle, messages, and error handling.
+---
+
+# Extension Protocol
+
+Extensions communicate with the Dhara core via **JSON-RPC 2.0 over stdin/stdout**. This is a text-based protocol where each line is a complete JSON message.
+
+## Lifecycle
+
+```
+Core                          Extension
+  │                               │
+  │─── spawn process ───────────→│
+  │─── initialize ──────────────→│
+  │←── tools/list ──────────────│
+  │                               │
+  │─── tools/execute ───────────→│  (repeat)
+  │←── result ──────────────────│
+  │                               │
+  │─── shutdown ────────────────→│
+  │←── exit(0) ─────────────────│
+```
+
+## Message Format
+
+Every message follows JSON-RPC 2.0:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": { ... }
+}
+```
+
+### Request → Response
+
+Requests have an `id`; responses echo the same `id`:
+
+```json
+// Request (id: 1)
+{"jsonrpc":"2.0","id":1,"method":"tools/execute","params":{"toolName":"read","input":{"path":"foo.ts"}}}
+
+// Response (id: 1)
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"..."}],"isError":false}}
+```
+
+### Notification → No Response
+
+Notifications have no `id` and expect no response:
+
+```json
+{"jsonrpc":"2.0","method":"shutdown"}
+```
+
+## Methods
+
+### initialize
+
+Core sends this first to discover available tools:
+
+**Request:**
+
+```json
+{
+  "method": "initialize",
+  "params": {
+    "version": "0.1.0",
+    "cwd": "/home/user/project"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "result": {
+    "name": "web-tools",
+    "version": "1.0.0",
+    "tools": [
+      {
+        "name": "fetch_url",
+        "description": "Fetch a URL and extract readable content",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" }
+          },
+          "required": ["url"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### tools/execute
+
+Core calls this when the LLM invokes a tool:
+
+**Request:**
+
+```json
+{
+  "method": "tools/execute",
+  "params": {
+    "toolName": "fetch_url",
+    "input": {
+      "url": "https://example.com"
+    }
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "# Example Domain\n\nThis domain is for documentation..."
+      }
+    ],
+    "isError": false
+  }
+}
+```
+
+### shutdown
+
+Core sends this to gracefully terminate the extension:
+
+```json
+{
+  "method": "shutdown"
+}
+```
+
+Extension should clean up resources and exit with code 0.
+
+## Error Handling
+
+### Standard Errors
+
+| Code | Name | Description |
+|---|---|---|
+| `-32700` | Parse error | Invalid JSON |
+| `-32600` | Invalid Request | Malformed request |
+| `-32601` | Method not found | Unknown method |
+| `-32602` | Invalid params | Missing or wrong parameters |
+| `-32000` to `-32099` | Server error | Extension-specific errors |
+
+### Error Response
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32602,
+    "message": "Missing required parameter 'url'",
+    "data": {
+      "toolName": "fetch_url"
+    }
+  }
+}
+```
+
+## Streaming Output
+
+Extensions can send progress updates via notifications:
+
+```json
+{"jsonrpc":"2.0","method":"progress","params":{"message":"Downloading... 50%"}}
+{"jsonrpc":"2.0","method":"progress","params":{"message":"Parsing HTML..."}}
+{"jsonrpc":"2.0","method":"progress","params":{"message":"Done"}}
+```
+
+## Timeout Handling
+
+If an extension doesn't respond within the configured timeout (default: 30s), the core:
+
+1. Sends `shutdown` notification
+2. Waits for graceful exit
+3. Force-kills if still running after 5s
+4. Returns a timeout error to the LLM
+
+## Content Types
+
+### Text
+
+```json
+{ "type": "text", "text": "Plain text content" }
+```
+
+### Image
+
+```json
+{
+  "type": "image",
+  "mimeType": "image/png",
+  "data": "base64-encoded-data..."
+}
+```
+
+Or as a file reference:
+
+```json
+{
+  "type": "image",
+  "path": "/tmp/screenshot.png"
+}
+```
+
+### File
+
+```json
+{
+  "type": "file",
+  "path": "/tmp/output.csv",
+  "size": 12345,
+  "mimeType": "text/csv"
+}
+```

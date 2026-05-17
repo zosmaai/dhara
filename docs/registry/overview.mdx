@@ -1,0 +1,114 @@
+---
+title: Registry Overview
+description: Discover and install Dhara extensions from the official registry.
+---
+
+# Registry Overview
+
+The Dhara Registry is a package repository for agent extensions. Unlike npm keyword scraping, it's purpose-built for AI agent tools with quality gates and capability review.
+
+## What's in the Registry
+
+### Official Extensions
+
+Maintained by the Dhara team:
+
+| Package | Description |
+|---|---|
+| `@dhara/web-tools` | Web fetch, search, and content extraction |
+| `@dhara/git` | Git operations — commit, push, diff, log |
+| `@dhara/docker` | Docker container management |
+| `@dhara/filesystem` | Advanced file operations beyond core tools |
+
+### Community Extensions
+
+Published by the community:
+
+| Package | Author | Description |
+|---|---|---|
+| `dhara-slack` | community | Slack messaging integration |
+| `dhara-aws` | cloud-tools | AWS resource management |
+| `dhara-database` | data-team | SQL database queries and migrations |
+
+## Searching the Registry
+
+### Via CLI
+
+```bash
+# Search by keyword
+dhara registry search "web scraping"
+
+# Browse categories
+dhara registry list --category productivity
+
+# View package details
+dhara registry info web-tools
+```
+
+### Via Web UI
+
+Visit the registry at **registry.dhara.zosma.ai** to browse, search, and view package pages with:
+
+- Tool definitions and descriptions
+- Required capabilities
+- Version history and changelog
+- Author information and verification status
+
+## Installing Extensions
+
+```bash
+# Install latest version
+dhara extension install web-tools
+
+# Install specific version
+dhara extension install web-tools@1.2.0
+
+# Install from tarball
+dhara extension install ./my-extension-1.0.0.tgz
+```
+
+On first install, you'll be prompted to review and approve capabilities:
+
+```
+Extension: web-tools v2.1.0
+Author: zosmaai (verified)
+Capabilities requested:
+  [✓] network:fetch   — Make HTTP requests
+  [✓] network:dns     — Resolve DNS names
+
+Approve? (y/n/d) y
+```
+
+## Extension Categories
+
+Extensions are organized by category:
+
+| Category | Examples |
+|---|---|
+| **Development** | Git, Docker, testing, linting |
+| **Web** | Fetch, search, scraping |
+| **Cloud** | AWS, GCP, Azure resource management |
+| **Data** | Database queries, CSV processing |
+| **Productivity** | Email, calendar, messaging |
+| **Security** | Secret scanning, vulnerability checks |
+
+## Quality Gates
+
+All packages undergo validation before listing:
+
+1. **Manifest validation** — Schema check for required fields
+2. **Capability review** — Capabilities match declared tools
+3. **Version integrity** — Semantic versioning enforced
+4. **Author verification** — Verified authors get a badge
+
+## Versioning
+
+Extensions use semantic versioning:
+
+```bash
+# Install with version range
+dhara extension install web-tools@^1.0.0
+
+# Update to latest compatible
+dhara extension update web-tools
+```

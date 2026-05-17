@@ -1,0 +1,185 @@
+---
+title: Publishing Packages
+description: Publish your Dhara extension to the registry.
+---
+
+# Publishing Packages
+
+Publish your extension to the Dhara Registry so others can discover and install it.
+
+## Prerequisites
+
+1. **Dhara CLI** installed globally
+2. **Registry account** — Sign up at registry.dhara.zosma.ai
+3. **Auth token** — Generate from your account settings
+
+## Project Structure
+
+```
+my-extension/
+├── manifest.json          # Package manifest (required)
+├── src/                   # Source code
+│   └── index.js           # Entry point
+├── README.md              # Documentation
+└── package-lock.json      # Dependencies (if any)
+```
+
+## Step 1: Create Manifest
+
+Create `manifest.json` with required fields:
+
+```json
+{
+  "name": "my-extension",
+  "version": "1.0.0",
+  "description": "A useful tool for AI agents",
+  "main": "src/index.js",
+  "author": "your-username",
+  "license": "MIT",
+  "capabilities": [
+    "filesystem:read"
+  ],
+  "tools": [
+    {
+      "name": "my_tool",
+      "description": "Does something useful",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "input": { "type": "string" }
+        },
+        "required": ["input"]
+      }
+    }
+  ]
+}
+```
+
+## Step 2: Validate Locally
+
+```bash
+# Validate manifest schema
+dhara doctor --validate-manifest ./manifest.json
+
+# Test extension locally
+dhara extension install ./my-extension/
+dhara --repl "Test my extension"
+```
+
+## Step 3: Authenticate
+
+Configure your registry auth token:
+
+```bash
+dhara config set registryToken "your-token-here"
+```
+
+Or via environment variable:
+
+```bash
+export DHARA_REGISTRY_TOKEN="your-token-here"
+```
+
+## Step 4: Publish
+
+```bash
+# Publish to registry
+cd my-extension/
+dhara publish
+
+# Publish with dry run first
+dhara publish --dry-run
+```
+
+The publish process:
+
+1. Validates manifest against schema
+2. Checks for required fields
+3. Verifies capabilities match tool definitions
+4. Uploads package tarball
+5. Creates registry listing
+
+## Step 5: Update Versions
+
+Bump version in `manifest.json`:
+
+```json
+{ "version": "1.1.0" }
+```
+
+Then republish:
+
+```bash
+dhara publish
+```
+
+Version rules follow semantic versioning:
+
+| Change | Version Bump |
+|---|---|
+| Bug fix | Patch: `1.0.0` → `1.0.1` |
+| New feature | Minor: `1.0.0` → `1.1.0` |
+| Breaking change | Major: `1.0.0` → `2.0.0` |
+
+## Unpublishing
+
+Remove a specific version:
+
+```bash
+dhara unpublish my-extension@1.0.0
+```
+
+**Note:** You cannot unpublish the latest version. Deprecate instead:
+
+```bash
+dhara deprecate my-extension@1.0.0 "Use v2.0.0 instead"
+```
+
+## Package Naming Rules
+
+- Lowercase letters, numbers, and hyphens only
+- Must start with a letter
+- Scoped packages: `@scope/name`
+- Maximum 214 characters
+
+## Best Practices
+
+1. **Write clear descriptions** — Users discover tools via search
+2. **Declare minimal capabilities** — Request only what you need
+3. **Include a README** — Document usage and examples
+4. **Test locally first** — Use `--dry-run` before publishing
+5. **Version carefully** — Follow semver strictly
+6. **Respond to issues** — Maintain your published packages
+
+## SDKs for Building Extensions
+
+Use official SDKs for faster development:
+
+### TypeScript
+
+```bash
+npm init dhara-extension my-ext
+cd my-ext
+npm run build
+dhara publish
+```
+
+### Python
+
+```bash
+pip install dhara-sdk
+dhara-sdk init my-ext
+cd my-ext
+python -m build
+dhara publish
+```
+
+### Rust
+
+```bash
+cargo install dhara-sdk-cli
+dhara-sdk init my-ext --lang rust
+cd my-ext
+cargo build --release
+dhara publish
+```

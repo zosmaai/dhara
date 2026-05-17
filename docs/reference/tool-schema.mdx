@@ -1,0 +1,173 @@
+---
+title: Tool Schema
+description: JSON Schema format for tool definitions — parameters, inputs, and outputs.
+---
+
+# Tool Schema
+
+Every tool in Dhara is defined using a **JSON Schema**-based format. This ensures type-safe input validation and consistent LLM understanding.
+
+## Tool Definition Format
+
+```typescript
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: JSONSchema7;
+}
+```
+
+### Example
+
+```json
+{
+  "name": "read",
+  "description": "Read the contents of a file. Supports text files and images.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Path to the file (relative or absolute)"
+      },
+      "offset": {
+        "type": "integer",
+        "description": "Line number to start reading from (1-indexed)"
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Maximum number of lines to read"
+      }
+    },
+    "required": ["path"]
+  }
+}
+```
+
+## JSON Schema Support
+
+Dhara supports standard JSON Schema draft-07 features:
+
+| Feature | Description |
+|---|---|
+| `type` | Basic types: `string`, `number`, `integer`, `boolean`, `array`, `object` |
+| `properties` | Object property definitions |
+| `required` | Required property names |
+| `enum` | Fixed set of allowed values |
+| `oneOf` | Exactly one of multiple schemas |
+| `anyOf` | At least one of multiple schemas |
+| `additionalProperties` | Allow/deny extra properties |
+| `default` | Default value for optional parameters |
+
+### Enum Example
+
+```json
+{
+  "name": "edit_file",
+  "description": "Edit a file with targeted replacements.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": { "type": "string" },
+      "mode": {
+        "type": "string",
+        "enum": ["replace", "insert", "append"],
+        "description": "Edit mode",
+        "default": "replace"
+      }
+    },
+    "required": ["path", "mode"]
+  }
+}
+```
+
+### oneOf Example
+
+```json
+{
+  "name": "search",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+## Tool Call Format
+
+When the LLM calls a tool, it sends:
+
+```json
+{
+  "toolName": "read",
+  "input": {
+    "path": "src/index.ts",
+    "limit": 50
+  }
+}
+```
+
+## Tool Result Format
+
+The extension returns:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "// File contents here..."
+    }
+  ],
+  "isError": false
+}
+```
+
+### Content Block Types
+
+| Type | Description |
+|---|---|
+| `text` | Plain text content |
+| `image` | Image data (base64 or URL) |
+| `file` | File reference with metadata |
+
+## Input Validation
+
+Dhara validates tool inputs against the schema before sending to the extension:
+
+1. **Type checking** — Ensures values match declared types
+2. **Required fields** — Verifies all required params are present
+3. **Enum constraints** — Checks values against allowed options
+4. **Custom validation** — Extensions can add runtime validation
+
+### Validation Error
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Error: Missing required parameter 'path'"
+    }
+  ],
+  "isError": true
+}
+```
+
+## Best Practices
+
+1. **Write clear descriptions** — The LLM relies on descriptions to understand tool usage
+2. **Use `required` sparingly** — Provide defaults for optional parameters
+3. **Keep schemas simple** — Complex nested schemas confuse LLMs
+4. **Document edge cases** — Mention truncation behavior, file size limits, etc.
+5. **Use enums for fixed options** — Better than freeform strings

@@ -1,3 +1,8 @@
 {
-  "write-first-extension": "Writing Your First Extension"
+  "write-first-extension": "Writing Your First Extension",
+  "configure-providers": "Configure Providers",
+  "project-configuration": "Project Configuration",
+  "context-files": "Context Files",
+  "using-sessions": "Using Sessions",
+  "sandbox-security": "Sandbox & Security"
 }

@@ -1,0 +1,196 @@
+---
+title: Using Sessions
+description: Manage conversations — save, resume, export, and replay sessions.
+---
+
+# Using Sessions
+
+Dhara saves every conversation as a **session** — an append-only JSONL file you can inspect, share, and resume later.
+
+## Automatic Saving
+
+Sessions are auto-saved to `~/.dhara/sessions/` by default. Each session gets a unique ID:
+
+```
+~/.dhara/sessions/abc123/
+├── meta.json       # Title, provider, timestamps
+├── entries.jsonl   # Conversation log
+└── tree.json       # Branch structure
+```
+
+## Session Commands
+
+### List Sessions
+
+```bash
+# Show all sessions
+dhara session list
+
+# Filter by provider
+dhara session list --provider openai
+
+# Search by keyword
+dhara session list --search "refactor auth"
+```
+
+Output:
+
+```
+ID        Title                    Provider   Updated
+abc123    Refactor auth module     openai     2 hours ago
+def456    Add login page           anthropic  Yesterday
+ghi789    Debug CI pipeline        google     3 days ago
+```
+
+### Resume a Session
+
+Continue a previous conversation:
+
+```bash
+# Start REPL with existing session
+dhara --session abc123
+
+# One-shot with session context
+dhara --session abc123 "Summarize what we did"
+```
+
+The LLM receives the full session history as context.
+
+### Rename a Session
+
+```bash
+dhara session rename abc123 "Auth refactor — final version"
+```
+
+Or interactively:
+
+```bash
+dhara session rename abc123
+# Enter new title: Auth module redesign
+```
+
+### Delete a Session
+
+```bash
+# Interactive confirmation
+dhara session delete abc123
+
+# Force delete without confirmation
+dhara session delete abc123 --force
+```
+
+## Export Sessions
+
+### JSON (Full Format)
+
+Export the complete session including metadata:
+
+```bash
+dhara session export abc123 --format json > session.json
+```
+
+### Markdown (Human-Readable)
+
+Export as a readable markdown document:
+
+```bash
+dhara session export abc123 --format markdown > session.md
+```
+
+Output:
+
+```markdown
+# Refactor Auth Module
+
+**Provider:** OpenAI GPT-4o
+**Date:** 2026-05-14
+
+---
+
+**User:** Refactor the auth module to use JWT instead of sessions.
+
+**Assistant:** I'll refactor the auth module...
+
+[read: src/auth.ts]
+```typescript
+// ... file contents ...
+```
+
+**Assistant:** Now I can see the current implementation...
+```
+
+### Plain Text
+
+Export as plain text for easy sharing:
+
+```bash
+dhara session export abc123 --format text > session.txt
+```
+
+## Import Sessions
+
+Import conversations from other agents:
+
+```bash
+# From Claude
+dhara session import --format claude --file conversation.json
+
+# From Pi
+dhara session import --format pi --file chat.jsonl
+
+# From OpenAI Chat
+dhara session import --format openai-chat --file export.json
+```
+
+## Replay Sessions
+
+Replay a session for debugging or sharing:
+
+```bash
+# Interactive replay
+dhara session replay abc123
+
+# Headless (print to stdout)
+dhara session replay abc123 --headless
+```
+
+## Branching
+
+Fork a session to explore alternative approaches:
+
+```bash
+# Create a branch from an existing session
+dhara session branch abc123 --name "try-oauth-approach"
+
+# Continue in the new branch
+dhara --session new-branch-id
+```
+
+Branches share history up to the fork point but diverge after.
+
+## Compaction
+
+For very long sessions, compact old entries to save context space:
+
+```bash
+# Compact entries older than 50 messages
+dhara session compact abc123 --keep 50
+```
+
+This summarizes older conversation turns while preserving tool results for reproducibility.
+
+## Disabling Auto-Save
+
+Turn off auto-save for a single run:
+
+```bash
+dhara --no-autosave "Quick question..."
+```
+
+Or permanently in settings:
+
+```json
+{
+  "autoSave": false
+}
+```

@@ -1,0 +1,269 @@
+---
+title: Registry API
+description: REST API for the Dhara extension registry — search, publish, and manage packages.
+---
+
+# Registry API
+
+The Dhara Registry exposes a REST API for programmatic access to package management.
+
+## Base URL
+
+```
+https://registry.dhara.zosma.ai/api/v1
+```
+
+## Authentication
+
+Include your auth token in the `Authorization` header:
+
+```
+Authorization: Bearer <token>
+```
+
+Generate tokens from your account settings at registry.dhara.zosma.ai.
+
+## Endpoints
+
+### Search Packages
+
+```http
+GET /packages?query=<search-term>&category=<category>&limit=<number>
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `query` | `string` | Search term (name, description, tool name) |
+| `category` | `string` | Filter by category |
+| `limit` | `number` | Max results (default: 20, max: 100) |
+| `offset` | `number` | Pagination offset |
+
+**Response:**
+
+```json
+{
+  "packages": [
+    {
+      "name": "web-tools",
+      "version": "2.1.0",
+      "description": "Web scraping and search tools for AI agents",
+      "author": "zosmaai",
+      "verified": true,
+      "downloads": 15234,
+      "category": "web",
+      "tools": ["fetch_url", "web_search", "code_search"]
+    }
+  ],
+  "total": 42,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+### Get Package Details
+
+```http
+GET /packages/<name>
+```
+
+**Response:**
+
+```json
+{
+  "name": "web-tools",
+  "version": "2.1.0",
+  "description": "Web scraping and search tools for AI agents",
+  "author": "zosmaai",
+  "verified": true,
+  "license": "MIT",
+  "repository": "https://github.com/zosmaai/dhara-web-tools",
+  "downloads": 15234,
+  "capabilities": ["network:fetch", "network:dns"],
+  "tools": [
+    {
+      "name": "fetch_url",
+      "description": "Fetch URL and extract markdown content",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" }
+        },
+        "required": ["url"]
+      }
+    }
+  ],
+  "versions": ["2.1.0", "2.0.0", "1.9.0"],
+  "createdAt": "2025-06-01T00:00:00Z",
+  "updatedAt": "2026-05-01T00:00:00Z"
+}
+```
+
+### Get Specific Version
+
+```http
+GET /packages/<name>/<version>
+```
+
+Returns the manifest for a specific version.
+
+### List Versions
+
+```http
+GET /packages/<name>/versions
+```
+
+**Response:**
+
+```json
+{
+  "versions": [
+    {
+      "version": "2.1.0",
+      "publishedAt": "2026-05-01T00:00:00Z",
+      "deprecated": false
+    },
+    {
+      "version": "2.0.0",
+      "publishedAt": "2026-04-01T00:00:00Z",
+      "deprecated": false
+    }
+  ]
+}
+```
+
+### Publish Package
+
+```http
+PUT /packages/<name>
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body:** Full manifest.json content
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "name": "my-extension",
+  "version": "1.0.0",
+  "url": "https://registry.dhara.zosma.ai/packages/my-extension"
+}
+```
+
+### Delete Version
+
+```http
+DELETE /packages/<name>/<version>
+Authorization: Bearer <token>
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Version 1.0.0 of my-extension was unpublished"
+}
+```
+
+### Deprecate Version
+
+```http
+PATCH /packages/<name>/<version>
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+
+```json
+{
+  "deprecated": true,
+  "message": "Use v2.0.0 instead"
+}
+```
+
+## Download Package
+
+```http
+GET /packages/<name>/<version>/download
+```
+
+Returns a `.tgz` tarball of the package.
+
+## Rate Limits
+
+| Endpoint | Limit |
+|---|---|
+| Search | 60 requests/minute |
+| Package details | 120 requests/minute |
+| Publish | 30 requests/minute |
+| Download | 300 requests/minute |
+
+Rate limit headers are included in every response:
+
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 45
+X-RateLimit-Reset: 1715789400
+```
+
+## Error Responses
+
+| Status Code | Meaning |
+|---|---|
+| `400` | Invalid request (bad JSON, missing fields) |
+| `401` | Unauthorized (missing or invalid token) |
+| `403` | Forbidden (insufficient permissions) |
+| `404` | Package not found |
+| `409` | Conflict (version already exists) |
+| `429` | Rate limit exceeded |
+| `500` | Internal server error |
+
+**Error Format:**
+
+```json
+{
+  "error": {
+    "code": "PACKAGE_NOT_FOUND",
+    "message": "Package 'my-extension' does not exist"
+  }
+}
+```
+
+## SDK Usage
+
+### TypeScript
+
+```typescript
+import { RegistryClient } from "@zosmaai/dhara-registry";
+
+const client = new RegistryClient({ token: process.env.DHARA_REGISTRY_TOKEN });
+
+// Search packages
+const results = await client.search("web scraping");
+
+// Get package details
+const pkg = await client.getPackage("web-tools");
+
+// Publish
+await client.publish("./manifest.json");
+```
+
+### Python
+
+```python
+from dhara_registry import RegistryClient
+
+client = RegistryClient(token="your-token")
+
+# Search
+results = client.search("web scraping")
+
+# Get package details
+pkg = client.get_package("web-tools")
+```

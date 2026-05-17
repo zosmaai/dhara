@@ -1,30 +1,19 @@
 {
   "getting-started": "Getting Started",
+  "--- Concepts": {
+    "type": "separator"
+  },
+  "concepts": "Concepts",
+  "--- Guides": {
+    "type": "separator"
+  },
   "guides": "Guides",
   "--- Reference": {
     "type": "separator"
   },
-  "architecture": {
-    "title": "Architecture",
-    "href": "https://github.com/zosmaai/dhara/blob/main/spec/architecture.md"
-  },
-  "extension-protocol": {
-    "title": "Extension Protocol",
-    "href": "https://github.com/zosmaai/dhara/blob/main/spec/extension-protocol.md"
-  },
-  "session-format": {
-    "title": "Session Format",
-    "href": "https://github.com/zosmaai/dhara/blob/main/spec/session-format.md"
-  },
-  "capability-model": {
-    "title": "Capability Model",
-    "href": "https://github.com/zosmaai/dhara/blob/main/spec/capability-model.md"
-  },
-  "--- Roadmap": {
+  "reference": "Reference",
+  "--- Ecosystem": {
     "type": "separator"
   },
-  "roadmap": {
-    "title": "Roadmap",
-    "href": "https://github.com/zosmaai/dhara/blob/main/spec/roadmap.md"
-  }
+  "registry": "Registry"
 }

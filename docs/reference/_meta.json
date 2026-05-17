@@ -1,0 +1,9 @@
+{
+  "cli-reference": "CLI Reference",
+  "tool-schema": "Tool Schema",
+  "standard-tools": "Standard Tools",
+  "extension-protocol": "Extension Protocol",
+  "package-manifest": "Package Manifest",
+  "settings-json": "Settings Schema",
+  "event-types": "Event Types"
+}

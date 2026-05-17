@@ -1,0 +1,125 @@
+---
+title: Settings Reference
+description: Complete schema for .dhara/settings.json and ~/.dhara/config.json.
+---
+
+# Settings Reference
+
+Dhara reads configuration from two JSON files:
+
+- **`~/.dhara/config.json`** — Global settings (all projects)
+- **`.dhara/settings.json`** — Project-specific settings
+
+Project settings override global settings. CLI flags override both.
+
+## Full Schema
+
+```typescript
+interface DharaSettings {
+  // Provider
+  provider?: string;
+  model?: string;
+  baseUrl?: string;
+
+  // Behavior
+  maxIterations?: number;
+  maxTokens?: number;
+  temperature?: number;
+  autoSave?: boolean;
+
+  // Security
+  security?: {
+    level: "paranoid" | "standard" | "trusted" | "yolo";
+    trustedAuthors?: string[];
+    allowedPaths?: string[];
+    deniedPaths?: string[];
+    auditIgnorePatterns?: string[];
+  };
+
+  // UI
+  theme?: string;
+  printMode?: "default" | "json" | "quiet";
+
+  // Extensions
+  extensionDirs?: string[];
+}
+```
+
+## Provider Settings
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `provider` | `string` | — | LLM provider: `openai`, `anthropic`, `google`, `mistral`, etc. |
+| `model` | `string` | — | Model ID: `gpt-4o`, `claude-sonnet-4-20250514`, etc. |
+| `baseUrl` | `string` | — | Custom API endpoint (for OpenAI-compatible providers) |
+
+## Behavior Settings
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `maxIterations` | `number` | `10` | Max tool-use loop iterations per prompt |
+| `maxTokens` | `number` | Provider default | Max tokens per response |
+| `temperature` | `number` | `0.7` | Sampling temperature (0.0–2.0) |
+| `autoSave` | `boolean` | `true` | Auto-save session on exit |
+
+## Security Settings
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `security.level` | `string` | `"standard"` | Security level |
+| `security.trustedAuthors` | `string[]` | `[]` | Auto-approve packages from these authors |
+| `security.allowedPaths` | `string[]` | `[cwd]` | Paths extensions can access |
+| `security.deniedPaths` | `string[]` | `["/etc/shadow", "~/.ssh/"]` | Paths always blocked |
+| `security.auditIgnorePatterns` | `string[]` | `[]` | Patterns to exclude from audit log |
+
+## UI Settings
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `theme` | `string` | `"default"` | TUI color theme (`catppuccin`, `dracula`, etc.) |
+| `printMode` | `string` | `"default"` | Output mode: `default`, `json`, `quiet` |
+
+## Extension Settings
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `extensionDirs` | `string[]` | `[~/.dhara/extensions]` | Directories to scan for extensions |
+
+## Example Configurations
+
+### Minimal Global Config
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o"
+}
+```
+
+### Project-Specific with Security
+
+```json
+{
+  "provider": "google",
+  "model": "gemini-2.5-flash",
+  "maxIterations": 15,
+  "security": {
+    "level": "standard",
+    "allowedPaths": [
+      "/home/user/projects/my-app",
+      "/tmp"
+    ]
+  }
+}
+```
+
+### Trusted Author Setup
+
+```json
+{
+  "security": {
+    "level": "trusted",
+    "trustedAuthors": ["zosmaai", "trusted-org"]
+  }
+}
+```
