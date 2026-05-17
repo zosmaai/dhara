@@ -135,8 +135,8 @@ Install: copy to `~/.dhara/extensions/my-extension/` with a `manifest.json`.
 
 Full documentation is at **[dhara.zosma.ai](https://dhara.zosma.ai)**.
 
-- [Getting Started Guide](docs/getting-started.md)
-- [Writing Your First Extension](docs/write-first-extension.md)
+- [Getting Started Guide](docs/getting-started/index.mdx)
+- [Writing Your First Extension](docs/guides/write-first-extension.mdx)
 - [Architecture Overview](spec/architecture.md)
 - [Extension Protocol Spec](spec/extension-protocol.md)
 - [Session Format](spec/session-format.md)
