@@ -6,17 +6,13 @@
  * overrides handleInput to check app-level keybindings first,
  * then delegates to super.handleInput for normal editing.
  */
-import { Editor, type EditorTheme, matchesKey, type TUI } from "@earendil-works/pi-tui";
+import { Editor, matchesKey } from "@earendil-works/pi-tui";
 
 export class DharaEditor extends Editor {
   /** Handler for Ctrl+C (double-tap exit logic) */
   onCtrlC?: () => void;
   /** Handler for Ctrl+D (exit on empty editor) */
   onCtrlD?: () => void;
-
-  constructor(tui: TUI, theme: EditorTheme, options?: { paddingX?: number }) {
-    super(tui, theme, options);
-  }
 
   handleInput(data: string): void {
     // Ctrl+C — intercept before Editor's internal handler (which binds it to

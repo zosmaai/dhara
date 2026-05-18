@@ -4,7 +4,7 @@
  * Tests the custom Dhara components: theme, header, footer, messages, and DharaApp.
  */
 
-import { Container, Text } from "@earendil-works/pi-tui";
+import { Container } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
   AssistantMessageComponent,

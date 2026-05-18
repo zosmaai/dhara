@@ -99,7 +99,6 @@ function getStateIndicator(state?: string): string | null {
       return color.success("▶");
     case "error":
       return color.error("●");
-    case "idle":
     default:
       return null;
   }
