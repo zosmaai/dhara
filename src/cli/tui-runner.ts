@@ -3,20 +3,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 /**
  * TUI runner — bridges the TUI renderer with dhara's agent loop.
+ *
+ * Uses @earendil-works/pi-tui for the terminal UI framework,
+ * matching pi's InteractiveMode architecture.
  */
 import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
 import { createSandbox, type Sandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
-import { DharaApp } from "../std/renderers/tui/dhara-chat.js";
-import {
-  DEFAULT_THEME,
-  loadThemeFile,
-  ProcessTerminal,
-  Theme,
-  TUI,
-} from "../std/renderers/tui/index.js";
+import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 
 export interface TuiConfig {
@@ -31,7 +27,6 @@ export interface TuiConfig {
   resumeSessionId?: string;
   toolOverrides?: ToolRegistration[];
   onReload?: () => { systemPrompt: string; maxIterations: number };
-  theme?: string;
 }
 
 export async function runTui(config: TuiConfig): Promise<void> {
@@ -47,28 +42,17 @@ export async function runTui(config: TuiConfig): Promise<void> {
     resumeSessionId,
     toolOverrides,
     onReload,
-    theme: themeArg,
   } = config;
 
   // ── Version ────────────────────────────────────────────────────────
   const pkgVersion = getPkgVersion();
 
-  // ── Theme ──────────────────────────────────────────────────────────
-  let theme: Theme;
-  if (themeArg) {
-    try {
-      theme = loadThemeFile(themeArg);
-    } catch {
-      theme = new Theme(DEFAULT_THEME);
-    }
-  } else {
-    theme = new Theme(DEFAULT_THEME);
-  }
-
   // ── Session ────────────────────────────────────────────────────────
   const session = resumeSessionId
     ? sessionManager.load(resumeSessionId)
     : sessionManager.create({ cwd, model: { id: modelId, provider: providerName } });
+
+  const sessionId = session.meta.sessionId.slice(0, 8);
 
   // ── Sandbox ────────────────────────────────────────────────────────
   const sandbox =
@@ -102,19 +86,18 @@ export async function runTui(config: TuiConfig): Promise<void> {
     maxIterations: currentMaxIterations,
   });
 
-  // ── Terminal + TUI ─────────────────────────────────────────────────
+  // ── Terminal + TUI (pi-tui) ────────────────────────────────────────
   const terminal = new ProcessTerminal();
   const tui = new TUI(terminal);
 
-  // ── Chat ───────────────────────────────────────────────────────────
-  const chat = new DharaApp({
-    theme,
+  // ── DharaApp ──────────────────────────────────────────────────────
+  const chat = new DharaApp(tui, {
     version: pkgVersion,
-    status: {
+    footerData: {
       provider: providerName,
       model: modelId,
-      sessionId: session.meta.sessionId.slice(0, 8),
       cwd,
+      sessionId,
       state: "idle",
     },
     onSubmit: async (text: string) => {
@@ -122,8 +105,8 @@ export async function runTui(config: TuiConfig): Promise<void> {
       const abortController = new AbortController();
 
       // Wire chat to this prompt's event bus
-      chat.setEventBus(eventBus);
-      chat.statusBar.update({ state: "thinking" });
+      chat.wireEvents(eventBus);
+      chat.setFooterState("thinking");
       tui.requestRender();
 
       try {
@@ -138,7 +121,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
         } catch {
           /* best effort */
         }
-        chat.statusBar.update({ state: "idle" });
+        chat.setFooterState("idle");
         tui.requestRender();
       }
     },
@@ -147,9 +130,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
     },
   });
 
-  chat.onRender = () => tui.requestRender();
-
-  // ── Reload ─────────────────────────────────────────────────────────
+  // ── Reload (Shift+Ctrl+D) ──────────────────────────────────────────
   tui.onDebug = () => {
     if (onReload) {
       try {
@@ -174,33 +155,36 @@ export async function runTui(config: TuiConfig): Promise<void> {
     tui.requestRender();
   };
 
+  // ── Add components to TUI ──────────────────────────────────────────
+  tui.addChild(chat.headerContainer);
+  tui.addChild(chat.chatContainer);
+  tui.addChild(chat.statusContainer);
+  tui.addChild(chat.editorContainer);
+  tui.addChild(chat.footer);
+  tui.setFocus(chat.editor);
+
   // ── Start ──────────────────────────────────────────────────────────
-  tui.setRoot(chat);
-  tui.focus(chat);
   tui.start();
 
   // Wait until TUI.stop() is called (from onExit via Ctrl+C/Ctrl+D)
   await new Promise<void>((resolve) => {
-    const check = setInterval(() => {
-      // no-op: just keep process alive until tui stops
-    }, 500);
     process.once("SIGTERM", () => {
-      clearInterval(check);
       tui.stop();
       resolve();
     });
-    // Override shutdown to resolve the promise
-    const origShutdown = tui.onShutdown;
-    tui.onShutdown = () => {
-      clearInterval(check);
-      chat.dispose();
+
+    // Override stop detection
+    const origStop = tui.stop.bind(tui);
+    tui.stop = () => {
+      // Save session before stopping
       try {
         session.save();
       } catch {
         /* best effort */
       }
-      terminal.write(`\nSession saved: ${session.meta.sessionId.slice(0, 8)}\n`);
-      origShutdown?.();
+      terminal.write(`\nSession saved: ${sessionId}\n`);
+      chat.dispose();
+      origStop();
       resolve();
     };
   });

@@ -1,0 +1,40 @@
+{
+  "../node_modules/fumadocs-core/dist/search/client.js -> ../algolia-IZEDLPHE.js": {
+    "id": 6751,
+    "files": [
+      "static/chunks/751.13466a0175090939.js"
+    ]
+  },
+  "../node_modules/fumadocs-core/dist/search/client.js -> ../fetch-2XFMBLBA.js": {
+    "id": 4055,
+    "files": [
+      "static/chunks/55.e3f2923be74493a5.js"
+    ]
+  },
+  "../node_modules/fumadocs-core/dist/search/client.js -> ../mixedbread-RAHDVXGJ.js": {
+    "id": 8975,
+    "files": [
+      "static/chunks/975.c283c4614c9e1d44.js"
+    ]
+  },
+  "../node_modules/fumadocs-core/dist/search/client.js -> ../orama-cloud-74FM25SB.js": {
+    "id": 4343,
+    "files": [
+      "static/chunks/343.5260bc1b24cb9300.js"
+    ]
+  },
+  "../node_modules/fumadocs-core/dist/search/client.js -> ../static-A2YJ5TXV.js": {
+    "id": 9013,
+    "files": [
+      "static/chunks/13.0d2de898e8f312f5.js"
+    ]
+  },
+  "../node_modules/fumadocs-ui/dist/provider/base.js -> ../components/dialog/search-default.js": {
+    "id": 4106,
+    "files": [
+      "static/chunks/356-91917a6440f14e5c.js",
+      "static/chunks/171-73b3e87cff04da8f.js",
+      "static/chunks/106.08d7200d5da51aad.js"
+    ]
+  }
+}

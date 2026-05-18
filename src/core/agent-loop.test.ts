@@ -524,10 +524,9 @@ describe("Agent Loop", () => {
       // Run with per-invocation eventBus
       await loop.run("Say hi", undefined, testBus);
 
-      // Deltas arrive from two sources:
-      // 1. The provider's streaming emit (via CompleteParams.eventBus)
-      // 2. The agent loop's post-response fallback emit (full content)
-      expect(deltas).toEqual(["Hello", " ", "World", "Hello World"]);
+      // Deltas arrive from the provider's streaming emit (via CompleteParams.eventBus).
+      // The agent loop does NOT re-emit full content to avoid duplicate rendering.
+      expect(deltas).toEqual(["Hello", " ", "World"]);
     });
 
     it("emits deltas through default eventBus when no per-invocation bus given", async () => {
@@ -563,8 +562,9 @@ describe("Agent Loop", () => {
 
       await loop.run("Hi");
 
-      // Provider emits "streamed" via eventBus, agent loop also emits "full" as fallback
-      expect(deltas).toEqual(["streamed", "full"]);
+      // Provider emits "streamed" via eventBus. The agent loop does NOT re-emit
+      // full content to avoid duplicate rendering in delta-accumulating consumers.
+      expect(deltas).toEqual(["streamed"]);
     });
   });
 });

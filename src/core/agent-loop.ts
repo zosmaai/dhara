@@ -116,6 +116,14 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       const messages = buildMessages(session);
       const toolDefs = Array.from(tools.values()).map((t) => t.definition);
 
+      // Track whether the provider emitted streaming deltas during complete()
+      // If it did, we won't re-emit the full content as a delta afterward.
+      let hadDeltas = false;
+      const unsubDelta = eb?.subscribe("message:delta", () => {
+        hadDeltas = true;
+        return { action: "allow" };
+      });
+
       // Call LLM
       let response: AssistantMessage | undefined;
       try {
@@ -173,8 +181,12 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
         eb?.emit("message:reasoning", { entry: assistantEntry, text: response.reasoningContent });
       }
 
-      // If streaming content, emit deltas (for now, emit the full content)
-      if (response.content.length > 0) {
+      // Emit message:delta for the full response ONLY if the provider
+      // did not already stream token deltas. Providers that support streaming
+      // emit individual message:delta events during complete(). For providers
+      // that return the full response at once (e.g., mock providers in tests),
+      // we emit the full content here so consumers can render it.
+      if (response.content.length > 0 && !hadDeltas) {
         const deltaText = response.content
           .filter((c: { type: string; text?: string }) => c.type === "text")
           .map((c: { text?: string }) => c.text ?? "")
@@ -186,6 +198,8 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
           delta: deltaText,
         });
       }
+      // Clean up the delta tracker
+      unsubDelta?.();
 
       eb?.emit("message:end", { entry: assistantEntry });
       // Track usage for agent:end

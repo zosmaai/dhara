@@ -1,52 +1,108 @@
 /**
  * Dhara TUI renderer — barrel exports.
+ *
+ * Re-exports from @earendil-works/pi-tui and our custom components.
  */
 
-export type { BoxConfig } from "./components/box.js";
-export { Box } from "./components/box.js";
-export type { ChatMessageConfig, ChatRole } from "./components/chat-message.js";
-export { ChatMessage } from "./components/chat-message.js";
+// ── pi-tui re-exports ────────────────────────────────────────────────
+
+export type {
+  AutocompleteItem,
+  AutocompleteProvider,
+  AutocompleteSuggestions,
+  CombinedAutocompleteProvider,
+  Component,
+  DefaultTextStyle,
+  EditorComponent,
+  EditorOptions,
+  EditorTheme,
+  Focusable,
+  FuzzyMatch,
+  ImageOptions,
+  ImageTheme,
+  Keybinding,
+  KeybindingConflict,
+  KeybindingDefinition,
+  KeybindingDefinitions,
+  Keybindings,
+  KeybindingsConfig,
+  KeyEventType,
+  KeyId,
+  LoaderIndicatorOptions,
+  MarkdownTheme,
+  OverlayAnchor,
+  OverlayHandle,
+  OverlayMargin,
+  OverlayOptions,
+  SelectItem,
+  SelectListLayoutOptions,
+  SelectListTheme,
+  SelectListTruncatePrimaryContext,
+  SettingItem,
+  SettingsListTheme,
+  SizeValue,
+  SlashCommand,
+  StdinBufferEventMap,
+  StdinBufferOptions,
+  Terminal,
+} from "@earendil-works/pi-tui";
 export {
-  type Component,
-  type FocusableComponent,
-  padToWidth,
-  ThemedComponent,
+  Box,
+  CancellableLoader,
+  Container,
+  CURSOR_MARKER,
+  decodeKittyPrintable,
+  Editor,
+  fuzzyFilter,
+  fuzzyMatch,
+  getKeybindings,
+  Image,
+  Input,
+  isFocusable,
+  isKeyRelease,
+  isKeyRepeat,
+  isKittyProtocolActive,
+  Key,
+  KeybindingsManager,
+  Loader,
+  Markdown,
+  matchesKey,
+  ProcessTerminal,
+  parseKey,
+  SelectList,
+  SettingsList,
+  Spacer,
+  Text,
+  TruncatedText,
+  TUI,
   truncateToWidth,
   visibleWidth,
-} from "./components/component.js";
-export type { EditorConfig } from "./components/editor.js";
-export { Editor } from "./components/editor.js";
-export type { LoaderConfig } from "./components/loader.js";
-export { Loader } from "./components/loader.js";
-export type { RenderedLine } from "./components/markdown.js";
+  wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
+
+// ── Dhara custom components ──────────────────────────────────────────
+
+export type { DharaAppConfig } from "./dhara-app.js";
+export { DharaApp } from "./dhara-app.js";
+export { DharaEditor } from "./dhara-editor.js";
+export type { FooterData } from "./dhara-footer.js";
+export { FooterComponent } from "./dhara-footer.js";
+export { HeaderComponent } from "./dhara-header.js";
+export type { MessageConfig } from "./dhara-messages.js";
 export {
-  renderDiffBlock,
-  renderInline,
-  renderMarkdown,
-  wrapRenderedMarkdown,
-} from "./components/markdown.js";
-export type { StatusBarConfig } from "./components/status-bar.js";
-export { StatusBar } from "./components/status-bar.js";
-export type { HighlightOptions } from "./components/syntax-highlight.js";
+  AssistantMessageComponent,
+  ErrorMessageComponent,
+  SystemMessageComponent,
+  ToolExecutionComponent,
+  UserMessageComponent,
+} from "./dhara-messages.js";
+
+// ── Theme ────────────────────────────────────────────────────────────
+
 export {
-  extractLanguage,
-  highlightCode,
-  looksLikeCodeBlock,
-} from "./components/syntax-highlight.js";
-// Components
-export { Text, ThemedText } from "./components/text.js";
-export type { KeyAction, KeyBinding } from "./keybindings.js";
-export {
-  DEFAULT_KEYBINDINGS,
-  isPrintable,
-  isShiftEnter,
-  mergeBindings,
-  resolveBinding,
-} from "./keybindings.js";
-export type { Terminal } from "./terminal.js";
-export { ProcessTerminal, synchronized, VirtualTerminal } from "./terminal.js";
-export type { ResolvedStyle, StyleDefinition, ThemeDefinition } from "./theme.js";
-export { DEFAULT_THEME, Theme } from "./theme.js";
-export { loadThemeFile, parseThemeYaml } from "./theme-loader.js";
-export type { OverlayHandle } from "./tui.js";
-export { CURSOR_MARKER, TUI } from "./tui.js";
+  color,
+  getEditorTheme,
+  getMarkdownTheme,
+  getSelectListTheme,
+  getSettingsListTheme,
+} from "./dhara-theme.js";
