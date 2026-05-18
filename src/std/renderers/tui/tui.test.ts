@@ -1,683 +1,287 @@
 /**
- * Tests for the TUI renderer framework.
+ * Tests for the Dhara TUI components built on @earendil-works/pi-tui.
  *
- * Uses VirtualTerminal for headless testing of components and rendering.
+ * Tests the custom Dhara components: theme, header, footer, messages, and DharaApp.
  */
+
+import { Container, Text } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
-  Box,
-  ChatMessage,
-  DEFAULT_KEYBINDINGS,
-  DEFAULT_THEME,
-  Editor,
-  isPrintable,
-  isShiftEnter,
-  Loader,
-  mergeBindings,
-  resolveBinding,
-  StatusBar,
-  Text,
-  Theme,
-  TUI,
-  truncateToWidth,
-  VirtualTerminal,
-  visibleWidth,
+  AssistantMessageComponent,
+  color,
+  ErrorMessageComponent,
+  FooterComponent,
+  getEditorTheme,
+  getMarkdownTheme,
+  getSelectListTheme,
+  getSettingsListTheme,
+  HeaderComponent,
+  SystemMessageComponent,
+  ToolExecutionComponent,
+  UserMessageComponent,
 } from "./index.js";
 
-// ── VirtualTerminal tests ────────────────────────────────────────────
+// ── Theme Tests ─────────────────────────────────────────────────────
 
-describe("VirtualTerminal", () => {
-  it("reports correct dimensions", () => {
-    const vt = new VirtualTerminal(80, 24);
-    expect(vt.columns).toBe(80);
-    expect(vt.rows).toBe(24);
+describe("dhara-theme", () => {
+  it("getMarkdownTheme returns all required functions", () => {
+    const theme = getMarkdownTheme();
+    expect(theme.heading).toBeInstanceOf(Function);
+    expect(theme.link).toBeInstanceOf(Function);
+    expect(theme.linkUrl).toBeInstanceOf(Function);
+    expect(theme.code).toBeInstanceOf(Function);
+    expect(theme.codeBlock).toBeInstanceOf(Function);
+    expect(theme.codeBlockBorder).toBeInstanceOf(Function);
+    expect(theme.quote).toBeInstanceOf(Function);
+    expect(theme.quoteBorder).toBeInstanceOf(Function);
+    expect(theme.hr).toBeInstanceOf(Function);
+    expect(theme.listBullet).toBeInstanceOf(Function);
+    expect(theme.bold).toBeInstanceOf(Function);
+    expect(theme.italic).toBeInstanceOf(Function);
+    expect(theme.strikethrough).toBeInstanceOf(Function);
+    expect(theme.underline).toBeInstanceOf(Function);
   });
 
-  it("captures written output", () => {
-    const vt = new VirtualTerminal(40, 10);
-    vt.write("hello world");
-    expect(vt.output).toContain("hello world");
+  it("markdown theme functions return styled strings", () => {
+    const theme = getMarkdownTheme();
+    const output = theme.heading("Hello");
+    expect(output).toBeTruthy();
+    expect(output).toContain("Hello");
+    // All theme functions return non-empty strings
+    expect(theme.link("a")).toBeTruthy();
+    expect(theme.code("a")).toBeTruthy();
+    expect(theme.bold("a")).toBeTruthy();
+    expect(theme.italic("a")).toBeTruthy();
   });
 
-  it("handles resize with callback", () => {
-    const vt = new VirtualTerminal(80, 24);
-    let resized = false;
-    vt.start(
-      () => {},
-      () => {
-        resized = true;
-      },
-    );
-    vt.resize(120, 40);
-    expect(resized).toBe(true);
-    expect(vt.columns).toBe(120);
-    expect(vt.rows).toBe(40);
+  it("getEditorTheme returns borderColor and selectList", () => {
+    const theme = getEditorTheme();
+    const borderResult = theme.borderColor("test");
+    expect(borderResult).toBeTruthy();
+    expect(borderResult).toContain("test");
+    expect(theme.selectList.selectedPrefix).toBeInstanceOf(Function);
+    expect(theme.selectList.selectedText).toBeInstanceOf(Function);
   });
 
-  it("simulates input via feedInput", () => {
-    const vt = new VirtualTerminal();
-    let input = "";
-    vt.start(
-      (data) => {
-        input += data;
-      },
-      () => {},
-    );
-    vt.feedInput("hello");
-    expect(input).toBe("hello");
-  });
-});
-
-// ── Theme tests ─────────────────────────────────────────────────────
-
-describe("Theme", () => {
-  it("resolves named styles to ANSI codes", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const resolved = theme.resolve("chat.user");
-    expect(resolved.prefix).toBeTruthy();
-    expect(resolved.reset).toBeTruthy();
+  it("getSelectListTheme returns all style functions", () => {
+    const theme = getSelectListTheme();
+    expect(theme.selectedPrefix("a")).toContain("▸");
+    expect(theme.selectedText("b")).toContain("b");
+    expect(theme.description("c")).toContain("c");
   });
 
-  it("returns empty style for unknown names", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const resolved = theme.resolve("does.not.exist");
-    expect(resolved.prefix).toBe("");
-    expect(resolved.reset).toBe("");
+  it("getSettingsListTheme returns all style functions", () => {
+    const theme = getSettingsListTheme();
+    expect(theme.label("test", false)).toBeTruthy();
+    expect(theme.label("test", true)).toBeTruthy();
+    expect(typeof theme.cursor).toBe("string");
+    expect(theme.hint("h")).toBeTruthy();
   });
 
-  it("applies style to text", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const styled = theme.apply("chat.user", "Hello");
-    expect(styled).toContain("\x1b[");
-    expect(styled).toContain("Hello");
-  });
-
-  it("caches resolved styles", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const a = theme.resolve("chat.user");
-    const b = theme.resolve("chat.user");
-    expect(a).toBe(b); // Same object from cache
-  });
-
-  it("invalidate clears cache", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const a = theme.resolve("chat.user");
-    theme.invalidate();
-    const b = theme.resolve("chat.user");
-    // New object after invalidate (cache cleared)
-    expect(b.prefix).toBe(a.prefix);
-  });
-
-  it("respects colorEnabled flag", () => {
-    const theme = new Theme(DEFAULT_THEME, false);
-    const resolved = theme.resolve("chat.user");
-    expect(resolved.prefix).toBe("");
+  it("color helpers return expected text with styling", () => {
+    // Test that each color helper returns a string containing the input
+    expect(color.accent("text")).toContain("text");
+    expect(color.dim("text")).toContain("text");
+    expect(color.muted("text")).toContain("text");
+    expect(color.success("text")).toContain("text");
+    expect(color.error("text")).toContain("text");
+    expect(color.bold("text")).toContain("text");
+    expect(color.userMsgBg("text")).toContain("text");
+    expect(color.toolPendingBg("text")).toContain("text");
+    expect(color.toolSuccessBg("text")).toContain("text");
+    expect(color.toolErrorBg("text")).toContain("text");
   });
 });
 
-// ── Component: Text ─────────────────────────────────────────────────
+// ── Header Component ────────────────────────────────────────────────
 
-describe("Text component", () => {
-  it("renders single line", () => {
-    const text = new Text("hello world");
-    const lines = text.render(50);
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain("hello world");
+describe("HeaderComponent", () => {
+  it("renders logo and instructions", () => {
+    const header = new HeaderComponent("0.2.0");
+    const lines = header.render(80);
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    const joined = lines.join("");
+    expect(joined).toContain("dhara");
+    expect(joined).toContain("v0.2.0");
+    expect(joined).toContain("Ctrl+C");
+    expect(joined).toContain("Ctrl+D");
+    expect(joined).toContain("Shift+Enter");
   });
 
-  it("wraps long text", () => {
-    const text = new Text("this is a very long line that should wrap");
-    const lines = text.render(10);
-    expect(lines.length).toBeGreaterThan(1);
-  });
+  it("adapts to different widths", () => {
+    const header = new HeaderComponent("1.0.0");
+    const wide = header.render(120);
+    const narrow = header.render(40);
 
-  it("preserves explicit newlines", () => {
-    const text = new Text("line one\nline two\nline three");
-    const lines = text.render(50);
-    expect(lines).toHaveLength(3);
-  });
-
-  it("caches render output", () => {
-    const text = new Text("hello");
-    const a = text.render(50);
-    const b = text.render(50);
-    expect(a).toBe(b); // Cached
-  });
-
-  it("invalidates cache on content change", () => {
-    const text = new Text("hello");
-    text.render(50);
-    text.content = "world";
-    const lines = text.render(50);
-    expect(lines[0]).toContain("world");
+    // Both should contain key information
+    expect(wide.join("")).toContain("dhara");
+    expect(narrow.join("")).toContain("dhara");
   });
 });
 
-// ── Component: ChatMessage ──────────────────────────────────────────
+// ── Footer Component ────────────────────────────────────────────────
 
-describe("ChatMessage", () => {
-  it("renders user message with label", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const msg = new ChatMessage(theme, { role: "user", content: "Hello" });
-    const lines = msg.render(60);
+describe("FooterComponent", () => {
+  it("renders provider and model", () => {
+    const footer = new FooterComponent({
+      provider: "openai",
+      model: "gpt-4o",
+      cwd: "/home/test",
+    });
+    const lines = footer.render(80);
+    const joined = lines.join("");
+    expect(joined).toContain("openai");
+    expect(joined).toContain("gpt-4o");
+    expect(joined).toContain("/home/test");
+  });
+
+  it("renders session ID", () => {
+    const footer = new FooterComponent({
+      provider: "test",
+      model: "m1",
+      cwd: "~",
+      sessionId: "abc12345",
+    });
+    const lines = footer.render(80);
+    expect(lines.join("")).toContain("abc12345");
+  });
+
+  it("renders token counts", () => {
+    const footer = new FooterComponent({
+      provider: "test",
+      model: "m1",
+      cwd: "~",
+      tokens: { input: 1200, output: 450 },
+    });
+    const lines = footer.render(80);
+    const joined = lines.join("");
+    expect(joined).toContain("1.2k");
+  });
+
+  it("updates state on update()", () => {
+    const footer = new FooterComponent({
+      provider: "test",
+      model: "m1",
+      cwd: "~",
+      state: "idle",
+    });
+    footer.update({ state: "thinking" });
+    const lines = footer.render(80);
+    expect(lines.join("")).toContain("◐");
+  });
+
+  it("handles narrow widths", () => {
+    const footer = new FooterComponent({
+      provider: "anthropic",
+      model: "claude-opus-4-20250514",
+      cwd: "/very/long/path/to/some/project",
+    });
+    // Should not crash on narrow terminal
+    const lines = footer.render(20);
+    expect(lines.length).toBeGreaterThan(0);
+  });
+});
+
+// ── User Message Component ─────────────────────────────────────────
+
+describe("UserMessageComponent", () => {
+  it("renders user label and content", () => {
+    const msg = new UserMessageComponent("Hello world");
+    const lines = msg.render(80);
     const joined = lines.join("\n");
     expect(joined).toContain("You");
-    expect(joined).toContain("Hello");
+    expect(joined).toContain("Hello world");
   });
+});
 
-  it("renders assistant message with label", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const msg = new ChatMessage(theme, { role: "assistant", content: "Hi there" });
-    const lines = msg.render(60);
+// ── Assistant Message Component ─────────────────────────────────────
+
+describe("AssistantMessageComponent", () => {
+  it("renders assistant label and content", () => {
+    const msg = new AssistantMessageComponent("Hi there!");
+    const lines = msg.render(80);
     const joined = lines.join("\n");
     expect(joined).toContain("Dhara");
     expect(joined).toContain("Hi there");
   });
 
-  it("renders tool message", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const msg = new ChatMessage(theme, {
-      role: "tool",
-      content: "executed bash",
-      toolCall: "bash",
-    });
-    const lines = msg.render(60);
-    expect(lines.length).toBeGreaterThan(0);
-  });
-
-  it("renders error message", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const msg = new ChatMessage(theme, {
-      role: "error",
-      content: "Something failed",
-    });
-    const lines = msg.render(60);
+  it("renders reasoning text when provided", () => {
+    const msg = new AssistantMessageComponent("Answer", "Let me think...");
+    const lines = msg.render(80);
     const joined = lines.join("\n");
-    expect(joined).toContain("Error");
-  });
-
-  it("renders reasoning text", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const msg = new ChatMessage(theme, {
-      role: "assistant",
-      content: "answer",
-      reasoning: "Let me think...",
-    });
-    const lines = msg.render(60);
-    const joined = lines.join("\n");
+    expect(joined).toContain("think");
     expect(joined).toContain("Let me think");
   });
 
-  it("renders diff lines with styling", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const msg = new ChatMessage(theme, {
-      role: "tool",
-      content: "+added line\n-removed line\n unchanged",
-      isDiff: true,
-    });
-    const lines = msg.render(60);
+  it("updates content via updateContent", () => {
+    const msg = new AssistantMessageComponent("Initial");
+    msg.updateContent("Updated content");
+    const lines = msg.render(80);
     const joined = lines.join("\n");
-    // Diff lines should have ANSI color codes
-    expect(joined).toContain("\x1b[");
-    expect(joined).toContain("added line");
-    expect(joined).toContain("removed line");
+    expect(joined).toContain("Updated content");
+    expect(joined).not.toContain("Initial");
   });
 });
 
-// ── Component: StatusBar ────────────────────────────────────────────
+// ── Tool Execution Component ────────────────────────────────────────
 
-describe("StatusBar", () => {
-  it("renders provider and model", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const bar = new StatusBar(theme, {
-      provider: "openai",
-      model: "gpt-4o",
-    });
-    const lines = bar.render(80);
-    const joined = lines.join("");
-    expect(joined).toContain("openai");
-    expect(joined).toContain("gpt-4o");
-  });
-
-  it("renders session ID", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const bar = new StatusBar(theme, { sessionId: "abc12345" });
-    const lines = bar.render(80);
-    const joined = lines.join("");
-    expect(joined).toContain("abc12345");
-  });
-
-  it("renders token counts", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const bar = new StatusBar(theme, { tokens: { input: 1200, output: 450 } });
-    const lines = bar.render(80);
-    const joined = lines.join("");
-    expect(joined).toContain("1.2k");
-  });
-
-  it("renders state indicator", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const bar = new StatusBar(theme, { state: "streaming" });
-    const lines = bar.render(80);
-    expect(lines[0]).toContain("▶");
-  });
-
-  it("accepts updates", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const bar = new StatusBar(theme, { state: "idle" });
-    bar.update({ state: "thinking" });
-    const lines = bar.render(80);
-    expect(lines[0]).toContain("◐");
-  });
-});
-
-// ── Component: Loader ───────────────────────────────────────────────
-
-describe("Loader", () => {
-  it("renders a spinner frame", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const loader = new Loader(theme, { text: "Loading..." });
-    const lines = loader.render(80);
-    expect(lines[0]).toContain("Loading...");
-  });
-
-  it("cycles through frames", async () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const loader = new Loader(theme, {
-      frames: ["A", "B", "C"],
-      interval: 5,
-    });
-
-    const frames: string[] = [];
-    const stop = loader.start(() => {
-      frames.push(loader.render(80)[0]);
-    });
-
-    // Wait for a few cycles
-    await new Promise((r) => setTimeout(r, 30));
-    stop();
-
-    expect(frames.length).toBeGreaterThan(2);
-    expect(frames.some((f) => f.includes("A"))).toBe(true);
-    expect(frames.some((f) => f.includes("B"))).toBe(true);
-    expect(frames.some((f) => f.includes("C"))).toBe(true);
-  });
-});
-
-// ── Component: Editor ───────────────────────────────────────────────
-
-describe("Editor", () => {
-  it("renders with prompt", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme, { prompt: "> " });
-    const lines = editor.render(60);
-    // Line 0 is the top border, prompt is on line 1
-    expect(lines[1]).toContain(">");
-  });
-
-  it("shows placeholder when empty and unfocused", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme, {
-      prompt: "> ",
-      placeholder: "Type here...",
-    });
-    // Unfocused editor should show placeholder
-    editor.focused = false;
-    const lines = editor.render(60);
-    const joined = lines.join("");
-    expect(joined).toContain("Type here...");
-  });
-
-  it("inserts printable text", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.focused = true;
-    editor.handleInput("h");
-    editor.handleInput("i");
-    expect(editor.getText()).toBe("hi");
-  });
-
-  it("handles left/right cursor movement", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.handleInput("a");
-    editor.handleInput("b");
-    editor.handleInput("c");
-    // Cursor is at position 3
-    editor.handleInput("\x1b[D"); // Left arrow
-    editor.handleInput("\x7f"); // Backspace
-    expect(editor.getText()).toBe("ac");
-  });
-
-  it("handles Ctrl+A (home) and Ctrl+E (end)", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.handleInput("a");
-    editor.handleInput("b");
-    editor.handleInput("c");
-    // Cursor at 3
-    editor.handleInput("\x01"); // Ctrl+A
-    editor.handleInput("X");
-    expect(editor.getText()).toBe("Xabc");
-  });
-
-  it("handles Ctrl+K (delete to end)", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.handleInput("h");
-    editor.handleInput("e");
-    editor.handleInput("l");
-    editor.handleInput("l");
-    editor.handleInput("o");
-    // Cursor at 5
-    editor.handleInput("\x01"); // Ctrl+A → pos 0
-    editor.handleInput("\x0b"); // Ctrl+K
-    expect(editor.getText()).toBe("");
-  });
-
-  it("handles Ctrl+W (delete word)", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.handleInput("h");
-    editor.handleInput("e");
-    editor.handleInput("l");
-    editor.handleInput("l");
-    editor.handleInput("o");
-    editor.handleInput(" ");
-    editor.handleInput("w");
-    editor.handleInput("o");
-    editor.handleInput("r");
-    editor.handleInput("l");
-    editor.handleInput("d");
-    // "hello world" cursor at 11
-    editor.handleInput("\x17"); // Ctrl+W
-    expect(editor.getText()).toBe("hello ");
-  });
-
-  it("triggers onSubmit on Enter", async () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-
-    const submitted = await new Promise<string>((resolve) => {
-      editor.onSubmit = resolve;
-      editor.focused = true;
-      editor.handleInput("h");
-      editor.handleInput("i");
-      editor.handleInput("\r"); // Enter
-    });
-
-    expect(submitted).toBe("hi");
-  });
-
-  it("does not submit empty text", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    let submitted = false;
-    editor.onSubmit = () => {
-      submitted = true;
-    };
-    editor.handleInput("\r");
-    expect(submitted).toBe(false);
-  });
-
-  it("navigates history with up/down arrows", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.addHistory("first command");
-    editor.addHistory("second command");
-
-    // Up → most recent
-    editor.handleInput("\x1b[A");
-    expect(editor.getText()).toBe("second command");
-
-    // Up again → older
-    editor.handleInput("\x1b[A");
-    expect(editor.getText()).toBe("first command");
-
-    // Down → newer
-    editor.handleInput("\x1b[B");
-    expect(editor.getText()).toBe("second command");
-  });
-
-  it("clears on Ctrl+C cancel", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.handleInput("t");
-    editor.handleInput("e");
-    editor.handleInput("s");
-    editor.handleInput("t");
-    editor.handleInput("\x03"); // Ctrl+C
-    expect(editor.getText()).toBe("");
-  });
-
-  it("inserts newline on Shift+Enter", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const editor = new Editor(theme);
-    editor.handleInput("line1");
-    editor.handleInput("\x1b[13;2~"); // Shift+Enter
-    editor.handleInput("line2");
-    expect(editor.getText()).toBe("line1\nline2");
-  });
-});
-
-// ── Component: Box ──────────────────────────────────────────────────
-
-describe("Box", () => {
-  it("renders bordered box", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const box = new Box(theme, { title: "Test" });
-    const lines = box.render(40);
-    expect(lines.length).toBeGreaterThanOrEqual(3);
+describe("ToolExecutionComponent", () => {
+  it("renders tool name and content", () => {
+    const msg = new ToolExecutionComponent("bash", "ls -la");
+    const lines = msg.render(80);
     const joined = lines.join("\n");
-    expect(joined).toContain("┌");
-    expect(joined).toContain("┐");
-    expect(joined).toContain("└");
-    expect(joined).toContain("┘");
+    expect(joined).toContain("bash");
+    expect(joined).toContain("ls -la");
   });
 
-  it("renders children inside box", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const box = new Box(theme, { title: "Panel" });
-    box.addChild(new Text("child content"));
-    const lines = box.render(40);
+  it("shows error icon for error state", () => {
+    const msg = new ToolExecutionComponent("bash", "error msg", true);
+    const lines = msg.render(80);
     const joined = lines.join("\n");
-    expect(joined).toContain("child content");
-  });
-
-  it("can be unbordered", () => {
-    const theme = new Theme(DEFAULT_THEME);
-    const box = new Box(theme, { bordered: false });
-    box.addChild(new Text("content"));
-    const lines = box.render(40);
-    const joined = lines.join("\n");
-    expect(joined).not.toContain("┌");
+    expect(joined).toContain("✗");
   });
 });
 
-// ── TUI Engine tests ────────────────────────────────────────────────
+// ── Error Message Component ─────────────────────────────────────────
 
-describe("TUI", () => {
-  it("renders a component", async () => {
-    const vt = new VirtualTerminal(40, 10);
-    const tui = new TUI(vt);
+describe("ErrorMessageComponent", () => {
+  it("renders error label and message", () => {
+    const msg = new ErrorMessageComponent("Something failed");
+    const lines = msg.render(80);
+    const joined = lines.join("\n");
+    expect(joined).toContain("Error");
+    expect(joined).toContain("Something failed");
+  });
+});
+
+// ── System Message Component ────────────────────────────────────────
+
+describe("SystemMessageComponent", () => {
+  it("renders system message", () => {
+    const msg = new SystemMessageComponent("Configuration reloaded");
+    const lines = msg.render(80);
+    const joined = lines.join("\n");
+    expect(joined).toContain("Configuration reloaded");
+  });
+});
+
+// ── Container Composition ───────────────────────────────────────────
+
+describe("Container composition", () => {
+  it("renders multiple messages sequentially", () => {
+    const container = new Container();
+    container.addChild(new UserMessageComponent("Hello"));
+    container.addChild(new AssistantMessageComponent("World"));
 
     const lines: string[] = [];
-    const component = {
-      render: (w: number) => {
-        lines.push(`rendered at width ${w}`);
-        return lines;
-      },
-      invalidate: () => {},
-    };
+    for (const child of container.children) {
+      for (const l of child.render(80)) lines.push(l);
+    }
 
-    tui.setRoot(component);
-    tui.start();
-
-    // Wait a tick
-    await new Promise((r) => setTimeout(r, 20));
-
-    const viewport = vt.getViewport();
-    expect(viewport[0]).toContain("rendered at width 40");
-    tui.stop();
-  });
-
-  it("differentially renders only changed lines", async () => {
-    const vt = new VirtualTerminal(40, 10);
-    const tui = new TUI(vt);
-
-    let content = ["Line 0", "Line 1", "Line 2", "Line 3", "Line 4"];
-    const component = {
-      render: (_w: number, _h?: number) => content,
-      invalidate: () => {},
-    };
-
-    tui.setRoot(component);
-    tui.start();
-    await new Promise((r) => setTimeout(r, 20));
-
-    const redrawsBefore = tui.fullRedraws;
-
-    // Change lines 1 and 3 (same line count, stays within 10 rows)
-    content = ["Line 0", "CHANGED 1", "Line 2", "CHANGED 3", "Line 4"];
-    tui.requestRender();
-    await new Promise((r) => setTimeout(r, 20));
-
-    // Should NOT have triggered a full redraw
-    expect(tui.fullRedraws).toBe(redrawsBefore);
-
-    // Since TUI pads to terminal height, changed lines are within the 10-row viewport
-    const viewport = vt.getViewport();
-    expect(viewport.some((l) => l.includes("CHANGED 1"))).toBe(true);
-    expect(viewport.some((l) => l.includes("CHANGED 3"))).toBe(true);
-
-    tui.stop();
-  });
-
-  it("pads to terminal height to prevent layout jitter", async () => {
-    const vt = new VirtualTerminal(40, 5);
-    const tui = new TUI(vt);
-
-    // Component returns fewer lines than terminal height
-    const component = {
-      render: (_w: number, _h?: number) => ["Line 1", "Line 2"],
-      invalidate: () => {},
-    };
-
-    tui.setRoot(component);
-    tui.start();
-    await new Promise((r) => setTimeout(r, 20));
-
-    // Should still produce exactly 5 lines (padded)
-    // Previous lines array tracks the last render result
-    const redrawsBefore = tui.fullRedraws;
-    tui.requestRender();
-    await new Promise((r) => setTimeout(r, 20));
-
-    // No full redraw because line count is stable
-    expect(tui.fullRedraws).toBe(redrawsBefore);
-    tui.stop();
-  });
-
-  it("manages focus for keyboard input", async () => {
-    const vt = new VirtualTerminal(40, 10);
-    const tui = new TUI(vt);
-
-    let inputReceived = "";
-    const focusable = {
-      render: (_w: number) => ["focused component"],
-      handleInput: (data: string) => {
-        inputReceived += data;
-        return true;
-      },
-      invalidate: () => {},
-      focused: false,
-    };
-
-    tui.setRoot(focusable);
-    tui.focus(focusable);
-    tui.start();
-    await new Promise((r) => setTimeout(r, 20));
-
-    vt.feedInput("x");
-    expect(inputReceived).toBe("x");
-
-    tui.stop();
-  });
-});
-
-// ── Keybinding tests ────────────────────────────────────────────────
-
-describe("keybindings", () => {
-  it("resolves arrow keys to actions", () => {
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x1b[A")).toBe("history.prev");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x1b[B")).toBe("history.next");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x1b[C")).toBe("cursor.right");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x1b[D")).toBe("cursor.left");
-  });
-
-  it("resolves Ctrl keys", () => {
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x01")).toBe("cursor.home");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x05")).toBe("cursor.end");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x0b")).toBe("delete.toEnd");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x17")).toBe("delete.wordLeft");
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x03")).toBe("cancel");
-  });
-
-  it("resolves Enter to submit", () => {
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\r")).toBe("submit");
-  });
-
-  it("returns null for unknown sequences", () => {
-    expect(resolveBinding(DEFAULT_KEYBINDINGS, "\x1b[999~")).toBeNull();
-  });
-
-  it("detects Shift+Enter", () => {
-    expect(isShiftEnter("\x1b[13;2~")).toBe(true);
-    expect(isShiftEnter("\r")).toBe(false);
-    expect(isShiftEnter("a")).toBe(false);
-  });
-
-  it("detects printable characters", () => {
-    expect(isPrintable("a")).toBe(true);
-    expect(isPrintable("1")).toBe(true);
-    expect(isPrintable(" ")).toBe(true);
-    expect(isPrintable("\t")).toBe(true);
-    expect(isPrintable("\x03")).toBe(false); // Ctrl+C
-    expect(isPrintable("\x1b[A")).toBe(false); // Arrow
-    expect(isPrintable("\x7f")).toBe(false); // DEL
-  });
-
-  it("merges user bindings with defaults", () => {
-    const user = [{ sequence: "\r", action: "newline" as const }];
-    const merged = mergeBindings(DEFAULT_KEYBINDINGS, user);
-    // User binding should override default Enter → submit
-    const enterBinding = merged.find((b) => b.sequence === "\r");
-    expect(enterBinding?.action).toBe("newline");
-  });
-});
-
-// ── Utility tests ────────────────────────────────────────────────────
-
-describe("visibleWidth", () => {
-  it("returns plain string length", () => {
-    expect(visibleWidth("hello")).toBe(5);
-  });
-
-  it("strips ANSI codes", () => {
-    const styled = "\x1b[32mhello\x1b[0m";
-    expect(visibleWidth(styled)).toBe(5);
-  });
-});
-
-describe("truncateToWidth", () => {
-  it("passes through short text", () => {
-    expect(truncateToWidth("hello", 10)).toBe("hello");
-  });
-
-  it("truncates long text preserving ANSI", () => {
-    const styled = "\x1b[32mhello world\x1b[0m";
-    const result = truncateToWidth(styled, 5);
-    expect(visibleWidth(result)).toBeLessThanOrEqual(5);
-    expect(result).toContain("\x1b[32m");
+    const joined = lines.join("\n");
+    expect(joined).toContain("You");
+    expect(joined).toContain("Hello");
+    expect(joined).toContain("Dhara");
+    expect(joined).toContain("World");
   });
 });
