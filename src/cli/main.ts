@@ -417,6 +417,10 @@ async function main(): Promise<void> {
         maxIterations: cfg.projectSettings?.maxIterations ?? 10,
         resumeSessionId,
         toolOverrides: extensionTools,
+        onThemeChange: (_newTheme: string) => {
+          // Theme change — would need TUI hot-reload for instant effect
+          return true;
+        },
         onReload: () => {
           const newPrompt = ctxState.reload();
           const newProjectConfig = loadProjectConfig(cfg.cwd);
