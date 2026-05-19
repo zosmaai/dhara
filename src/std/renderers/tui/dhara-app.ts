@@ -571,6 +571,11 @@ export class DharaApp implements Component, Focusable {
         "agent:cancelled",
         () => {
           this.finishStream();
+          // Remove the in-progress tool component that was cancelled
+          if (this.currentTool) {
+            this.chatContainer.removeChild(this.currentTool);
+            this.currentTool = null;
+          }
           this.addMessage({ role: "system", content: "Cancelled." });
           this.footer.update({ state: "idle" });
           this.tui.requestRender();
@@ -585,6 +590,17 @@ export class DharaApp implements Component, Focusable {
             input: Record<string, unknown>;
           };
           this.setToolCall(payload.toolName, JSON.stringify(payload.input));
+          this.tui.requestRender();
+        },
+      ],
+      [
+        "tool:call_cancelled",
+        () => {
+          if (this.currentTool) {
+            this.chatContainer.removeChild(this.currentTool);
+            this.currentTool = null;
+          }
+          this.addMessage({ role: "system", content: "Tool call cancelled." });
           this.tui.requestRender();
         },
       ],
