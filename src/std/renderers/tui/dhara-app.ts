@@ -411,8 +411,8 @@ export class DharaApp implements Component, Focusable {
 
   setToolCall(toolName: string, args: string): void {
     this.currentToolArgs = this.formatToolArgs(args);
-    // Pass formatted args as the 4th parameter so they display in the title
-    this.currentTool = new ToolExecutionComponent(toolName, args, false, this.currentToolArgs);
+    // Show the tool name with formatted args in the title, empty content during execution
+    this.currentTool = new ToolExecutionComponent(toolName, "", false, this.currentToolArgs);
     this.chatContainer.addChild(this.currentTool);
 
     // Start/update loader animation
