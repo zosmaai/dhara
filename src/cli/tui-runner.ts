@@ -22,6 +22,7 @@ import { handleLogin, handleLogout } from "./auth-commands.js";
 import { handleCompact } from "./compact-commands.js";
 import { handleChangelog, handleHotkeys, handleScopedModels } from "./info-commands.js";
 import { handleModel } from "./model-commands.js";
+import { createProviderFromConfig } from "./provider-factory.js";
 import { handleClone, handleFork, handleTree } from "./session-branch-commands.js";
 import { handleImport, handleShare } from "./session-util-commands.js";
 import { handleSettings } from "./settings-commands.js";
@@ -29,7 +30,7 @@ import { handleSettings } from "./settings-commands.js";
 export interface TuiConfig {
   sessionManager: SessionManager;
   configManager: ConfigManager;
-  provider: Provider;
+  provider: Provider | null;
   cwd: string;
   modelId: string;
   providerName: string;
@@ -92,14 +93,16 @@ export async function runTui(config: TuiConfig): Promise<void> {
     session = newSession;
     sessionId = session.meta.sessionId.slice(0, 8);
 
-    // Re-create the agent loop with the new session
-    agent = createAgentLoop({
-      provider,
-      session,
-      tools,
-      systemPrompt: currentSystemPrompt,
-      maxIterations: currentMaxIterations,
-    });
+    // Re-create the agent loop with the new session (only if provider is available)
+    if (providerRef) {
+      agent = createAgentLoop({
+        provider: providerRef,
+        session,
+        tools,
+        systemPrompt: currentSystemPrompt,
+        maxIterations: currentMaxIterations,
+      });
+    }
 
     // Restore conversation history in the chat
     chat.restoreSessionHistory(session);
@@ -136,14 +139,19 @@ export async function runTui(config: TuiConfig): Promise<void> {
   let currentMaxIterations = maxIterations;
   const enabledModels = new Set<string>();
 
+  // ── Mutable provider reference (can be updated after /login) ──────
+  let providerRef = provider;
+
   // ── Agent ──────────────────────────────────────────────────────────
-  let agent: AgentLoop = createAgentLoop({
-    provider,
-    session,
-    tools,
-    systemPrompt: currentSystemPrompt,
-    maxIterations: currentMaxIterations,
-  });
+  let agent: AgentLoop | null = providerRef
+    ? createAgentLoop({
+        provider: providerRef,
+        session,
+        tools,
+        systemPrompt: currentSystemPrompt,
+        maxIterations: currentMaxIterations,
+      })
+    : null;
 
   // ── Terminal + TUI (pi-tui) ────────────────────────────────────────
   const terminal = new ProcessTerminal();
@@ -161,6 +169,27 @@ export async function runTui(config: TuiConfig): Promise<void> {
       state: "idle",
     },
     onSubmit: async (text: string) => {
+      // If no provider is configured, show guidance
+      if (!providerRef || !agent) {
+        chat.addMessage({
+          role: "system",
+          content: [
+            `No LLM is configured.`,
+            ``,
+            `Dhara needs an API key to run. Use /login to configure one.`,
+            ``,
+            `1. Choose API Key as the auth type`,
+            `2. Select your provider`,
+            `3. Enter your API key (masked with bullet characters)`,
+            ``,
+            `Your API key is stored locally in ~/.dhara/config.json.`,
+            `Once configured, you can start chatting immediately.`,
+          ].join("\n"),
+        });
+        tui.requestRender();
+        return;
+      }
+
       const eventBus = createEventBus();
       const abortController = new AbortController();
 
@@ -497,7 +526,32 @@ export async function runTui(config: TuiConfig): Promise<void> {
           return true;
 
         case "/login":
-          handleLogin(tui, chat, configManager);
+          handleLogin(tui, chat, configManager, () => {
+            // After login completes, try to re-create the provider
+            const newProvider = createProviderFromConfig(configManager, {
+              modelId,
+              maxTokens: currentMaxIterations,
+            });
+            if (newProvider) {
+              providerRef = newProvider;
+              agent = createAgentLoop({
+                provider: providerRef,
+                session,
+                tools,
+                systemPrompt: currentSystemPrompt,
+                maxIterations: currentMaxIterations,
+              });
+              chat.footer.update({
+                provider: providerName,
+                model: modelId,
+              });
+              chat.addMessage({
+                role: "system",
+                content: `Provider initialized. You can now chat with ${modelId}.`,
+              });
+              tui.requestRender();
+            }
+          });
           return true;
 
         case "/logout":
@@ -527,12 +581,16 @@ export async function runTui(config: TuiConfig): Promise<void> {
       chat.addMessage({ role: "system", content: "No reload handler configured." });
       return;
     }
+    if (!providerRef) {
+      chat.addMessage({ role: "system", content: "No LLM provider configured. Use /login first." });
+      return;
+    }
     try {
       const result = onReload();
       currentSystemPrompt = result.systemPrompt;
       currentMaxIterations = result.maxIterations;
       agent = createAgentLoop({
-        provider,
+        provider: providerRef,
         session,
         tools,
         systemPrompt: currentSystemPrompt,
@@ -568,6 +626,21 @@ export async function runTui(config: TuiConfig): Promise<void> {
 
   // ── Start ──────────────────────────────────────────────────────────
   tui.start();
+
+  // Show startup guidance if no LLM is configured
+  if (!providerRef) {
+    chat.addMessage({
+      role: "system",
+      content: [
+        `Welcome to Dhara ${pkgVersion}!`,
+        ``,
+        `No LLM provider is configured. To start using Dhara:`,
+        `  Run /login and choose API Key, then select your provider and enter your API key.`,
+        `  Your API key is stored in ~/.dhara/config.json.`,
+      ].join("\n"),
+    });
+    tui.requestRender();
+  }
 
   // Wait until TUI.stop() is called (from onExit via Ctrl+C/Ctrl+D)
   await new Promise<void>((resolve) => {

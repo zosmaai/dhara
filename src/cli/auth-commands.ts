@@ -14,8 +14,7 @@
  *   Store in ~/.dhara/config.json
  */
 
-import type { SelectItem } from "@earendil-works/pi-tui";
-import { SelectList } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, Input, type SelectItem, SelectList } from "@earendil-works/pi-tui";
 import type { ConfigManager } from "../core/config.js";
 import type { DharaApp } from "../std/renderers/tui/dhara-app.js";
 import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
@@ -94,6 +93,84 @@ const API_KEY_PROVIDERS: Array<{
   },
   { id: "bedrock", name: "Amazon Bedrock", envVar: "AWS_BEDROCK_API_KEY", description: "Bedrock" },
 ];
+
+// ── PasswordInput Component ───────────────────────────────────────────
+
+/**
+ * PasswordInput — wraps pi-tui's Input component to mask displayed characters.
+ *
+ * Delegates all input handling to the underlying Input, but overrides
+ * the render method to replace visible characters with bullet (•) symbols.
+ * Implements the Component interface so it can be used as a TUI overlay.
+ */
+class PasswordInput {
+  private input: Input;
+  private label: string;
+
+  onSubmit?: (value: string) => void;
+  onCancel?: () => void;
+
+  constructor(label: string) {
+    this.label = label;
+    this.input = new Input();
+
+    this.input.onSubmit = (value: string) => {
+      this.onSubmit?.(value);
+    };
+
+    this.input.onEscape = () => {
+      this.onCancel?.();
+    };
+  }
+
+  getValue(): string {
+    return this.input.getValue();
+  }
+
+  setValue(value: string): void {
+    this.input.setValue(value);
+  }
+
+  set focused(val: boolean) {
+    this.input.focused = val;
+  }
+
+  get focused(): boolean {
+    return this.input.focused;
+  }
+
+  handleInput(data: string): void {
+    this.input.handleInput(data);
+  }
+
+  invalidate(): void {
+    this.input.invalidate();
+  }
+
+  render(_width: number): string[] {
+    const length = this.input.getValue().length;
+    const masked = "\u2022".repeat(length); // bullet character
+    const cursor = this.focused ? CURSOR_MARKER : "";
+
+    return [
+      ` ${this.label}`,
+      ` ${masked}${cursor}`,
+      ` ${length} character(s) entered. Press Enter to confirm, Esc to cancel.`,
+    ];
+  }
+
+  /**
+   * Focus the underlying input by calling handleInput with empty string
+   * to ensure it's ready for keyboard input.
+   */
+  focus(): void {
+    this.focused = true;
+  }
+
+  blur(): void {
+    this.focused = false;
+  }
+}
 
 // ── Login flow ──────────────────────────────────────────────────────
 
@@ -226,7 +303,7 @@ function showApiKeyProviders(
 }
 
 /**
- * Show an API key input prompt using pi-tui's Input component,
+ * Prompt for an API key using a masked password input overlay,
  * then store the key via ConfigManager.
  */
 function promptForApiKey(
@@ -237,31 +314,19 @@ function promptForApiKey(
   providerName: string,
   onComplete?: () => void,
 ): void {
-  // We use a helper overlay pattern: show a system message with instructions
-  // then listen for the next non-command text input as the API key.
-  chat.addMessage({
-    role: "system",
-    content: [
-      `Enter your API key for ${providerName}.`,
-      ``,
-      `The key will be stored in ~/.dhara/config.json.`,
-      `Type your API key and press Enter, or type "cancel" to abort.`,
-    ].join("\n"),
-  });
-  tui.requestRender();
+  const passwordInput = new PasswordInput(`Enter API key for ${providerName}`);
 
-  // Store a one-shot handler on the chat's editor for the next submit
-  // We intercept via a custom onSubmit wrapper
-  const originalOnSubmit = chat.editor.onSubmit;
-  chat.editor.onSubmit = (text: string) => {
-    const trimmed = text.trim();
+  passwordInput.onSubmit = (value: string) => {
+    const trimmed = value.trim();
     if (!trimmed || trimmed.toLowerCase() === "cancel") {
+      tui.hideOverlay();
       chat.addMessage({ role: "system", content: "API key entry cancelled." });
-      chat.editor.onSubmit = originalOnSubmit;
       tui.requestRender();
       onComplete?.();
       return;
     }
+
+    tui.hideOverlay();
 
     // Store the API key
     try {
@@ -284,7 +349,7 @@ function promptForApiKey(
       }
       chat.addMessage({
         role: "system",
-        content: `✓ API key configured for ${providerName}.`,
+        content: `✓ API key configured for ${providerName}. The key is stored in ~/.dhara/config.json.`,
       });
     } catch (err) {
       chat.addMessage({
@@ -293,39 +358,23 @@ function promptForApiKey(
       });
     }
 
-    // Restore original onSubmit
-    chat.editor.onSubmit = originalOnSubmit;
-    chat.editor.setText("");
     tui.requestRender();
     onComplete?.();
   };
 
-  // Also handle Ctrl+C / Ctrl+D to cancel
-  const originalCtrlC = chat.editor.onCtrlC;
-  const originalCtrlD = chat.editor.onCtrlD;
-  chat.editor.onCtrlC = () => {
+  passwordInput.onCancel = () => {
+    tui.hideOverlay();
     chat.addMessage({ role: "system", content: "API key entry cancelled." });
-    chat.editor.onSubmit = originalOnSubmit;
-    chat.editor.onCtrlC = originalCtrlC;
-    chat.editor.onCtrlD = originalCtrlD;
-    chat.editor.setText("");
-    tui.requestRender();
-    onComplete?.();
-  };
-  chat.editor.onCtrlD = () => {
-    // Same as Ctrl+C for cancellation during API key entry
-    chat.addMessage({ role: "system", content: "API key entry cancelled." });
-    chat.editor.onSubmit = originalOnSubmit;
-    chat.editor.onCtrlC = originalCtrlC;
-    chat.editor.onCtrlD = originalCtrlD;
-    chat.editor.setText("");
     tui.requestRender();
     onComplete?.();
   };
 
-  chat.editor.setText("");
-  tui.setFocus(chat.editor);
-  tui.requestRender();
+  tui.showOverlay(passwordInput, {
+    anchor: "center",
+    width: "60%",
+  });
+
+  passwordInput.focus();
 }
 
 // ── Logout flow ─────────────────────────────────────────────────────

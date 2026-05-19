@@ -14,14 +14,12 @@ import { createSandbox } from "../core/sandbox.js";
 import { createSession } from "../core/session.js";
 import { SessionManager } from "../core/session-manager.js";
 import { discoverSkills, reloadSkills, type Skill } from "../core/skills.js";
-import { createAnthropicProvider } from "../std/providers/anthropic-provider.js";
-import { createOpenAIProvider } from "../std/providers/openai-provider.js";
-import { createPiAiProvider } from "../std/providers/pi-ai-adapter.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { generateCompletion } from "./completions.js";
 import { handleConfigSubcommand } from "./config-commands.js";
 import { runDoctor } from "./doctor.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
+import { createProviderByName } from "./provider-factory.js";
 import { handleRegistrySubcommand } from "./registry-commands.js";
 import { runRepl } from "./repl.js";
 import { handleSessionSubcommand } from "./session-commands.js";
@@ -143,7 +141,7 @@ interface ResolvedConfig {
   baseUrl: string | undefined;
   cwd: string;
   apiKey: string | undefined;
-  provider: Provider;
+  provider: Provider | null;
   projectSettings?: ProjectSettings;
 }
 
@@ -167,39 +165,11 @@ function resolveConfig(args: string[]): ResolvedConfig {
   const finalBaseUrl = projectConfig?.settings.baseUrl ?? baseUrl;
   const maxTokens = projectConfig?.settings.maxTokens;
 
-  let provider: Provider;
-  try {
-    if (providerName === "anthropic") {
-      if (!apiKey) {
-        process.stderr.write(
-          `Error: No API key found for "anthropic". Set ANTHROPIC_API_KEY or DHARA_API_KEY.\n`,
-        );
-        process.exit(1);
-      }
-      provider = createAnthropicProvider({ apiKey, maxTokens });
-    } else if (providerName === "openai" || providerName === "opencode-go") {
-      if (!apiKey) {
-        process.stderr.write(
-          `Error: No API key found for "${providerName}". Set ${providerInfo?.envVar ?? "DHARA_API_KEY"} or DHARA_API_KEY.\n`,
-        );
-        process.exit(1);
-      }
-      provider = createOpenAIProvider({ apiKey, baseUrl: finalBaseUrl });
-    } else {
-      // Use pi-ai adapter for all other providers (google, mistral, groq, etc.)
-      // pi-ai auto-discovers API keys from standard environment variables.
-      provider = createPiAiProvider({
-        provider: providerName,
-        model: finalModelId,
-        apiKey,
-        baseUrl: finalBaseUrl,
-      });
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`Error creating provider: ${msg}\n`);
-    process.exit(1);
-  }
+  const provider = createProviderByName(providerName, apiKey, {
+    modelId: finalModelId,
+    baseUrl: finalBaseUrl,
+    maxTokens,
+  });
 
   return {
     providerName,
@@ -367,14 +337,25 @@ async function main(): Promise<void> {
     const initialSystemPrompt = ctxState.build();
     const projectConfig = loadProjectConfig(cfg.cwd);
 
+    // ── Check provider for non-TUI modes ──────────────────────────
+    if (args.includes("--repl") && !cfg.provider) {
+      process.stderr.write(
+        `Error: No API key found for "${cfg.providerName}".\n` +
+          `Set the appropriate environment variable or use /login in the TUI to configure one.\n`,
+      );
+      process.exit(1);
+    }
+
     // ── REPL mode (--repl flag) ────────────────────────────────────
+    // Provider is guaranteed non-null here (checked above)
+    const replProvider = cfg.provider as import("../core/provider.js").Provider;
     if (args.includes("--repl")) {
       try {
         await runRepl({
           input: process.stdin,
           output: process.stdout,
           sessionManager,
-          provider: cfg.provider,
+          provider: replProvider,
           cwd: cfg.cwd,
           modelId: cfg.modelId,
           providerName: cfg.providerName,
@@ -440,6 +421,15 @@ async function main(): Promise<void> {
   // ── One-shot mode ───────────────────────────────────────────────────
   const cfg = resolveConfig(args);
   const ctxState = createContextState(cfg.cwd, disableContextFiles);
+
+  // One-shot mode requires a configured provider
+  if (!cfg.provider) {
+    process.stderr.write(
+      `Error: No API key found for "${cfg.providerName}".\n` +
+        `Set the appropriate environment variable or use /login in the TUI to configure one.\n`,
+    );
+    process.exit(1);
+  }
 
   const sandbox = createSandbox({
     granted: [
