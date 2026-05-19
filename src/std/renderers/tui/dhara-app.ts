@@ -31,12 +31,14 @@ import {
   ToolExecutionComponent,
   UserMessageComponent,
 } from "./dhara-messages.js";
-import { color, getEditorTheme, getMarkdownTheme } from "./dhara-theme.js";
+import { color, getMarkdownTheme } from "./dhara-theme.js";
+import { getTheme } from "./themes/index.js";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
 export interface DharaAppConfig {
   version?: string;
+  theme?: string;
   footerData: FooterData;
   onSubmit: (text: string) => void;
   onExit: () => void;
@@ -93,7 +95,9 @@ export class DharaApp implements Component, Focusable {
     this.cfg = config;
 
     // ── Theme ──────────────────────────────────────────────────────
-    const editorTheme: EditorTheme = getEditorTheme();
+    const themeName = config.theme ?? "dhara-default";
+    const activeTheme = getTheme(themeName);
+    const editorTheme: EditorTheme = activeTheme.getEditorTheme();
 
     // ── Header ─────────────────────────────────────────────────────
     this.headerContainer = new Container();

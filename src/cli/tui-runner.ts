@@ -21,6 +21,7 @@ export interface TuiConfig {
   cwd: string;
   modelId: string;
   providerName: string;
+  theme?: string;
   sandbox?: Sandbox;
   systemPrompt?: string;
   maxIterations?: number;
@@ -36,6 +37,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
     cwd,
     modelId,
     providerName,
+    theme,
     sandbox: sandboxOverride,
     systemPrompt,
     maxIterations = 10,
@@ -93,6 +95,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
   // ── DharaApp ──────────────────────────────────────────────────────
   const chat = new DharaApp(tui, {
     version: pkgVersion,
+    theme: theme ?? "dhara-default",
     footerData: {
       provider: providerName,
       model: modelId,

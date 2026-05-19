@@ -411,6 +411,7 @@ async function main(): Promise<void> {
         cwd: cfg.cwd,
         modelId: cfg.modelId,
         providerName: cfg.providerName,
+        theme: getArg(args, "theme") ?? "dhara-default",
         systemPrompt: initialSystemPrompt,
         maxIterations: cfg.projectSettings?.maxIterations ?? 10,
         resumeSessionId,
