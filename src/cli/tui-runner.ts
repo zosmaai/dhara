@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
  */
 import { type SelectItem, SelectList } from "@earendil-works/pi-tui";
 import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
+import type { ConfigManager } from "../core/config.js";
 import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
 import { createSandbox, type Sandbox } from "../core/sandbox.js";
@@ -16,9 +17,11 @@ import type { SessionManager } from "../core/session-manager.js";
 import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
 import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
+import { handleLogin, handleLogout } from "./auth-commands.js";
 
 export interface TuiConfig {
   sessionManager: SessionManager;
+  configManager: ConfigManager;
   provider: Provider;
   cwd: string;
   modelId: string;
@@ -35,6 +38,7 @@ export interface TuiConfig {
 export async function runTui(config: TuiConfig): Promise<void> {
   const {
     sessionManager,
+    configManager,
     provider,
     cwd,
     modelId,
@@ -324,6 +328,14 @@ export async function runTui(config: TuiConfig): Promise<void> {
           tui.requestRender();
           return true;
         }
+        case "/login":
+          handleLogin(tui, chat, configManager);
+          return true;
+
+        case "/logout":
+          handleLogout(tui, chat, configManager);
+          return true;
+
         case "/help":
         case "/hotkeys":
           chat.addMessage({
