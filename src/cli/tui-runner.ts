@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -286,6 +287,31 @@ export async function runTui(config: TuiConfig): Promise<void> {
           return true;
         }
         case "/session": {
+          const path = session.getPath();
+          const entries = path
+            .map((id) => session.getEntry(id))
+            .filter((e): e is import("../core/session.js").SessionEntry => e?.type === "entry");
+
+          // Role breakdown
+          const roleCount = new Map<string, number>();
+          let totalInput = 0;
+          let totalOutput = 0;
+          for (const e of entries) {
+            roleCount.set(e.role, (roleCount.get(e.role) ?? 0) + 1);
+            if (e.metadata?.tokenCount) {
+              totalInput += e.metadata.tokenCount.input ?? 0;
+              totalOutput += e.metadata.tokenCount.output ?? 0;
+            }
+          }
+
+          const duration = Date.now() - new Date(session.meta.createdAt).getTime();
+          const durationStr =
+            duration > 86400000
+              ? `${Math.floor(duration / 86400000)}d ${Math.floor((duration % 86400000) / 3600000)}h`
+              : duration > 3600000
+                ? `${Math.floor(duration / 3600000)}h ${Math.floor((duration % 3600000) / 60000)}m`
+                : `${Math.floor(duration / 60000)}m`;
+
           const nameLine = session.meta.name
             ? `Name: ${session.meta.name}`
             : `Session: ${sessionId}`;
@@ -297,9 +323,18 @@ export async function runTui(config: TuiConfig): Promise<void> {
               `Provider: ${providerName}`,
               `Model: ${modelId}`,
               `CWD: ${cwd}`,
-              `Entries: ${session.getPath().length}`,
+              `Entries: ${path.length} total, ${entries.length} session`,
+              `Roles: ${Array.from(roleCount.entries())
+                .map(([r, c]) => `${r}=${c}`)
+                .join(", ")}`,
+              totalInput > 0 || totalOutput > 0
+                ? `Tokens: ${totalInput.toLocaleString()} in / ${totalOutput.toLocaleString()} out`
+                : "",
+              `Duration: ${durationStr}`,
               `Saved sessions: ${sessionManager.list().length}`,
-            ].join("\n"),
+            ]
+              .filter((l) => l)
+              .join("\n"),
           });
           tui.requestRender();
           return true;
@@ -322,6 +357,45 @@ export async function runTui(config: TuiConfig): Promise<void> {
             tui.requestRender();
           });
           return true;
+        case "/copy": {
+          // Walk backwards to find the last assistant message
+          const path = session.getPath();
+          let copiedText = "";
+          for (let i = path.length - 1; i >= 0; i--) {
+            const entry = session.getEntry(path[i]);
+            if (entry?.type === "entry" && entry.role === "assistant") {
+              copiedText = entry.content
+                .filter((c): c is typeof c & { text: string } => c.type === "text" && !!c.text)
+                .map((c) => c.text)
+                .join("");
+              break;
+            }
+          }
+
+          if (!copiedText) {
+            chat.addMessage({ role: "system", content: "No assistant message to copy." });
+          } else {
+            // Try clipboard via xclip (Linux) or pbcopy (macOS)
+            const platform = process.platform;
+            const copyCmd =
+              platform === "darwin"
+                ? spawn("pbcopy")
+                : platform === "win32"
+                  ? spawn("clip")
+                  : spawn("xclip", ["-selection", "clipboard"]);
+
+            copyCmd.stdin.write(copiedText);
+            copyCmd.stdin.end();
+
+            const preview = copiedText.length > 120 ? `${copiedText.slice(0, 120)}...` : copiedText;
+            chat.addMessage({
+              role: "system",
+              content: `Copied to clipboard: ${preview}`,
+            });
+          }
+          tui.requestRender();
+          return true;
+        }
         case "/compact":
           chat.addMessage({ role: "system", content: "Compacting session..." });
           tui.requestRender();
