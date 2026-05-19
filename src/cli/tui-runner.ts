@@ -19,6 +19,7 @@ import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
 import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { handleLogin, handleLogout } from "./auth-commands.js";
+import { handleChangelog, handleHotkeys, handleScopedModels } from "./info-commands.js";
 import { handleModel } from "./model-commands.js";
 import { handleClone, handleFork, handleTree } from "./session-branch-commands.js";
 import { handleImport, handleShare } from "./session-util-commands.js";
@@ -132,6 +133,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
   const defaultPrompt = `You are Dhara, an AI coding agent operating in ${cwd}. You have access to file operations (read, write, edit, ls, grep) and shell commands (bash). Be concise and helpful.`;
   let currentSystemPrompt = systemPrompt ?? defaultPrompt;
   let currentMaxIterations = maxIterations;
+  const enabledModels = new Set<string>();
 
   // ── Agent ──────────────────────────────────────────────────────────
   let agent: AgentLoop = createAgentLoop({
@@ -463,6 +465,17 @@ export async function runTui(config: TuiConfig): Promise<void> {
           tui.requestRender();
           return true;
         }
+        case "/scoped-models":
+          handleScopedModels(tui, chat, enabledModels, (_models) => {
+            /* noop — the set reference is already updated */
+          });
+          return true;
+        case "/changelog":
+          handleChangelog(tui, chat);
+          return true;
+        case "/hotkeys":
+          handleHotkeys(tui, chat);
+          return true;
         case "/settings":
           handleSettings(
             tui,
@@ -487,11 +500,10 @@ export async function runTui(config: TuiConfig): Promise<void> {
           return true;
 
         case "/help":
-        case "/hotkeys":
           chat.addMessage({
             role: "system",
             content:
-              "Available commands: /quit, /clear, /resume [id], /new, /name <name>, /model [name], /session, /tree, /fork [idx], /clone, /compact, /export, /import, /settings, /reload, /copy, /share, /login, /logout, /hotkeys",
+              "Available commands: /quit, /clear, /resume [id], /new, /name <name>, /model [name], /session, /tree, /fork [idx], /clone, /compact, /export, /import, /settings, /reload, /copy, /share, /login, /logout, /hotkeys, /changelog, /scoped-models",
           });
           tui.requestRender();
           return true;
