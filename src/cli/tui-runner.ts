@@ -491,6 +491,11 @@ export async function runTui(config: TuiConfig): Promise<void> {
           );
           return true;
 
+        case "/reload":
+          doReload();
+          tui.requestRender();
+          return true;
+
         case "/login":
           handleLogin(tui, chat, configManager);
           return true;
@@ -516,28 +521,40 @@ export async function runTui(config: TuiConfig): Promise<void> {
     },
   });
 
+  // ── Reload helper ─────────────────────────────────────────────────
+  function doReload(): void {
+    if (!onReload) {
+      chat.addMessage({ role: "system", content: "No reload handler configured." });
+      return;
+    }
+    try {
+      const result = onReload();
+      currentSystemPrompt = result.systemPrompt;
+      currentMaxIterations = result.maxIterations;
+      agent = createAgentLoop({
+        provider,
+        session,
+        tools,
+        systemPrompt: currentSystemPrompt,
+        maxIterations: currentMaxIterations,
+      });
+      // Optionally restore session history after reload
+      chat.restoreSessionHistory(session);
+      chat.addMessage({
+        role: "system",
+        content: "Reloaded configuration and restored session context.",
+      });
+    } catch (err) {
+      chat.addMessage({
+        role: "error",
+        content: `Reload error: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
   // ── Reload (Shift+Ctrl+D) ──────────────────────────────────────────
   tui.onDebug = () => {
-    if (onReload) {
-      try {
-        const result = onReload();
-        currentSystemPrompt = result.systemPrompt;
-        currentMaxIterations = result.maxIterations;
-        agent = createAgentLoop({
-          provider,
-          session,
-          tools,
-          systemPrompt: currentSystemPrompt,
-          maxIterations: currentMaxIterations,
-        });
-        chat.addMessage({ role: "system", content: "Reloaded configuration." });
-      } catch (err) {
-        chat.addMessage({
-          role: "error",
-          content: `Reload error: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
-    }
+    doReload();
     tui.requestRender();
   };
 
