@@ -19,6 +19,7 @@ import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { handleLogin, handleLogout } from "./auth-commands.js";
 import { handleModel } from "./model-commands.js";
+import { handleSettings } from "./settings-commands.js";
 
 export interface TuiConfig {
   sessionManager: SessionManager;
@@ -34,6 +35,8 @@ export interface TuiConfig {
   resumeSessionId?: string;
   toolOverrides?: ToolRegistration[];
   onReload?: () => { systemPrompt: string; maxIterations: number };
+  /** Called when user changes theme via /settings. Return false to reject. */
+  onThemeChange?: (newTheme: string) => boolean;
 }
 
 export async function runTui(config: TuiConfig): Promise<void> {
@@ -48,6 +51,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
     systemPrompt,
     maxIterations = 10,
     resumeSessionId,
+    onThemeChange,
     toolOverrides,
     onReload,
   } = config;
@@ -340,6 +344,21 @@ export async function runTui(config: TuiConfig): Promise<void> {
           tui.requestRender();
           return true;
         }
+        case "/settings":
+          handleSettings(
+            tui,
+            chat,
+            configManager,
+            {
+              onThemeChange,
+              onThinkingLevelChange: (_level) => {
+                // Thinking level support TBD in agent loop
+              },
+            },
+            config.theme ?? "dhara-default",
+          );
+          return true;
+
         case "/login":
           handleLogin(tui, chat, configManager);
           return true;
