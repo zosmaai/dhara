@@ -486,8 +486,8 @@ export class DharaApp implements Component, Focusable {
       if (entry?.type !== "entry") continue;
 
       const textContent = entry.content
-        .filter((c) => c.type === "text" && c.text)
-        .map((c) => c.text!)
+        .filter((c): c is typeof c & { text: string } => c.type === "text" && !!c.text)
+        .map((c) => c.text)
         .join("");
 
       if (!textContent && !entry.toolCalls?.length) continue;
