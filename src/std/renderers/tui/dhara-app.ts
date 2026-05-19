@@ -1,12 +1,14 @@
 /**
  * DharaApp — Main TUI application component.
  *
- * Composes header, messages, editor, and footer into a single layout,
- * matching pi's InteractiveMode structure. Uses pi-tui's built-in components.
+ * Mirrors pi-coding-agent's InteractiveMode structure with enhanced components:
+ * - Thinking tokens display inline with styled formatting
+ * - Tool execution with loader animation before result
+ * - Proper message ordering: user → assistant → tool calls → assistant content
+ * - File diff rendering support
  *
  * Layout:
- *   headerContainer → chatContainer → pendingMessagesContainer →
- *   editorContainer → footer
+ *   headerContainer → chatContainer → statusContainer → editorContainer → footer
  */
 import {
   type Component,
@@ -29,7 +31,7 @@ import {
   ToolExecutionComponent,
   UserMessageComponent,
 } from "./dhara-messages.js";
-import { color, getEditorTheme } from "./dhara-theme.js";
+import { color, getEditorTheme, getMarkdownTheme } from "./dhara-theme.js";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -51,8 +53,6 @@ export class DharaApp implements Component, Focusable {
   headerContainer: Container;
   /** @internal */
   chatContainer: Container;
-  /** @internal */
-  pendingContainer: Container;
   /** @internal */
   statusContainer: Container;
   /** @internal */
@@ -103,9 +103,6 @@ export class DharaApp implements Component, Focusable {
 
     // ── Chat ───────────────────────────────────────────────────────
     this.chatContainer = new Container();
-
-    // ── Pending messages ───────────────────────────────────────────
-    this.pendingContainer = new Container();
 
     // ── Status (loader) — mirrors pi's statusContainer ──────────────
     this.statusContainer = new Container();
@@ -179,9 +176,17 @@ export class DharaApp implements Component, Focusable {
     this.tui.requestRender();
   }
 
+  // ── Streaming Assistant Message ────────────────────────────────────
+  // Mirrors pi-coding-agent's AssistantMessageComponent but with simpler structure
+  // Shows thinking tokens inline with styled formatting
   startStream(): void {
-    this.streamingMessage = new AssistantMessageComponent("");
-    this.chatContainer.addChild(this.streamingMessage);
+    // Ensure streaming message exists
+    if (!this.streamingMessage) {
+      this.streamingMessage = new AssistantMessageComponent("", "", getMarkdownTheme(), "▸ think");
+      this.chatContainer.addChild(this.streamingMessage);
+    }
+    this.streamingContent = "";
+    this.streamingMessage.updateContent("", "▸ think");
     this.startWorking();
     this.footer.update({ state: "thinking" });
     this.tui.requestRender();
@@ -203,7 +208,7 @@ export class DharaApp implements Component, Focusable {
     if (result) {
       this.streamingContent = result;
       if (this.streamingMessage) {
-        this.streamingMessage.updateContent(result);
+        this.streamingMessage.updateContent(this.streamingContent);
       }
     }
     this.streamingMessage = null;
@@ -213,19 +218,25 @@ export class DharaApp implements Component, Focusable {
     this.tui.requestRender();
   }
 
+  // ── Message Components ─────────────────────────────────────────────
+
   addMessage(msg: MessageConfig): void {
     switch (msg.role) {
       case "user":
         this.chatContainer.addChild(new UserMessageComponent(msg.content));
         break;
-      case "assistant":
-        this.chatContainer.addChild(new AssistantMessageComponent(msg.content, msg.reasoning));
+      case "assistant": {
+        // Assistant message with thinking tokens
+        const assistantMsg = new AssistantMessageComponent(msg.content, msg.reasoning ?? "");
+        this.chatContainer.addChild(assistantMsg);
         break;
-      case "tool":
-        this.chatContainer.addChild(
-          new ToolExecutionComponent(msg.toolCall ?? "tool", msg.content, false),
-        );
+      }
+      case "tool": {
+        // Tool execution with loader animation
+        const toolMsg = new ToolExecutionComponent(msg.toolCall ?? "tool", msg.content, false);
+        this.chatContainer.addChild(toolMsg);
         break;
+      }
       case "error":
         this.chatContainer.addChild(new ErrorMessageComponent(msg.content));
         this.footer.update({ state: "error" });
@@ -237,23 +248,42 @@ export class DharaApp implements Component, Focusable {
     this.tui.requestRender();
   }
 
+  // ── Tool Execution with Loader ─────────────────────────────────────
+  // Shows "Working..." loader before displaying result
   setToolCall(toolName: string, args: string): void {
-    this.currentTool = new ToolExecutionComponent(toolName, args);
+    this.currentTool = new ToolExecutionComponent(toolName, args, false);
     this.chatContainer.addChild(this.currentTool);
+
+    // Start loader animation
+    this.startWorking(`Executing ${toolName}...`);
+
+    this.tui.requestRender();
+  }
+
+  // Update tool call with diff rendering
+  updateToolCallDiff(_toolName: string, diffText: string): void {
+    if (!this.currentTool) return;
+
+    // Update the tool component with diff
+    this.currentTool.updateContentWithDiff(diffText, false);
     this.tui.requestRender();
   }
 
   setToolResult(toolName: string, result: string, isError = false): void {
     if (this.currentTool) {
-      // Remove previous tool component, add completed one
+      // Remove previous tool component
       this.chatContainer.removeChild(this.currentTool);
     }
+
     const tc = new ToolExecutionComponent(toolName, result, isError);
     this.chatContainer.addChild(tc);
+
     this.currentTool = null;
+    this.stopWorking();
     this.tui.requestRender();
   }
 
+  // ── Clear state ────────────────────────────────────────────────────
   clearMessages(): void {
     this.chatContainer.clear();
     this.streamingMessage = null;
@@ -262,6 +292,16 @@ export class DharaApp implements Component, Focusable {
     this.tui.requestRender();
   }
 
+  // ── Tool state management ───────────────────────────────────────────
+  getCurrentTool(): ToolExecutionComponent | null {
+    return this.currentTool;
+  }
+
+  setCurrentTool(tool: ToolExecutionComponent | null): void {
+    this.currentTool = tool;
+  }
+
+  // ── Footer ─────────────────────────────────────────────────────────
   setFooterTokens(tokens: { input: number; output: number }): void {
     this.footer.update({ tokens });
     this.tui.requestRender();
@@ -306,7 +346,6 @@ export class DharaApp implements Component, Focusable {
         "message:reasoning",
         () => {
           // Reasoning deltas can be appended to the streaming message
-          // For now, we just trigger a re-render
           this.tui.requestRender();
         },
       ],
@@ -372,13 +411,13 @@ export class DharaApp implements Component, Focusable {
           };
           // Extract text from ToolResult.content (ContentBlock[])
           const resultText = (payload.result?.content ?? [])
-            .filter((b) => b.type === "text")
+            .filter((b) => b.type === "text" && b.text)
             .map((b) => b.text ?? "")
             .join("\n");
           this.setToolResult(
             payload.toolName,
             resultText || JSON.stringify(payload.result),
-            payload.isError,
+            payload.isError ?? false,
           );
           this.tui.requestRender();
         },
