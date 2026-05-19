@@ -77,7 +77,7 @@ Options:
   --base-url <url>         Custom API base URL
   --cwd <path>             Working directory (default: current directory)
   --resume <id>            Resume a previous session by ID
-  --theme <name|path>      TUI theme (built-in: dhara-default, dracula)
+  --theme <name|path>      TUI theme (built-in: dhara-default, dracula, nord, catppuccin)
   --repl                   Use line-based REPL instead of TUI
   --no-context-files       Disable AGENTS.md / CLAUDE.md loading
   --no-project-config      Disable .dhara/settings.json loading
