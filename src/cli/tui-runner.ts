@@ -18,6 +18,7 @@ import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
 import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { handleLogin, handleLogout } from "./auth-commands.js";
+import { handleModel } from "./model-commands.js";
 
 export interface TuiConfig {
   sessionManager: SessionManager;
@@ -41,7 +42,6 @@ export async function runTui(config: TuiConfig): Promise<void> {
     configManager,
     provider,
     cwd,
-    modelId,
     providerName,
     theme,
     sandbox: sandboxOverride,
@@ -54,6 +54,9 @@ export async function runTui(config: TuiConfig): Promise<void> {
 
   // ── Version ────────────────────────────────────────────────────────
   const pkgVersion = getPkgVersion();
+
+  // Mutable references that can be updated by slash commands
+  let modelId = config.modelId;
 
   // ── Session ────────────────────────────────────────────────────────
   let session = resumeSessionId
@@ -298,13 +301,22 @@ export async function runTui(config: TuiConfig): Promise<void> {
           return true;
         }
         case "/model":
-          chat.addMessage({
-            role: "system",
-            content: args
-              ? `Switching to model: ${args}...`
-              : `Current model: ${modelId} from ${providerName}`,
+          handleModel(tui, chat, providerName, modelId, (_newProvider, newModel) => {
+            // Update session model metadata — provider.complete() reads this
+            session.meta.model = { id: newModel, provider: providerName };
+            try {
+              session.save();
+            } catch {
+              /* best effort */
+            }
+            modelId = newModel;
+            chat.footer.update({ model: newModel });
+            chat.addMessage({
+              role: "system",
+              content: `Switched to model: ${newModel}`,
+            });
+            tui.requestRender();
           });
-          tui.requestRender();
           return true;
         case "/compact":
           chat.addMessage({ role: "system", content: "Compacting session..." });
