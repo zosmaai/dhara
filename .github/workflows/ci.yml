@@ -56,4 +56,4 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Verify binary is executable
-        run: node -e "require('./dist/cli/main.js')" -- --help || true
+        run: node dist/cli/main.js --help 2>&1 | head -5

@@ -501,7 +501,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  process.stderr.write(`Unexpected error: ${err.message}\n`);
-  process.exit(1);
-});
+// Only run when called as the main entry point, not when required by another module
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] === __filename || process.env._DHARA_ENTRYPOINT) {
+  main().catch((err) => {
+    process.stderr.write(`Unexpected error: ${err.message}\n`);
+    process.exit(1);
+  });
+}
