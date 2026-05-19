@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 /**
@@ -224,10 +224,24 @@ export async function runTui(config: TuiConfig): Promise<void> {
           chat.addMessage({ role: "system", content: "Compacting session..." });
           tui.requestRender();
           return true;
-        case "/export":
-          chat.addMessage({ role: "system", content: `Exporting session ${sessionId}...` });
+        case "/export": {
+          const exportData = session.export();
+          const exportPath = args || join(cwd, `.dhara/sessions/${sessionId}.jsonl`);
+          try {
+            writeFileSync(exportPath, exportData, "utf-8");
+            chat.addMessage({
+              role: "system",
+              content: `Session exported to ${exportPath}`,
+            });
+          } catch (err) {
+            chat.addMessage({
+              role: "error",
+              content: `Export failed: ${err instanceof Error ? err.message : String(err)}`,
+            });
+          }
           tui.requestRender();
           return true;
+        }
         case "/help":
         case "/hotkeys":
           chat.addMessage({
