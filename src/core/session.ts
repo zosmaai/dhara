@@ -89,6 +89,7 @@ export interface SessionMeta {
   createdAt: string;
   updatedAt: string;
   cwd: string;
+  name?: string;
   model?: ModelRef;
   tags?: string[];
 }

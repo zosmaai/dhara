@@ -38,6 +38,7 @@ export interface SessionSummary {
   cwd: string;
   entryCount: number;
   fileSize: number;
+  name?: string;
 }
 
 /**
@@ -227,6 +228,7 @@ export class SessionManager {
         cwd: meta.cwd,
         entryCount: lines.length - 1,
         fileSize: stats.size,
+        name: meta.name,
       };
     } catch {
       return undefined;

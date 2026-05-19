@@ -22,6 +22,7 @@ import {
   type TUI,
 } from "@earendil-works/pi-tui";
 import type { EventBus, HookResult } from "../../../core/events.js";
+import type { Session } from "../../../core/session.js";
 import { DharaEditor } from "./dhara-editor.js";
 import { FooterComponent, type FooterData } from "./dhara-footer.js";
 import { HeaderComponent } from "./dhara-header.js";
@@ -469,6 +470,55 @@ export class DharaApp implements Component, Focusable {
     this.currentTool = null;
     this.toolComponents = [];
     this.stopWorking();
+    this.tui.requestRender();
+  }
+
+  /**
+   * Restore conversation history from a session into the chat display.
+   * Clears existing messages first, then replays all entries.
+   */
+  restoreSessionHistory(session: Session): void {
+    this.clearMessages();
+
+    const path = session.getPath();
+    for (const id of path) {
+      const entry = session.getEntry(id);
+      if (entry?.type !== "entry") continue;
+
+      const textContent = entry.content
+        .filter((c): c is typeof c & { text: string } => c.type === "text" && !!c.text)
+        .map((c) => c.text)
+        .join("");
+
+      if (!textContent && !entry.toolCalls?.length) continue;
+
+      if (entry.role === "user" && textContent) {
+        this.chatContainer.addChild(new UserMessageComponent(textContent));
+      } else if (entry.role === "assistant") {
+        const reasoning = entry.reasoningContent ?? "";
+        if (textContent || reasoning) {
+          this.chatContainer.addChild(
+            new AssistantMessageComponent(textContent, reasoning, getMarkdownTheme()),
+          );
+        }
+        // Show tool calls inline
+        if (entry.toolCalls) {
+          for (const tc of entry.toolCalls) {
+            const argsStr = JSON.stringify(tc.input);
+            this.chatContainer.addChild(new ToolExecutionComponent(tc.name, "", false, argsStr));
+          }
+        }
+      } else if (entry.role === "tool_result" && entry.toolName) {
+        this.chatContainer.addChild(
+          new ToolExecutionComponent(
+            entry.toolName,
+            textContent || "(completed)",
+            entry.isError ?? false,
+          ),
+        );
+      }
+    }
+
     this.tui.requestRender();
   }
 

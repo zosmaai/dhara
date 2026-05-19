@@ -267,8 +267,9 @@ export async function runRepl(config: ReplConfig): Promise<void> {
       case "resume":
         try {
           const loaded = sessionManager.load(command.sessionId);
+          const displayName = loaded.meta.name ?? command.sessionId.slice(0, 8);
           output.write(
-            `Switched to session ${tag(ANSI.cyan, command.sessionId, colorEnabled)} (${loaded.getPath().length} entries).\n`,
+            `Switched to session ${tag(ANSI.cyan, displayName, colorEnabled)} (${loaded.getPath().length} entries).\n`,
           );
           output.write(`${dim("Use --resume when starting dhara to open a previous session.")}\n`);
         } catch {
@@ -379,10 +380,23 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           );
         }
 
-        output.write(`  Session: ${session.meta.sessionId}\n`);
+        const sessionName = session.meta.name
+          ? `${session.meta.name} (${tag(ANSI.dim, session.meta.sessionId, colorEnabled)})`
+          : session.meta.sessionId;
+        output.write(`  Session: ${sessionName}\n`);
         output.write("\n");
         break;
       }
+
+      case "name":
+        session.meta.name = command.name;
+        try {
+          session.save();
+        } catch {
+          /* best effort */
+        }
+        output.write(`Session renamed to: ${tag(ANSI.cyan, command.name, colorEnabled)}\n`);
+        break;
 
       case "help":
         output.write(`\n${bold("Commands")}:\n`);
@@ -393,6 +407,9 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         );
         output.write(`  ${tag(ANSI.yellow, "/list", colorEnabled)}      List saved sessions\n`);
         output.write(`  ${tag(ANSI.yellow, "/resume", colorEnabled)}    Resume a session by ID\n`);
+        output.write(
+          `  ${tag(ANSI.yellow, "/name", colorEnabled)}      Set session display name\n`,
+        );
         output.write(
           `  ${tag(ANSI.yellow, "/reload", colorEnabled)}    Reload AGENTS.md, CLAUDE.md, .dhara/settings.json, and skills\n`,
         );
@@ -493,7 +510,8 @@ export type ReplCommand =
   | { type: "reload" }
   | { type: "status" }
   | { type: "skills" }
-  | { type: "history"; count: number }; // Default 10
+  | { type: "history"; count: number }
+  | { type: "name"; name: string }; // Set session display name
 
 const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   exit: () => ({ type: "exit" }),
@@ -505,6 +523,7 @@ const SLASH_COMMANDS: Record<string, (arg: string) => ReplCommand | null> = {
   reload: () => ({ type: "reload" }),
   status: () => ({ type: "status" }),
   skills: () => ({ type: "skills" }),
+  name: (arg) => (arg ? { type: "name", name: arg } : null),
   history: (arg) => {
     const count = arg ? Number.parseInt(arg, 10) : 10;
     return { type: "history", count: Number.isNaN(count) ? 10 : Math.max(count, 1) };
