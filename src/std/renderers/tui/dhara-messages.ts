@@ -201,18 +201,13 @@ export class UserMessageComponent extends Container {
 
 // ── Assistant Message ────────────────────────────────────────────────
 // Mirrors pi-coding-agent's AssistantMessageComponent
-// Supports thinking tokens inline with styled formatting
+// Supports thinking tokens with "▸ think" label and inline content
 export class AssistantMessageComponent extends Container {
-  private md: Markdown;
+  private md!: Markdown;
   private reasoningText: string = "";
   private mdTheme: MarkdownTheme;
 
-  constructor(
-    content: string,
-    reasoning?: string,
-    markdownTheme?: MarkdownTheme,
-    _hiddenThinkingLabel: string = "\u25B8 think",
-  ) {
+  constructor(content: string, reasoning?: string, markdownTheme?: MarkdownTheme) {
     super();
     this.mdTheme = markdownTheme ?? getMarkdownTheme();
 
@@ -220,20 +215,18 @@ export class AssistantMessageComponent extends Container {
     this.addChild(new Text(` ${color.bold(color.accent("Dhara"))}`, 0, 0));
     this.addChild(new Spacer(1));
 
-    // Content (rendered as Markdown with proper padding)
-    this.md = new Markdown(content, 1, 0, this.mdTheme);
-    this.addChild(this.md);
-    this.addChild(new Spacer(1));
-
-    // Reasoning/thinking tokens (inline styling, no background)
+    // Reasoning/thinking tokens — shown before content when present
     if (reasoning) {
-      // Show thinking in thinkingText color, italicized
-      this.addChild(
-        new Markdown(reasoning, 1, 0, this.mdTheme, {
-          color: (_text: string) => color.thinkingText(_text),
-          italic: true,
-        }),
-      );
+      const thinkingLabel = color.thinkingText(`\u25B8 think`);
+      this.addChild(new Text(`  ${thinkingLabel}`, 1, 0));
+      this.addChild(new Text(`  ${color.thinkingText(reasoning)}`, 1, 0));
+      this.addChild(new Spacer(1));
+    }
+
+    // Content (rendered as Markdown with proper padding)
+    if (content) {
+      this.md = new Markdown(content, 1, 0, this.mdTheme);
+      this.addChild(this.md);
       this.addChild(new Spacer(1));
     }
   }
@@ -247,18 +240,18 @@ export class AssistantMessageComponent extends Container {
     this.addChild(new Text(` ${color.bold(color.accent("Dhara"))}`, 0, 0));
     this.addChild(new Spacer(1));
 
-    this.md = new Markdown(content, 1, 0, theme);
-    this.addChild(this.md);
-    this.addChild(new Spacer(1));
-
     // Reasoning/thinking tokens
     if (this.reasoningText) {
-      this.addChild(
-        new Markdown(this.reasoningText, 1, 0, this.mdTheme, {
-          color: (_text: string) => color.thinkingText(_text),
-          italic: true,
-        }),
-      );
+      const thinkingLabel = color.thinkingText(`\u25B8 think`);
+      this.addChild(new Text(`  ${thinkingLabel}`, 1, 0));
+      this.addChild(new Text(`  ${color.thinkingText(this.reasoningText)}`, 1, 0));
+      this.addChild(new Spacer(1));
+    }
+
+    // Content
+    if (content) {
+      this.md = new Markdown(content, 1, 0, theme);
+      this.addChild(this.md);
       this.addChild(new Spacer(1));
     }
   }

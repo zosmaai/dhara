@@ -4,7 +4,7 @@
  * Mirrors pi-coding-agent's InteractiveMode structure with enhanced components:
  * - Thinking tokens display inline with styled formatting
  * - Tool execution with loader animation before result
- * - Proper message ordering: user → assistant → tool calls → assistant content
+ * - Proper message ordering: tools then answer at agent:end
  * - File diff rendering support
  *
  * Layout:
@@ -74,9 +74,12 @@ export class DharaApp implements Component, Focusable {
   // Config
   private cfg: DharaAppConfig;
 
-  // Streaming state
-  private streamingMessage: AssistantMessageComponent | null = null;
-  private streamingContent = "";
+  // Accumulated streaming state
+  private accumulatedContent = "";
+  private accumulatedReasoning = "";
+  private isAssistantRunning = false;
+
+  // Current tool being executed (null when idle)
   private currentTool: ToolExecutionComponent | null = null;
 
   // Exit: double-tap Ctrl+C
@@ -86,6 +89,7 @@ export class DharaApp implements Component, Focusable {
   // Loader state
   /** @internal */
   loader: Loader;
+  private loaderRunning = false;
 
   // Event cleanup
   private unsubs: (() => void)[] = [];
@@ -148,15 +152,24 @@ export class DharaApp implements Component, Focusable {
   // ── Loader control ─────────────────────────────────────────────────
 
   startWorking(message = "Working..."): void {
+    if (this.loaderRunning) {
+      // Already running, just update the message
+      this.loader.setMessage(message);
+      this.tui.requestRender();
+      return;
+    }
     this.loader.setMessage(message);
     this.statusContainer.addChild(this.loader);
     this.loader.start();
+    this.loaderRunning = true;
     this.tui.requestRender();
   }
 
   stopWorking(): void {
+    if (!this.loaderRunning) return;
     this.loader.stop();
     this.statusContainer.clear();
+    this.loaderRunning = false;
     this.tui.requestRender();
   }
 
@@ -180,43 +193,51 @@ export class DharaApp implements Component, Focusable {
     this.tui.requestRender();
   }
 
-  // ── Streaming Assistant Message ────────────────────────────────────
-  // Mirrors pi-coding-agent's AssistantMessageComponent but with simpler structure
-  // Shows thinking tokens inline with styled formatting
+  // ── Streaming / Accumulation ───────────────────────────────────────
+  // Rather than creating an AssistantMessageComponent mid-stream, we
+  // accumulate content and reasoning during agent execution and only
+  // render the final component at agent:end (below any tool calls).
+
   startStream(): void {
-    // Ensure streaming message exists
-    if (!this.streamingMessage) {
-      this.streamingMessage = new AssistantMessageComponent("", "", getMarkdownTheme(), "▸ think");
-      this.chatContainer.addChild(this.streamingMessage);
-    }
-    this.streamingContent = "";
-    this.streamingMessage.updateContent("", "▸ think");
+    this.accumulatedContent = "";
+    this.accumulatedReasoning = "";
+    this.isAssistantRunning = true;
     this.startWorking();
     this.footer.update({ state: "thinking" });
     this.tui.requestRender();
   }
 
   updateStream(delta: string): void {
-    if (!this.streamingMessage) {
-      this.startStream();
-    }
-    this.streamingContent += delta;
-    if (this.streamingMessage) {
-      this.streamingMessage.updateContent(this.streamingContent);
-    }
+    if (!this.isAssistantRunning) return;
+    this.accumulatedContent += delta;
     this.footer.update({ state: "streaming" });
+    this.tui.requestRender();
+  }
+
+  updateReasoning(text: string): void {
+    if (!this.isAssistantRunning) return;
+    this.accumulatedReasoning += text;
     this.tui.requestRender();
   }
 
   finishStream(result?: string): void {
     if (result) {
-      this.streamingContent = result;
-      if (this.streamingMessage) {
-        this.streamingMessage.updateContent(this.streamingContent);
-      }
+      this.accumulatedContent = result;
     }
-    this.streamingMessage = null;
-    this.streamingContent = "";
+
+    // Create the final AssistantMessageComponent with accumulated content + reasoning
+    if (this.accumulatedContent || this.accumulatedReasoning) {
+      const assistantMsg = new AssistantMessageComponent(
+        this.accumulatedContent,
+        this.accumulatedReasoning || undefined,
+        getMarkdownTheme(),
+      );
+      this.chatContainer.addChild(assistantMsg);
+    }
+
+    this.accumulatedContent = "";
+    this.accumulatedReasoning = "";
+    this.isAssistantRunning = false;
     this.stopWorking();
     this.footer.update({ state: "idle" });
     this.tui.requestRender();
@@ -253,12 +274,12 @@ export class DharaApp implements Component, Focusable {
   }
 
   // ── Tool Execution with Loader ─────────────────────────────────────
-  // Shows "Working..." loader before displaying result
+
   setToolCall(toolName: string, args: string): void {
     this.currentTool = new ToolExecutionComponent(toolName, args, false);
     this.chatContainer.addChild(this.currentTool);
 
-    // Start loader animation
+    // Start/update loader animation
     this.startWorking(`Executing ${toolName}...`);
 
     this.tui.requestRender();
@@ -283,16 +304,25 @@ export class DharaApp implements Component, Focusable {
     this.chatContainer.addChild(tc);
 
     this.currentTool = null;
-    this.stopWorking();
+
+    // If assistant is still running, keep the loader going
+    if (!this.isAssistantRunning) {
+      this.stopWorking();
+    } else {
+      // Update loader message back to generic "Working..."
+      this.startWorking();
+    }
     this.tui.requestRender();
   }
 
   // ── Clear state ────────────────────────────────────────────────────
   clearMessages(): void {
     this.chatContainer.clear();
-    this.streamingMessage = null;
-    this.streamingContent = "";
+    this.accumulatedContent = "";
+    this.accumulatedReasoning = "";
+    this.isAssistantRunning = false;
     this.currentTool = null;
+    this.stopWorking();
     this.tui.requestRender();
   }
 
@@ -348,9 +378,11 @@ export class DharaApp implements Component, Focusable {
       ],
       [
         "message:reasoning",
-        () => {
-          // Reasoning deltas can be appended to the streaming message
-          this.tui.requestRender();
+        (e) => {
+          const payload = e as { text?: string };
+          if (payload.text) {
+            this.updateReasoning(payload.text);
+          }
         },
       ],
       [
