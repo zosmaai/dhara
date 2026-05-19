@@ -395,10 +395,16 @@ export class DharaApp implements Component, Focusable {
     try {
       const parsed = JSON.parse(args);
       if (typeof parsed === "object" && parsed !== null) {
-        const entries = Object.entries(parsed);
-        return entries
+        return Object.entries(parsed)
           .map(([k, v]) => {
-            const val = typeof v === "string" ? v : JSON.stringify(v);
+            const val =
+              typeof v === "string"
+                ? v.length > 60
+                  ? `${v.slice(0, 57)}...`
+                  : v
+                : JSON.stringify(v).length > 60
+                  ? `${JSON.stringify(v).slice(0, 57)}...`
+                  : JSON.stringify(v);
             return `${k}: ${val}`;
           })
           .join(", ");
