@@ -304,7 +304,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
             }
           }
 
-          const duration = new Date().getTime() - new Date(session.meta.createdAt).getTime();
+          const duration = Date.now() - new Date(session.meta.createdAt).getTime();
           const durationStr =
             duration > 86400000
               ? `${Math.floor(duration / 86400000)}d ${Math.floor((duration % 86400000) / 3600000)}h`
@@ -365,8 +365,8 @@ export async function runTui(config: TuiConfig): Promise<void> {
             const entry = session.getEntry(path[i]);
             if (entry?.type === "entry" && entry.role === "assistant") {
               copiedText = entry.content
-                .filter((c) => c.type === "text" && c.text)
-                .map((c) => c.text!)
+                .filter((c): c is typeof c & { text: string } => c.type === "text" && !!c.text)
+                .map((c) => c.text)
                 .join("");
               break;
             }
@@ -387,7 +387,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
             copyCmd.stdin.write(copiedText);
             copyCmd.stdin.end();
 
-            const preview = copiedText.length > 120 ? copiedText.slice(0, 120) + "..." : copiedText;
+            const preview = copiedText.length > 120 ? `${copiedText.slice(0, 120)}...` : copiedText;
             chat.addMessage({
               role: "system",
               content: `Copied to clipboard: ${preview}`,
