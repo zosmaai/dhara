@@ -19,6 +19,7 @@ import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
 import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { handleLogin, handleLogout } from "./auth-commands.js";
+import { handleCompact } from "./compact-commands.js";
 import { handleChangelog, handleHotkeys, handleScopedModels } from "./info-commands.js";
 import { handleModel } from "./model-commands.js";
 import { handleClone, handleFork, handleTree } from "./session-branch-commands.js";
@@ -444,8 +445,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
           );
           return true;
         case "/compact":
-          chat.addMessage({ role: "system", content: "Compacting session..." });
-          tui.requestRender();
+          handleCompact(tui, chat, session);
           return true;
         case "/export": {
           const exportData = session.export();
