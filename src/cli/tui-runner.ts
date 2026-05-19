@@ -128,6 +128,54 @@ export async function runTui(config: TuiConfig): Promise<void> {
         tui.requestRender();
       }
     },
+    onSlashCommand: (command: string, args: string) => {
+      switch (command) {
+        case "/resume":
+          chat.addMessage({ role: "system", content: "Resuming a different session..." });
+          tui.requestRender();
+          return true;
+        case "/new":
+          session.save();
+          chat.addMessage({ role: "system", content: "Creating new session..." });
+          tui.requestRender();
+          return true;
+        case "/session":
+          chat.addMessage({
+            role: "system",
+            content: `Session ${sessionId} | Provider: ${providerName} | Model: ${modelId} | CWD: ${cwd}`,
+          });
+          tui.requestRender();
+          return true;
+        case "/model":
+          chat.addMessage({
+            role: "system",
+            content: args
+              ? `Switching to model: ${args}...`
+              : `Current model: ${modelId} from ${providerName}`,
+          });
+          tui.requestRender();
+          return true;
+        case "/compact":
+          chat.addMessage({ role: "system", content: "Compacting session..." });
+          tui.requestRender();
+          return true;
+        case "/export":
+          chat.addMessage({ role: "system", content: `Exporting session ${sessionId}...` });
+          tui.requestRender();
+          return true;
+        case "/help":
+        case "/hotkeys":
+          chat.addMessage({
+            role: "system",
+            content:
+              "Available commands: /quit, /clear, /resume, /new, /model, /session, /compact, /export, /import, /settings, /fork, /clone, /tree, /reload, /copy, /share, /name, /login, /logout, /hotkeys",
+          });
+          tui.requestRender();
+          return true;
+        default:
+          return false;
+      }
+    },
     onExit: () => {
       tui.stop();
     },
