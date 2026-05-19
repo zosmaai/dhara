@@ -283,6 +283,8 @@ export class ToolExecutionComponent extends Container {
   private contentText: Text;
   private isError: boolean;
   private fullContent: string = "";
+  private toolName: string;
+  private toolArgs: string = "";
   private hasDiff: boolean = false;
   private _expanded = false;
 
@@ -291,17 +293,21 @@ export class ToolExecutionComponent extends Container {
     return this._expanded;
   }
 
-  constructor(toolName: string, content: string, isError = false) {
+  constructor(toolName: string, content: string, isError = false, args?: string) {
     super();
     this.isError = isError;
     this.fullContent = content;
+    this.toolName = toolName;
+    this.toolArgs = args ?? "";
 
     // Tool title with background (same color as content for premium look)
     const bgFn = isError ? color.toolErrorBg : color.toolSuccessBg;
     const statusIcon = isError ? color.error("\u2717") : color.muted("\u2699");
 
+    // Build title: show tool name + args (the full command)
+    const argsDisplay = this.toolArgs ? ` ${color.dim(this.toolArgs)}` : "";
     this.toolTitle = new Text(
-      ` ${statusIcon} ${color.bold(color.toolTitle(toolName))}`,
+      ` ${statusIcon} ${color.bold(color.toolTitle(toolName))}${argsDisplay}`,
       1,
       0,
       bgFn,
@@ -327,6 +333,16 @@ export class ToolExecutionComponent extends Container {
   private updateDisplay(): void {
     this.clear();
     this.addChild(new Spacer(1));
+    // Rebuild toolTitle with current tool name + args
+    const bgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
+    const statusIcon = this.isError ? color.error("\u2717") : color.muted("\u2699");
+    const argsDisplay = this.toolArgs ? ` ${color.dim(this.toolArgs)}` : "";
+    this.toolTitle = new Text(
+      ` ${statusIcon} ${color.bold(color.toolTitle(this.toolName))}${argsDisplay}`,
+      1,
+      0,
+      bgFn,
+    );
     this.addChild(this.toolTitle);
 
     const contentBgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
@@ -365,18 +381,20 @@ export class ToolExecutionComponent extends Container {
     this.addChild(new Spacer(1));
   }
 
-  updateContent(content: string, isError?: boolean): void {
+  updateContent(content: string, isError?: boolean, args?: string): void {
     this.fullContent = content;
     this.hasDiff = false;
     this.isError = isError ?? this.isError;
+    if (args !== undefined) this.toolArgs = args;
     this.updateDisplay();
   }
 
   // Update to show diff rendering instead of plain text
-  updateContentWithDiff(diffText: string, isError?: boolean): void {
+  updateContentWithDiff(diffText: string, isError?: boolean, args?: string): void {
     this.fullContent = diffText;
     this.hasDiff = true;
     this.isError = isError ?? this.isError;
+    if (args !== undefined) this.toolArgs = args;
     this.updateDisplay();
   }
 

@@ -387,8 +387,32 @@ export class DharaApp implements Component, Focusable {
 
   // ── Tool Execution with Loader ─────────────────────────────────────
 
+  /** Store current tool args separately so they can be shown in the result component */
+  private currentToolArgs: string = "";
+
+  /** Format tool args as a concise one-line string for display alongside tool name */
+  private formatToolArgs(args: string): string {
+    try {
+      const parsed = JSON.parse(args);
+      if (typeof parsed === "object" && parsed !== null) {
+        const entries = Object.entries(parsed);
+        return entries
+          .map(([k, v]) => {
+            const val = typeof v === "string" ? v : JSON.stringify(v);
+            return `${k}: ${val}`;
+          })
+          .join(", ");
+      }
+    } catch {
+      // Not valid JSON, show as-is
+    }
+    return args;
+  }
+
   setToolCall(toolName: string, args: string): void {
-    this.currentTool = new ToolExecutionComponent(toolName, args, false);
+    this.currentToolArgs = this.formatToolArgs(args);
+    // Pass formatted args as the 4th parameter so they display in the title
+    this.currentTool = new ToolExecutionComponent(toolName, args, false, this.currentToolArgs);
     this.chatContainer.addChild(this.currentTool);
 
     // Start/update loader animation
@@ -412,7 +436,8 @@ export class DharaApp implements Component, Focusable {
       this.chatContainer.removeChild(this.currentTool);
     }
 
-    const tc = new ToolExecutionComponent(toolName, result, isError);
+    // Pass stored args so the result component also shows the full command in its title
+    const tc = new ToolExecutionComponent(toolName, result, isError, this.currentToolArgs);
     this.chatContainer.addChild(tc);
     this.toolComponents.push(tc);
 
