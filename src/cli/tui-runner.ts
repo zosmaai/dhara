@@ -52,11 +52,49 @@ export async function runTui(config: TuiConfig): Promise<void> {
   const pkgVersion = getPkgVersion();
 
   // ── Session ────────────────────────────────────────────────────────
-  const session = resumeSessionId
+  let session = resumeSessionId
     ? sessionManager.load(resumeSessionId)
     : sessionManager.create({ cwd, model: { id: modelId, provider: providerName } });
 
-  const sessionId = session.meta.sessionId.slice(0, 8);
+  let sessionId = session.meta.sessionId.slice(0, 8);
+
+  /**
+   * Helper: swap the current session + agent with a new one.
+   * Saves the old session, loads the new one, re-creates the agent loop,
+   * restores history in the chat, and updates the footer.
+   */
+  function switchToSession(
+    newSession: import("../core/session.js").Session & { save(): void },
+  ): void {
+    // Save the current session first
+    try {
+      session.save();
+    } catch {
+      /* best effort */
+    }
+
+    session = newSession;
+    sessionId = session.meta.sessionId.slice(0, 8);
+
+    // Re-create the agent loop with the new session
+    agent = createAgentLoop({
+      provider,
+      session,
+      tools,
+      systemPrompt: currentSystemPrompt,
+      maxIterations: currentMaxIterations,
+    });
+
+    // Restore conversation history in the chat
+    chat.restoreSessionHistory(session);
+
+    // Update footer with new session info
+    const displayName = session.meta.name ?? sessionId;
+    chat.footer.update({
+      sessionId: displayName,
+      state: "idle",
+    });
+  }
 
   // ── Sandbox ────────────────────────────────────────────────────────
   const sandbox =
@@ -134,12 +172,14 @@ export async function runTui(config: TuiConfig): Promise<void> {
       switch (command) {
         case "/resume": {
           if (args) {
-            // Resume specific session by ID
+            // Resume specific session by ID — actually swap into it
             try {
               const resumed = sessionManager.load(args);
+              switchToSession(resumed);
+              const displayName = resumed.meta.name ?? resumed.meta.sessionId.slice(0, 8);
               chat.addMessage({
                 role: "system",
-                content: `Resumed session ${resumed.meta.sessionId.slice(0, 8)}`,
+                content: `Resumed session: ${displayName} (${resumed.getPath().length} entries)`,
               });
             } catch {
               chat.addMessage({
@@ -151,7 +191,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
             return true;
           }
 
-          // Show session picker overlay
+          // No args — show session picker overlay with names
           const sessions = sessionManager.list();
           if (sessions.length === 0) {
             chat.addMessage({ role: "system", content: "No saved sessions found." });
@@ -161,8 +201,8 @@ export async function runTui(config: TuiConfig): Promise<void> {
 
           const items: SelectItem[] = sessions.map((s) => ({
             value: s.sessionId,
-            label: s.sessionId.slice(0, 8),
-            description: `${s.entryCount} entries · ${new Date(s.createdAt).toLocaleDateString()}`,
+            label: s.name ?? s.sessionId.slice(0, 8),
+            description: `${s.entryCount} entries · ${new Date(s.createdAt).toLocaleDateString()}${s.name ? ` · id: ${s.sessionId.slice(0, 8)}` : ""}`,
           }));
 
           const sessionList = new SelectList(items, 10, getSelectListTheme());
@@ -170,9 +210,11 @@ export async function runTui(config: TuiConfig): Promise<void> {
             tui.hideOverlay();
             try {
               const resumed = sessionManager.load(item.value);
+              switchToSession(resumed);
+              const displayName = resumed.meta.name ?? resumed.meta.sessionId.slice(0, 8);
               chat.addMessage({
                 role: "system",
-                content: `Resumed session ${resumed.meta.sessionId.slice(0, 8)}`,
+                content: `Resumed session: ${displayName} (${resumed.getPath().length} entries)`,
               });
             } catch {
               chat.addMessage({
@@ -192,25 +234,65 @@ export async function runTui(config: TuiConfig): Promise<void> {
           });
           return true;
         }
-        case "/new": {
-          session.save();
-          chat.addMessage({ role: "system", content: "Starting a new session..." });
+        case "/name": {
+          if (!args) {
+            const currentName = session.meta.name ?? sessionId;
+            chat.addMessage({
+              role: "system",
+              content: `Current session name: ${currentName}\nUse /name <new-name> to change it.`,
+            });
+          } else {
+            session.meta.name = args;
+            try {
+              session.save();
+            } catch {
+              /* best effort */
+            }
+            const displayName = session.meta.name ?? sessionId;
+            chat.footer.update({ sessionId: displayName });
+            chat.addMessage({
+              role: "system",
+              content: `Session renamed to: ${args}`,
+            });
+          }
           tui.requestRender();
           return true;
         }
-        case "/session":
+        case "/new": {
+          // Save current, create fresh session, switch to it
+          try {
+            session.save();
+          } catch {
+            /* best effort */
+          }
+          const fresh = sessionManager.create({
+            cwd,
+            model: { id: modelId, provider: providerName },
+          });
+          switchToSession(fresh);
+          chat.addMessage({ role: "system", content: "Started a new session." });
+          tui.requestRender();
+          return true;
+        }
+        case "/session": {
+          const nameLine = session.meta.name
+            ? `Name: ${session.meta.name}`
+            : `Session: ${sessionId}`;
           chat.addMessage({
             role: "system",
             content: [
-              `Session: ${sessionId}`,
+              nameLine,
+              `ID: ${session.meta.sessionId}`,
               `Provider: ${providerName}`,
               `Model: ${modelId}`,
               `CWD: ${cwd}`,
+              `Entries: ${session.getPath().length}`,
               `Saved sessions: ${sessionManager.list().length}`,
             ].join("\n"),
           });
           tui.requestRender();
           return true;
+        }
         case "/model":
           chat.addMessage({
             role: "system",
@@ -247,7 +329,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
           chat.addMessage({
             role: "system",
             content:
-              "Available commands: /quit, /clear, /resume [id], /new, /model [name], /session, /compact, /export, /import, /settings, /fork, /clone, /tree, /reload, /copy, /share, /name, /login, /logout, /hotkeys",
+              "Available commands: /quit, /clear, /resume [id], /new, /name <name>, /model [name], /session, /compact, /export, /import, /settings, /fork, /clone, /tree, /reload, /copy, /share, /login, /logout, /hotkeys",
           });
           tui.requestRender();
           return true;
