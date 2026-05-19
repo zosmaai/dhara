@@ -11,11 +11,13 @@
  *   headerContainer → chatContainer → statusContainer → editorContainer → footer
  */
 import {
+  CombinedAutocompleteProvider,
   type Component,
   Container,
   type EditorTheme,
   type Focusable,
   Loader,
+  type SlashCommand,
   Spacer,
   type TUI,
 } from "@earendil-works/pi-tui";
@@ -36,12 +38,17 @@ import { getTheme } from "./themes/index.js";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
+/** Handler for slash commands. Return true if handled. */
+export type SlashCommandHandler = (command: string, args: string) => boolean | Promise<boolean>;
+
 export interface DharaAppConfig {
   version?: string;
   theme?: string;
   footerData: FooterData;
   onSubmit: (text: string) => void;
   onExit: () => void;
+  /** Intercept slash commands before they reach the AI */
+  onSlashCommand?: SlashCommandHandler;
 }
 
 // ── DharaApp ─────────────────────────────────────────────────────────
@@ -135,9 +142,48 @@ export class DharaApp implements Component, Focusable {
     this.editor.focused = true;
     this.editorContainer.addChild(this.editor);
 
-    // Editor submit handler
+    // Editor submit handler — intercept slash commands before they reach the AI
     this.editor.onSubmit = (text: string) => {
-      if (!text.trim()) return;
+      text = text.trim();
+      if (!text) return;
+
+      // Handle slash commands locally
+      if (text.startsWith("/")) {
+        const spaceIdx = text.indexOf(" ");
+        const command = spaceIdx >= 0 ? text.slice(0, spaceIdx) : text;
+        const args = spaceIdx >= 0 ? text.slice(spaceIdx + 1).trim() : "";
+
+        if (command === "/quit") {
+          this.editor.setText("");
+          this.cfg.onExit();
+          return;
+        }
+
+        if (command === "/clear") {
+          this.editor.setText("");
+          this.clearMessages();
+          return;
+        }
+
+        // Delegate to external handler (e.g. tui-runner for resume, model, etc.)
+        if (this.cfg.onSlashCommand) {
+          const handled = this.cfg.onSlashCommand(command, args);
+          if (handled instanceof Promise) {
+            handled.then((result) => {
+              if (result) this.editor.setText("");
+            });
+          } else if (handled) {
+            this.editor.setText("");
+            return;
+          }
+        }
+
+        // Unknown command — send to AI anyway
+        this.addUserMessage(text);
+        config.onSubmit(text);
+        return;
+      }
+
       this.addUserMessage(text);
       config.onSubmit(text);
     };
@@ -150,6 +196,40 @@ export class DharaApp implements Component, Focusable {
 
     // Ctrl+O — toggle tool result expansion (mirrors pi's app.tools.expand action)
     this.editor.onToggleToolExpansion = () => this.toggleToolExpansion();
+
+    // ── Autocomplete (slash commands) — mirrors pi-coding-agent's BUILTIN_SLASH_COMMANDS ──
+    const slashCommands: SlashCommand[] = [
+      { name: "settings", description: "Open settings menu" },
+      { name: "model", description: "Select model (opens selector UI)" },
+      { name: "scoped-models", description: "Enable/disable models for cycling" },
+      {
+        name: "export",
+        description: "Export session (HTML default, or specify path: .html/.jsonl)",
+      },
+      { name: "import", description: "Import and resume a session from a JSONL file" },
+      { name: "share", description: "Share session as a secret GitHub gist" },
+      { name: "copy", description: "Copy last agent message to clipboard" },
+      { name: "name", description: "Set session display name" },
+      { name: "session", description: "Show session info and stats" },
+      { name: "changelog", description: "Show changelog entries" },
+      { name: "hotkeys", description: "Show all keyboard shortcuts" },
+      { name: "fork", description: "Create a new fork from a previous user message" },
+      { name: "clone", description: "Duplicate the current session at the current position" },
+      { name: "tree", description: "Navigate session tree (switch branches)" },
+      { name: "login", description: "Configure provider authentication" },
+      { name: "logout", description: "Remove provider authentication" },
+      { name: "new", description: "Start a new session" },
+      { name: "compact", description: "Manually compact the session context" },
+      { name: "resume", description: "Resume a different session" },
+      {
+        name: "reload",
+        description: "Reload keybindings, extensions, skills, prompts, and themes",
+      },
+      { name: "quit", description: "Quit the TUI" },
+    ];
+
+    const provider = new CombinedAutocompleteProvider(slashCommands, process.cwd());
+    this.editor.setAutocompleteProvider(provider);
 
     // ── Footer ─────────────────────────────────────────────────────
     this.footer = new FooterComponent(config.footerData);
