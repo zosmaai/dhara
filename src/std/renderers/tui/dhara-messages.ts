@@ -296,8 +296,8 @@ export class ToolExecutionComponent extends Container {
     this.isError = isError;
     this.fullContent = content;
 
-    // Tool title with background
-    const bgFn = isError ? color.toolErrorBg : color.toolPendingBg;
+    // Tool title with background (same color as content for premium look)
+    const bgFn = isError ? color.toolErrorBg : color.toolSuccessBg;
     const statusIcon = isError ? color.error("\u2717") : color.muted("\u2699");
 
     this.toolTitle = new Text(
@@ -308,7 +308,7 @@ export class ToolExecutionComponent extends Container {
     );
 
     // Content text with proper styling (updated by updateDisplay)
-    this.contentText = new Text(content, 1, 0, isError ? color.toolErrorBg : color.toolSuccessBg);
+    this.contentText = new Text(content, 1, 0, bgFn);
 
     // Use updateDisplay to set up children with proper truncation and padding
     this.updateDisplay();
