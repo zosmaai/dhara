@@ -265,6 +265,10 @@ export class AssistantMessageComponent extends Container {
   }
 }
 
+// ── Preview line limit ───────────────────────────────────────────────
+// Matches pi-coding-agent behavior: show last N lines when collapsed
+const PREVIEW_LINES = 20;
+
 // ── Tool Execution ───────────────────────────────────────────────────
 // Mirrors pi-coding-agent's ToolExecutionComponent
 // Shows loader animation before result, with proper diff rendering support
@@ -272,10 +276,19 @@ export class ToolExecutionComponent extends Container {
   private toolTitle: Text;
   private contentText: Text;
   private isError: boolean;
+  private fullContent: string = "";
+  private hasDiff: boolean = false;
+  private _expanded = false;
+
+  /** Whether this tool result is showing expanded (full) or collapsed (preview) content. */
+  get expanded(): boolean {
+    return this._expanded;
+  }
 
   constructor(toolName: string, content: string, isError = false) {
     super();
     this.isError = isError;
+    this.fullContent = content;
 
     // Tool title with background
     const bgFn = isError ? color.toolErrorBg : color.toolPendingBg;
@@ -297,34 +310,65 @@ export class ToolExecutionComponent extends Container {
     this.addChild(new Spacer(1));
   }
 
-  updateContent(content: string, isError?: boolean): void {
+  /**
+   * Set whether the tool result is expanded (shows full output) or collapsed (preview only).
+   */
+  setExpanded(expanded: boolean): void {
+    if (this._expanded === expanded) return;
+    this._expanded = expanded;
+    this.updateDisplay();
+  }
+
+  /** Rebuild children based on current expanded state */
+  private updateDisplay(): void {
     this.clear();
-    this.isError = isError ?? this.isError;
-
-    const bgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
-    this.contentText = new Text(content, 1, 0, bgFn);
-
     this.addChild(new Spacer(1));
     this.addChild(this.toolTitle);
-    this.addChild(this.contentText);
+
+    const bgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
+
+    if (this.hasDiff) {
+      // Diff mode: show all diff lines
+      // Diff content is already pre-rendered; stored in fullContent
+      const diffLines = this.fullContent.split("\n");
+      for (const line of diffLines) {
+        this.addChild(new Text(line, 1, 0, bgFn));
+      }
+    } else {
+      // Plain text: apply preview truncation based on expanded state
+      const lines = this.fullContent.split("\n");
+      const showLines = this._expanded ? lines : lines.slice(-PREVIEW_LINES);
+      const hiddenCount = lines.length - showLines.length;
+
+      this.contentText = new Text(showLines.join("\n"), 1, 0, bgFn);
+      this.addChild(this.contentText);
+
+      // Status line showing hidden count
+      if (hiddenCount > 0) {
+        const hint = color.dim(`  (${hiddenCount} more lines hidden. Ctrl+O to expand)`);
+        this.addChild(new Text(hint, 1, 0, bgFn));
+      } else if (this._expanded && lines.length > PREVIEW_LINES) {
+        const hint = color.dim(`  (Ctrl+O to collapse)`);
+        this.addChild(new Text(hint, 1, 0, bgFn));
+      }
+    }
+
     this.addChild(new Spacer(1));
+  }
+
+  updateContent(content: string, isError?: boolean): void {
+    this.fullContent = content;
+    this.hasDiff = false;
+    this.isError = isError ?? this.isError;
+    this.updateDisplay();
   }
 
   // Update to show diff rendering instead of plain text
   updateContentWithDiff(diffText: string, isError?: boolean): void {
-    this.clear();
+    this.fullContent = diffText;
+    this.hasDiff = true;
     this.isError = isError ?? this.isError;
-
-    const bgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
-
-    // Render diff with colored lines
-    const renderedLines = renderDiff(diffText);
-    this.addChild(new Spacer(1));
-    this.addChild(this.toolTitle);
-    for (const line of renderedLines) {
-      this.addChild(new Text(line, 1, 0, bgFn));
-    }
-    this.addChild(new Spacer(1));
+    this.updateDisplay();
   }
 
   render(width: number): string[] {

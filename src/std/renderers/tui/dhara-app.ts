@@ -82,6 +82,9 @@ export class DharaApp implements Component, Focusable {
   // Current tool being executed (null when idle)
   private currentTool: ToolExecutionComponent | null = null;
 
+  // All completed tool components (for toggling expansion)
+  private toolComponents: ToolExecutionComponent[] = [];
+
   // Exit: double-tap Ctrl+C
   private ctrlCTapped = false;
   private ctrlCTimer: ReturnType<typeof setTimeout> | null = null;
@@ -141,6 +144,9 @@ export class DharaApp implements Component, Focusable {
 
     // Ctrl+D on empty editor → exit (mirrors pi's app.exit action)
     this.editor.onCtrlD = () => this.cfg.onExit();
+
+    // Ctrl+O — toggle tool result expansion (mirrors pi's app.tools.expand action)
+    this.editor.onToggleToolExpansion = () => this.toggleToolExpansion();
 
     // ── Footer ─────────────────────────────────────────────────────
     this.footer = new FooterComponent(config.footerData);
@@ -302,6 +308,7 @@ export class DharaApp implements Component, Focusable {
 
     const tc = new ToolExecutionComponent(toolName, result, isError);
     this.chatContainer.addChild(tc);
+    this.toolComponents.push(tc);
 
     this.currentTool = null;
 
@@ -322,6 +329,7 @@ export class DharaApp implements Component, Focusable {
     this.accumulatedReasoning = "";
     this.isAssistantRunning = false;
     this.currentTool = null;
+    this.toolComponents = [];
     this.stopWorking();
     this.tui.requestRender();
   }
@@ -329,6 +337,18 @@ export class DharaApp implements Component, Focusable {
   // ── Tool state management ───────────────────────────────────────────
   getCurrentTool(): ToolExecutionComponent | null {
     return this.currentTool;
+  }
+
+  // ── Toggle tool result expansion ─────────────────────────────────
+  // Mirrors pi-coding-agent's toggleToolOutputExpansion()
+  toggleToolExpansion(): void {
+    const currentExpanded =
+      this.toolComponents.length > 0 ? this.toolComponents[0].expanded : false;
+    const newExpanded = !currentExpanded;
+    for (const tool of this.toolComponents) {
+      tool.setExpanded(newExpanded);
+    }
+    this.tui.requestRender();
   }
 
   setCurrentTool(tool: ToolExecutionComponent | null): void {

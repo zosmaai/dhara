@@ -13,6 +13,8 @@ export class DharaEditor extends Editor {
   onCtrlC?: () => void;
   /** Handler for Ctrl+D (exit on empty editor) */
   onCtrlD?: () => void;
+  /** Handler for Ctrl+O (toggle tool result expansion) */
+  onToggleToolExpansion?: () => void;
 
   handleInput(data: string): void {
     // Ctrl+C — intercept before Editor's internal handler (which binds it to
@@ -37,6 +39,12 @@ export class DharaEditor extends Editor {
         return;
       }
       // Fall through to Editor for deleteCharForward
+    }
+
+    // Ctrl+O — toggle tool result expansion
+    if (matchesKey(data, "ctrl+o")) {
+      this.onToggleToolExpansion?.();
+      return;
     }
 
     // All other input — let Editor handle normally
