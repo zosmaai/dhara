@@ -20,6 +20,7 @@ import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { handleLogin, handleLogout } from "./auth-commands.js";
 import { handleModel } from "./model-commands.js";
+import { handleClone, handleFork, handleTree } from "./session-branch-commands.js";
 import { handleSettings } from "./settings-commands.js";
 
 export interface TuiConfig {
@@ -396,6 +397,34 @@ export async function runTui(config: TuiConfig): Promise<void> {
           tui.requestRender();
           return true;
         }
+        case "/tree":
+          handleTree(tui, chat, session, switchToSession);
+          return true;
+        case "/fork":
+          handleFork(
+            tui,
+            chat,
+            session,
+            sessionManager,
+            cwd,
+            modelId,
+            providerName,
+            switchToSession,
+            args,
+          );
+          return true;
+        case "/clone":
+          handleClone(
+            tui,
+            chat,
+            session,
+            sessionManager,
+            cwd,
+            modelId,
+            providerName,
+            switchToSession,
+          );
+          return true;
         case "/compact":
           chat.addMessage({ role: "system", content: "Compacting session..." });
           tui.requestRender();
@@ -446,7 +475,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
           chat.addMessage({
             role: "system",
             content:
-              "Available commands: /quit, /clear, /resume [id], /new, /name <name>, /model [name], /session, /compact, /export, /import, /settings, /fork, /clone, /tree, /reload, /copy, /share, /login, /logout, /hotkeys",
+              "Available commands: /quit, /clear, /resume [id], /new, /name <name>, /model [name], /session, /tree, /fork [idx], /clone, /compact, /export, /import, /settings, /reload, /copy, /share, /login, /logout, /hotkeys",
           });
           tui.requestRender();
           return true;
