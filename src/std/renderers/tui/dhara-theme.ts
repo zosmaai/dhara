@@ -115,4 +115,14 @@ export const color = {
   toolSuccessBg: (s: string) => chalk.bgHex(C.toolSuccessBg)(s),
   toolErrorBg: (s: string) => chalk.bgHex(C.toolErrorBg)(s),
   customMsgBg: (s: string) => chalk.bgHex(C.customMsgBg)(s),
+  // Thinking tokens - italicized, thinking text color
+  thinkingText: (s: string) => italic(hex(C.dimGray)(s)),
+  // Tool diff colors
+  toolDiffAdded: (s: string) => hex(C.green)(s),
+  toolDiffRemoved: (s: string) => hex(C.red)(s),
+  toolDiffContext: (s: string) => dim(hex(C.gray)(s)),
+  // Diff line formatting
+  diffAddedPrefix: (s: string) => hex(C.green)(s),
+  diffRemovedPrefix: (s: string) => hex(C.red)(s),
+  diffContextPrefix: (s: string) => dim(hex(C.dimGray)(s)),
 };
