@@ -3,7 +3,7 @@
  * Renders chat messages using pi-tui's Markdown and Text components.
  * Mirrors pi's AssistantMessageComponent, UserMessageComponent, ToolExecutionComponent.
  */
-import { Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import { Box, Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
 import { color, getMarkdownTheme } from "./dhara-theme.js";
 
 // ── Diff Renderer ───────────────────────────────────────────────────
@@ -173,7 +173,7 @@ export interface MessageConfig {
 // ── User Message ─────────────────────────────────────────────────────
 
 export class UserMessageComponent extends Container {
-  private md: Markdown;
+  private contentBox: Box;
 
   constructor(content: string, markdownTheme?: MarkdownTheme) {
     super();
@@ -182,11 +182,10 @@ export class UserMessageComponent extends Container {
     // "You" label
     this.addChild(new Text(` ${color.bold("You")}`, 0, 0));
 
-    // Content with user message background
-    this.md = new Markdown(content, 1, 0, theme, {
-      bgColor: (s: string) => color.userMsgBg(s),
-    });
-    this.addChild(this.md);
+    // Content wrapped in Box(1,1) for padding around the content (matches pi-coding-agent)
+    this.contentBox = new Box(1, 1, (s: string) => color.userMsgBg(s));
+    this.contentBox.addChild(new Markdown(content, 0, 0, theme));
+    this.addChild(this.contentBox);
     this.addChild(new Spacer(1));
   }
 
@@ -204,43 +203,27 @@ export class UserMessageComponent extends Container {
 // Supports thinking tokens with "▸ think" label and inline content
 export class AssistantMessageComponent extends Container {
   private md!: Markdown;
+  private mdContent: string = "";
   private reasoningText: string = "";
   private mdTheme: MarkdownTheme;
 
   constructor(content: string, reasoning?: string, markdownTheme?: MarkdownTheme) {
     super();
     this.mdTheme = markdownTheme ?? getMarkdownTheme();
+    this.mdContent = content;
+    this.reasoningText = reasoning ?? "";
+    this.buildChildren();
+  }
+
+  /** Rebuild children from current state */
+  private buildChildren(): void {
+    this.clear();
 
     // "Dhara" label
     this.addChild(new Text(` ${color.bold(color.accent("Dhara"))}`, 0, 0));
     this.addChild(new Spacer(1));
 
     // Reasoning/thinking tokens — shown before content when present
-    if (reasoning) {
-      const thinkingLabel = color.thinkingText(`\u25B8 think`);
-      this.addChild(new Text(`  ${thinkingLabel}`, 1, 0));
-      this.addChild(new Text(`  ${color.thinkingText(reasoning)}`, 1, 0));
-      this.addChild(new Spacer(1));
-    }
-
-    // Content (rendered as Markdown with proper padding)
-    if (content) {
-      this.md = new Markdown(content, 1, 0, this.mdTheme);
-      this.addChild(this.md);
-      this.addChild(new Spacer(1));
-    }
-  }
-
-  updateContent(content: string, reasoning?: string): void {
-    this.clear();
-    this.reasoningText = reasoning ?? "";
-
-    const theme = getMarkdownTheme();
-
-    this.addChild(new Text(` ${color.bold(color.accent("Dhara"))}`, 0, 0));
-    this.addChild(new Spacer(1));
-
-    // Reasoning/thinking tokens
     if (this.reasoningText) {
       const thinkingLabel = color.thinkingText(`\u25B8 think`);
       this.addChild(new Text(`  ${thinkingLabel}`, 1, 0));
@@ -248,12 +231,35 @@ export class AssistantMessageComponent extends Container {
       this.addChild(new Spacer(1));
     }
 
-    // Content
-    if (content) {
-      this.md = new Markdown(content, 1, 0, theme);
+    // Content (rendered as Markdown with proper padding)
+    if (this.mdContent) {
+      this.md = new Markdown(this.mdContent, 1, 0, this.mdTheme);
       this.addChild(this.md);
       this.addChild(new Spacer(1));
     }
+  }
+
+  /**
+   * Update reasoning text incrementally (for streaming thinking tokens)
+   */
+  setReasoning(text: string): void {
+    if (this.reasoningText === text) return;
+    this.reasoningText = text;
+    this.buildChildren();
+  }
+
+  /**
+   * Update content text incrementally (for streaming message content)
+   */
+  setContent(text: string): void {
+    this.mdContent = text;
+    this.buildChildren();
+  }
+
+  updateContent(content: string, reasoning?: string): void {
+    this.mdContent = content;
+    this.reasoningText = reasoning ?? "";
+    this.buildChildren();
   }
 
   render(width: number): string[] {
@@ -301,13 +307,11 @@ export class ToolExecutionComponent extends Container {
       bgFn,
     );
 
-    // Content text with proper styling
+    // Content text with proper styling (updated by updateDisplay)
     this.contentText = new Text(content, 1, 0, isError ? color.toolErrorBg : color.toolSuccessBg);
 
-    this.addChild(new Spacer(1));
-    this.addChild(this.toolTitle);
-    this.addChild(this.contentText);
-    this.addChild(new Spacer(1));
+    // Use updateDisplay to set up children with proper truncation and padding
+    this.updateDisplay();
   }
 
   /**
@@ -325,32 +329,37 @@ export class ToolExecutionComponent extends Container {
     this.addChild(new Spacer(1));
     this.addChild(this.toolTitle);
 
-    const bgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
+    const contentBgFn = this.isError ? color.toolErrorBg : color.toolSuccessBg;
 
     if (this.hasDiff) {
       // Diff mode: show all diff lines
       // Diff content is already pre-rendered; stored in fullContent
       const diffLines = this.fullContent.split("\n");
+      const contentBox = new Box(1, 1, contentBgFn);
       for (const line of diffLines) {
-        this.addChild(new Text(line, 1, 0, bgFn));
+        contentBox.addChild(new Text(line, 0, 0));
       }
+      this.addChild(contentBox);
     } else {
       // Plain text: apply preview truncation based on expanded state
       const lines = this.fullContent.split("\n");
       const showLines = this._expanded ? lines : lines.slice(-PREVIEW_LINES);
       const hiddenCount = lines.length - showLines.length;
 
-      this.contentText = new Text(showLines.join("\n"), 1, 0, bgFn);
-      this.addChild(this.contentText);
+      const contentBox = new Box(1, 1, contentBgFn);
+      this.contentText = new Text(showLines.join("\n"), 0, 0);
+      contentBox.addChild(this.contentText);
 
-      // Status line showing hidden count
+      // Status line showing hidden count (inside the Box)
       if (hiddenCount > 0) {
         const hint = color.dim(`  (${hiddenCount} more lines hidden. Ctrl+O to expand)`);
-        this.addChild(new Text(hint, 1, 0, bgFn));
+        contentBox.addChild(new Text(hint, 0, 0));
       } else if (this._expanded && lines.length > PREVIEW_LINES) {
         const hint = color.dim(`  (Ctrl+O to collapse)`);
-        this.addChild(new Text(hint, 1, 0, bgFn));
+        contentBox.addChild(new Text(hint, 0, 0));
       }
+
+      this.addChild(contentBox);
     }
 
     this.addChild(new Spacer(1));

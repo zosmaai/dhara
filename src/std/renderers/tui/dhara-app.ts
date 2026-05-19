@@ -79,6 +79,9 @@ export class DharaApp implements Component, Focusable {
   private accumulatedReasoning = "";
   private isAssistantRunning = false;
 
+  // Streaming assistant component (created at startStream, updated incrementally)
+  private streamingAssistant: AssistantMessageComponent | null = null;
+
   // Current tool being executed (null when idle)
   private currentTool: ToolExecutionComponent | null = null;
 
@@ -208,6 +211,14 @@ export class DharaApp implements Component, Focusable {
     this.accumulatedContent = "";
     this.accumulatedReasoning = "";
     this.isAssistantRunning = true;
+
+    // Create a streaming assistant component early so reasoning/content
+    // can be displayed incrementally as it arrives
+    if (!this.streamingAssistant) {
+      this.streamingAssistant = new AssistantMessageComponent("", "", getMarkdownTheme());
+      this.chatContainer.addChild(this.streamingAssistant);
+    }
+
     this.startWorking();
     this.footer.update({ state: "thinking" });
     this.tui.requestRender();
@@ -216,6 +227,10 @@ export class DharaApp implements Component, Focusable {
   updateStream(delta: string): void {
     if (!this.isAssistantRunning) return;
     this.accumulatedContent += delta;
+    // Update streaming component incrementally
+    if (this.streamingAssistant) {
+      this.streamingAssistant.setContent(this.accumulatedContent);
+    }
     this.footer.update({ state: "streaming" });
     this.tui.requestRender();
   }
@@ -223,6 +238,10 @@ export class DharaApp implements Component, Focusable {
   updateReasoning(text: string): void {
     if (!this.isAssistantRunning) return;
     this.accumulatedReasoning += text;
+    // Update streaming component incrementally (shows thinking in real-time)
+    if (this.streamingAssistant) {
+      this.streamingAssistant.setReasoning(this.accumulatedReasoning);
+    }
     this.tui.requestRender();
   }
 
@@ -231,8 +250,15 @@ export class DharaApp implements Component, Focusable {
       this.accumulatedContent = result;
     }
 
-    // Create the final AssistantMessageComponent with accumulated content + reasoning
-    if (this.accumulatedContent || this.accumulatedReasoning) {
+    // If streaming assistant exists, update it with final content
+    if (this.streamingAssistant) {
+      this.streamingAssistant.updateContent(
+        this.accumulatedContent,
+        this.accumulatedReasoning || undefined,
+      );
+      this.streamingAssistant = null;
+    } else if (this.accumulatedContent || this.accumulatedReasoning) {
+      // Fallback: create the final AssistantMessageComponent
       const assistantMsg = new AssistantMessageComponent(
         this.accumulatedContent,
         this.accumulatedReasoning || undefined,
@@ -328,6 +354,7 @@ export class DharaApp implements Component, Focusable {
     this.accumulatedContent = "";
     this.accumulatedReasoning = "";
     this.isAssistantRunning = false;
+    this.streamingAssistant = null;
     this.currentTool = null;
     this.toolComponents = [];
     this.stopWorking();
