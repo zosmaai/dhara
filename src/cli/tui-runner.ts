@@ -21,6 +21,7 @@ import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.j
 import { handleLogin, handleLogout } from "./auth-commands.js";
 import { handleModel } from "./model-commands.js";
 import { handleClone, handleFork, handleTree } from "./session-branch-commands.js";
+import { handleImport, handleShare } from "./session-util-commands.js";
 import { handleSettings } from "./settings-commands.js";
 
 export interface TuiConfig {
@@ -397,6 +398,21 @@ export async function runTui(config: TuiConfig): Promise<void> {
           tui.requestRender();
           return true;
         }
+        case "/import":
+          handleImport(
+            tui,
+            chat,
+            sessionManager,
+            cwd,
+            modelId,
+            providerName,
+            switchToSession,
+            args,
+          );
+          return true;
+        case "/share":
+          handleShare(tui, chat, session);
+          return true;
         case "/tree":
           handleTree(tui, chat, session, switchToSession);
           return true;
