@@ -407,6 +407,7 @@ async function main(): Promise<void> {
     try {
       await runTui({
         sessionManager,
+        configManager: new ConfigManager(),
         provider: cfg.provider,
         cwd: cfg.cwd,
         modelId: cfg.modelId,
