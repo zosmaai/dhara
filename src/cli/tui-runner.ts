@@ -7,11 +7,13 @@ import { fileURLToPath } from "node:url";
  * Uses @earendil-works/pi-tui for the terminal UI framework,
  * matching pi's InteractiveMode architecture.
  */
+import { type SelectItem, SelectList } from "@earendil-works/pi-tui";
 import { type AgentLoop, createAgentLoop } from "../core/agent-loop.js";
 import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
 import { createSandbox, type Sandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
+import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
 import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 
@@ -130,19 +132,82 @@ export async function runTui(config: TuiConfig): Promise<void> {
     },
     onSlashCommand: (command: string, args: string) => {
       switch (command) {
-        case "/resume":
-          chat.addMessage({ role: "system", content: "Resuming a different session..." });
-          tui.requestRender();
+        case "/resume": {
+          if (args) {
+            // Resume specific session by ID
+            try {
+              const resumed = sessionManager.load(args);
+              chat.addMessage({
+                role: "system",
+                content: `Resumed session ${resumed.meta.sessionId.slice(0, 8)}`,
+              });
+            } catch {
+              chat.addMessage({
+                role: "error",
+                content: `Session "${args}" not found.`,
+              });
+            }
+            tui.requestRender();
+            return true;
+          }
+
+          // Show session picker overlay
+          const sessions = sessionManager.list();
+          if (sessions.length === 0) {
+            chat.addMessage({ role: "system", content: "No saved sessions found." });
+            tui.requestRender();
+            return true;
+          }
+
+          const items: SelectItem[] = sessions.map((s) => ({
+            value: s.sessionId,
+            label: s.sessionId.slice(0, 8),
+            description: `${s.entryCount} entries · ${new Date(s.createdAt).toLocaleDateString()}`,
+          }));
+
+          const sessionList = new SelectList(items, 10, getSelectListTheme());
+          sessionList.onSelect = (item) => {
+            tui.hideOverlay();
+            try {
+              const resumed = sessionManager.load(item.value);
+              chat.addMessage({
+                role: "system",
+                content: `Resumed session ${resumed.meta.sessionId.slice(0, 8)}`,
+              });
+            } catch {
+              chat.addMessage({
+                role: "error",
+                content: `Failed to resume session "${item.value}".`,
+              });
+            }
+            tui.requestRender();
+          };
+          sessionList.onCancel = () => {
+            tui.hideOverlay();
+          };
+
+          tui.showOverlay(sessionList, {
+            anchor: "center",
+            width: "60%",
+          });
           return true;
-        case "/new":
+        }
+        case "/new": {
           session.save();
-          chat.addMessage({ role: "system", content: "Creating new session..." });
+          chat.addMessage({ role: "system", content: "Starting a new session..." });
           tui.requestRender();
           return true;
+        }
         case "/session":
           chat.addMessage({
             role: "system",
-            content: `Session ${sessionId} | Provider: ${providerName} | Model: ${modelId} | CWD: ${cwd}`,
+            content: [
+              `Session: ${sessionId}`,
+              `Provider: ${providerName}`,
+              `Model: ${modelId}`,
+              `CWD: ${cwd}`,
+              `Saved sessions: ${sessionManager.list().length}`,
+            ].join("\n"),
           });
           tui.requestRender();
           return true;
@@ -168,7 +233,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
           chat.addMessage({
             role: "system",
             content:
-              "Available commands: /quit, /clear, /resume, /new, /model, /session, /compact, /export, /import, /settings, /fork, /clone, /tree, /reload, /copy, /share, /name, /login, /logout, /hotkeys",
+              "Available commands: /quit, /clear, /resume [id], /new, /model [name], /session, /compact, /export, /import, /settings, /fork, /clone, /tree, /reload, /copy, /share, /name, /login, /logout, /hotkeys",
           });
           tui.requestRender();
           return true;
