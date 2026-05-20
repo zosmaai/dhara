@@ -19,7 +19,7 @@ import { generateCompletion } from "./completions.js";
 import { handleConfigSubcommand } from "./config-commands.js";
 import { runDoctor } from "./doctor.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
-import { createProviderByName } from "./provider-factory.js";
+import { createProviderByName, createProviderFromConfig } from "./provider-factory.js";
 import { handleRegistrySubcommand } from "./registry-commands.js";
 import { runRepl } from "./repl.js";
 import { handleSessionSubcommand } from "./session-commands.js";
@@ -147,9 +147,11 @@ interface ResolvedConfig {
 
 function resolveConfig(args: string[]): ResolvedConfig {
   const rawProvider = getArg(args, "provider") ?? "opencode-go";
-  const providerName = rawProvider in KNOWN_PROVIDERS ? rawProvider : rawProvider;
-  const providerInfo = KNOWN_PROVIDERS[providerName];
-  const modelId = getArg(args, "model") ?? providerInfo?.defaultModel ?? "deepseek-v4-flash";
+  const providerInfo = KNOWN_PROVIDERS[rawProvider];
+
+  // Try CLI flag first, then check env vars
+  let providerName = rawProvider;
+  let modelId = getArg(args, "model") ?? providerInfo?.defaultModel ?? "deepseek-v4-flash";
   const baseUrl = getArg(args, "base-url") ?? providerInfo?.defaultBaseUrl;
   const cwd = getArg(args, "cwd") ?? process.cwd();
 
@@ -165,15 +167,33 @@ function resolveConfig(args: string[]): ResolvedConfig {
   const finalBaseUrl = projectConfig?.settings.baseUrl ?? baseUrl;
   const maxTokens = projectConfig?.settings.maxTokens;
 
-  const provider = createProviderByName(providerName, apiKey, {
+  let provider = createProviderByName(providerName, apiKey, {
     modelId: finalModelId,
     baseUrl: finalBaseUrl,
     maxTokens,
   });
 
+  // If no env var / CLI key was found, fall back to ~/.dhara/config.json
+  if (!provider) {
+    const configManager = new ConfigManager();
+    const configProvider = createProviderFromConfig(configManager, {
+      modelId: finalModelId,
+      maxTokens,
+    });
+    if (configProvider) {
+      provider = configProvider;
+      // Use the provider name from config so the UI shows what's actually configured
+      const activeProvider = configManager.getActiveProvider();
+      if (activeProvider) {
+        providerName = activeProvider.name ?? activeProvider.id;
+        modelId = activeProvider.defaultModel ?? finalModelId;
+      }
+    }
+  }
+
   return {
     providerName,
-    modelId: finalModelId,
+    modelId,
     baseUrl: finalBaseUrl,
     cwd,
     apiKey,

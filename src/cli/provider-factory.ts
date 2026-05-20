@@ -17,6 +17,7 @@ const KNOWN_PROVIDERS: Record<
 > = {
   "opencode-go": {
     defaultModel: "deepseek-v4-flash",
+    defaultBaseUrl: "https://opencode.ai/zen/go/v1",
     envVar: "OPENCODE_API_KEY",
   },
   openai: {
@@ -99,6 +100,7 @@ export function createProviderFromConfig(
 
   return createProviderByName(configured.id, apiKey, {
     modelId: options?.modelId ?? configured.defaultModel,
+    baseUrl: configured.baseUrl,
     maxTokens: options?.maxTokens,
   });
 }
