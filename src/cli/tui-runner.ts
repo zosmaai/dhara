@@ -51,7 +51,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
     configManager,
     provider,
     cwd,
-    providerName,
+    // providerName intentionally not destructured — made mutable below
     theme,
     sandbox: sandboxOverride,
     systemPrompt,
@@ -61,6 +61,8 @@ export async function runTui(config: TuiConfig): Promise<void> {
     toolOverrides,
     onReload,
   } = config;
+
+  let providerName = config.providerName;
 
   // ── Version ────────────────────────────────────────────────────────
   const pkgVersion = getPkgVersion();
@@ -162,8 +164,8 @@ export async function runTui(config: TuiConfig): Promise<void> {
     version: pkgVersion,
     theme: theme ?? "dhara-default",
     footerData: {
-      provider: providerName,
-      model: modelId,
+      provider: providerRef ? providerName : "not configured",
+      model: providerRef ? modelId : "-",
       cwd,
       sessionId,
       state: "idle",
@@ -541,6 +543,14 @@ export async function runTui(config: TuiConfig): Promise<void> {
                 systemPrompt: currentSystemPrompt,
                 maxIterations: currentMaxIterations,
               });
+              // Update mutable refs + footer with the actual configured provider info
+              const activeProviderCfg = configManager.getActiveProvider();
+              if (activeProviderCfg) {
+                providerName = activeProviderCfg.name ?? activeProviderCfg.id;
+                if (activeProviderCfg.defaultModel) {
+                  modelId = activeProviderCfg.defaultModel;
+                }
+              }
               chat.footer.update({
                 provider: providerName,
                 model: modelId,

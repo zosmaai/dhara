@@ -614,10 +614,14 @@ export class DharaApp implements Component, Focusable {
         "agent:error",
         (e) => {
           this.finishStream();
-          const payload = e as { error: Error };
+          const payload = e as { error: Error | string };
+          const errorMsg =
+            typeof payload.error === "string"
+              ? payload.error
+              : (payload.error?.message ?? "Unknown error");
           this.addMessage({
             role: "error",
-            content: payload.error?.message ?? "Unknown error",
+            content: errorMsg,
           });
           this.footer.update({ state: "idle" });
           this.tui.requestRender();
