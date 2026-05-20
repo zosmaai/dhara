@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -503,7 +503,14 @@ async function main(): Promise<void> {
 
 // Only run when called as the main entry point, not when required by another module
 const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] === __filename || process.env._DHARA_ENTRYPOINT) {
+// Resolve symlink (npm global install) so argv[1] matches the real file path
+let entryPoint: string | undefined;
+try {
+  entryPoint = process.argv[1] ? realpathSync(process.argv[1]) : undefined;
+} catch {
+  entryPoint = undefined;
+}
+if (entryPoint === __filename || process.env._DHARA_ENTRYPOINT) {
   main().catch((err) => {
     process.stderr.write(`Unexpected error: ${err.message}\n`);
     process.exit(1);
