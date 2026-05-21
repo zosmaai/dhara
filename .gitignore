@@ -12,3 +12,8 @@ coverage/
 __pycache__/
 *.pyc
 packages/dhara-extension-rs/target/
+
+# website build artifacts
+website/.next/
+website/.source/
+website/node_modules/

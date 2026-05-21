@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { GeistMono } from "geist/font/mono";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { layoutConfig } from "@/app/layout.config";
 
@@ -135,7 +134,7 @@ export default function HomePage() {
 
           <div className="mt-4">
             <code
-              className={`${GeistMono.variable} inline-flex items-center gap-2 rounded-lg bg-card border border-border px-5 py-3 text-sm text-muted-foreground font-mono`}
+              className={"inline-flex items-center gap-2 rounded-lg bg-card border border-border px-5 py-3 text-sm text-muted-foreground font-mono"}
             >
               <span className="text-primary">$</span> npm install -g @zosmaai/dhara
             </code>
@@ -181,7 +180,7 @@ export default function HomePage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm mb-2">{step.title}</h3>
                   <code
-                    className={`${GeistMono.variable} block rounded-lg bg-card border border-border px-4 py-2.5 text-sm text-muted-foreground font-mono overflow-x-auto`}
+                    className={"block rounded-lg bg-card border border-border px-4 py-2.5 text-sm text-muted-foreground font-mono overflow-x-auto"}
                   >
                     {step.code}
                   </code>
