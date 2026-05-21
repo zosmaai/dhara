@@ -24,15 +24,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className="scroll-smooth dark"
+      suppressHydrationWarning
+      className="scroll-smooth"
     >
       <body
         className={`${chakraPetch.variable} ${spaceGrotesk.variable} antialiased min-h-screen flex flex-col`}
+        style={{ fontFamily: "var(--font-chakra-petch), ui-sans-serif, system-ui, sans-serif" }}
       >
         <RootProvider
           theme={{
-            attribute: "data-theme",
+            attribute: "class",
             defaultTheme: "dark",
+            enableSystem: false,
             disableTransitionOnChange: true,
           }}
         >
