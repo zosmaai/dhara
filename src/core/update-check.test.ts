@@ -10,7 +10,7 @@ function withTempDir(): string {
   return mkdtempSync(join(tmpdir(), "dhara-update-"));
 }
 
-function withMockFetch(impl: () => Response) {
+function withMockFetch(impl: (url: string, init?: RequestInit) => Response | Promise<Response>) {
   const orig = globalThis.fetch;
   globalThis.fetch = vi.fn(impl);
   return () => {
@@ -166,6 +166,40 @@ describe("checkForUpdate", () => {
       restore();
     }
   });
+
+  it("times out gracefully when fetch hangs", async () => {
+    // Mock fetch that hangs but respects abort signal
+    const restore = withMockFetch(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = (init as { signal?: AbortSignal })?.signal;
+          if (signal) {
+            if (signal.aborted) {
+              const err = new Error("The operation was aborted");
+              err.name = "AbortError";
+              reject(err);
+              return;
+            }
+            signal.addEventListener(
+              "abort",
+              () => {
+                const err = new Error("The operation was aborted");
+                err.name = "AbortError";
+                reject(err);
+              },
+              { once: true },
+            );
+          }
+        }),
+    );
+    try {
+      const result = await checkForUpdate("0.1.0");
+      // Should return null due to timeout, not hang forever
+      expect(result).toBeNull();
+    } finally {
+      restore();
+    }
+  }, 15_000); // 15s: 5s fetch timeout + safety margin
 
   it("returns null from cache when version is current (after cache roll)", async () => {
     // Seed the cache with a check that says "current version matches"

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -72,18 +72,39 @@ const DEFAULT_SETTINGS: ProjectSettings = {
  * @returns The project config, or `undefined` if no config file
  *          exists in any ancestor directory.
  */
-export function loadProjectConfig(cwd: string): ProjectConfigResult | undefined {
+/** Maximum ancestor directories to check. Prevents hanging on slow filesystems. */
+const MAX_WALK_DEPTH = 15;
+
+function buildAncestorPaths(cwd: string): string[] {
   const parts = cwd.split(sep);
   const paths: string[] = [];
+  const max = Math.min(parts.length, MAX_WALK_DEPTH);
 
-  // Build all ancestor paths
-  for (let i = parts.length; i > 0; i--) {
+  for (let i = parts.length; i > parts.length - max; i--) {
     const dir = parts.slice(0, i).join(sep);
     paths.push(dir === "" ? "/" : dir);
   }
 
+  return paths;
+}
+
+/** Check if a directory exists before attempting to read files inside it. */
+function tryDirectoryExists(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+export function loadProjectConfig(cwd: string): ProjectConfigResult | undefined {
+  const paths = buildAncestorPaths(cwd);
+
   for (const dir of paths) {
     const configDir = join(dir, ".dhara");
+
+    // Skip ancestors where .dhara/ directory doesn't exist at all
+    if (!tryDirectoryExists(configDir)) continue;
 
     // Try new file name first, then legacy
     const raw =
@@ -127,16 +148,13 @@ export function loadProjectConfig(cwd: string): ProjectConfigResult | undefined 
  */
 export function findAllProjectConfigs(cwd: string): ProjectConfigResult[] {
   const results: ProjectConfigResult[] = [];
-  const parts = cwd.split(sep);
-  const paths: string[] = [];
-
-  for (let i = parts.length; i > 0; i--) {
-    const dir = parts.slice(0, i).join(sep);
-    paths.push(dir === "" ? "/" : dir);
-  }
+  const paths = buildAncestorPaths(cwd);
 
   for (const dir of paths) {
     const configDir = join(dir, ".dhara");
+
+    // Skip ancestors where .dhara/ directory doesn't exist
+    if (!tryDirectoryExists(configDir)) continue;
 
     const raw =
       tryReadFile(join(configDir, "config.json")) ?? tryReadFile(join(configDir, "settings.json"));

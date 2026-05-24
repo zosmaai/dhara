@@ -112,8 +112,15 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
   }
 
   // ── Fetch from npm registry ──────────────────────────────────────
+
+  // 5-second timeout to prevent startup hanging on slow / missing networks
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+
   try {
-    const response = await fetch(NPM_REGISTRY_URL);
+    const response = await fetch(NPM_REGISTRY_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+
     if (!response.ok) {
       // npm returned an error — fall back to cache if available
       if (cached && semverGt(cached.latestVersion, currentVersion)) {
@@ -135,7 +142,8 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
 
     return null;
   } catch {
-    // Network failure — gracefully fall back to cache
+    // Network failure or timeout — gracefully fall back to cache
+    clearTimeout(timeout);
     if (cached && semverGt(cached.latestVersion, currentVersion)) {
       return { latestVersion: cached.latestVersion, currentVersion };
     }
