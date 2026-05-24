@@ -98,7 +98,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
     providerName,
     sandbox: sandboxOverride,
     systemPrompt,
-    maxIterations = 10,
+    maxIterations = 100,
     resumeSessionId,
   } = config;
 

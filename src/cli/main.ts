@@ -380,7 +380,7 @@ async function main(): Promise<void> {
           modelId: cfg.modelId,
           providerName: cfg.providerName,
           systemPrompt: initialSystemPrompt,
-          maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+          maxIterations: cfg.projectSettings?.maxIterations ?? 100,
           resumeSessionId,
           contextFiles: ctxState.getFiles(),
           skills: ctxState.getSkills(),
@@ -394,7 +394,7 @@ async function main(): Promise<void> {
               contextFiles: ctxState.getFiles(),
               skills: ctxState.getSkills(),
               projectConfigDir: newProjectConfig?.configDir,
-              maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+              maxIterations: newProjectConfig?.settings.maxIterations ?? 100,
             };
           },
         });
@@ -415,7 +415,7 @@ async function main(): Promise<void> {
         providerName: cfg.providerName,
         theme: getArg(args, "theme") ?? "dhara-default",
         systemPrompt: initialSystemPrompt,
-        maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+        maxIterations: cfg.projectSettings?.maxIterations ?? 100,
         resumeSessionId,
         toolOverrides: extensionTools,
         onThemeChange: (_newTheme: string) => {
@@ -427,7 +427,7 @@ async function main(): Promise<void> {
           const newProjectConfig = loadProjectConfig(cfg.cwd);
           return {
             systemPrompt: newPrompt,
-            maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+            maxIterations: newProjectConfig?.settings.maxIterations ?? 100,
           };
         },
       });
@@ -476,7 +476,7 @@ async function main(): Promise<void> {
     session,
     tools,
     systemPrompt: ctxState.build(),
-    maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+    maxIterations: cfg.projectSettings?.maxIterations ?? 100,
   });
 
   // Create event bus for streaming

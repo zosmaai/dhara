@@ -55,7 +55,7 @@ export async function runTui(config: TuiConfig): Promise<void> {
     theme,
     sandbox: sandboxOverride,
     systemPrompt,
-    maxIterations = 10,
+    maxIterations = 100,
     resumeSessionId,
     onThemeChange,
     toolOverrides,

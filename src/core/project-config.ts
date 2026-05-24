@@ -40,7 +40,7 @@ export interface ProjectConfigResult {
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS: ProjectSettings = {
-  maxIterations: 10,
+  maxIterations: 100,
 };
 
 // ─── Project Config Loader ───────────────────────────────────────────────────

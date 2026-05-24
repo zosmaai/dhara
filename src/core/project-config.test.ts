@@ -98,7 +98,7 @@ describe("project-config", () => {
 
       const result = loadProjectConfig(subdir);
       expect(result).toBeDefined();
-      expect(result?.settings.maxIterations).toBe(10);
+      expect(result?.settings.maxIterations).toBe(100);
     });
 
     it("returns undefined when settings.json is invalid JSON", () => {
