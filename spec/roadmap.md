@@ -50,7 +50,7 @@ Delivered (`src/core/`):
 - `provider.ts` — Provider interface (complete, single method)
 - `session.ts` — Session entry types and tree representation
 - `protocol.ts` — JSON-RPC 2.0 message types
-- `project-config.ts` — .dhara/settings.json loading
+- `project-config.ts` — .dhara/config.json loading
 
 Total: ~2,200 lines across 12 files (slightly over the 2K target, includes validation logic)
 
@@ -81,7 +81,7 @@ Delivered (`src/cli/`):
 - `tui-runner.ts` — Full-screen TUI launcher
 - `output-utils.ts` — ANSI formatting, event subscription for streaming
 - `--provider`, `--model`, `--base-url`, `--cwd`, `--resume`, `--theme`, `--repl` flags
-- Context files (AGENTS.md / CLAUDE.md), project config (.dhara/settings.json)
+- Context files (AGENTS.md / CLAUDE.md), project config (.dhara/config.json)
 - Extension loading from ~/.dhara/extensions/ and .dhara/extensions/
 
 ### ✅ Phase 4: Registry MVP — COMPLETE

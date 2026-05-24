@@ -11,6 +11,22 @@ Dhara supports multiple LLM providers through three adapter layers:
 2. **pi-ai adapter** — 20+ providers via `@earendil-works/pi-ai`
 3. **Custom providers** — Implement the `Provider` interface for any API
 
+## Interactive Setup (Recommended)
+
+The easiest way to configure a provider is via `/login` inside the TUI:
+
+```bash
+# Start Dhara
+dhara
+
+# Type /login and follow the prompts:
+# 1. Choose "API Key" as auth type
+# 2. Select your provider
+# 3. Enter your API key (masked)
+```
+
+Your credentials are stored in `~/.dhara/config.json`.
+
 ## Built-in Providers
 
 ### OpenAI
@@ -101,7 +117,7 @@ nano ~/.dhara/config.json
 }
 ```
 
-Or set it per-project in `.dhara/settings.json`:
+Or set it per-project in `.dhara/config.json`:
 
 ```json
 {

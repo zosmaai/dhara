@@ -48,7 +48,7 @@ The core defines **only interfaces and orchestration** — no provider implement
 | `context-loader.ts` | AGENTS.md / CLAUDE.md walk-up loading |
 | `skills.ts` | Agent Skills discovery and loading |
 | `provider.ts` | Provider interface (single method) |
-| `project-config.ts` | `.dhara/settings.json` loading |
+| `project-config.ts` | `.dhara/config.json` loading (with legacy `.dhara/settings.json` fallback) |
 
 **Total:** ~2,200 lines across 12 files.
 
@@ -102,7 +102,7 @@ Dhara loads context files automatically:
 
 ## Project Configuration
 
-Create `.dhara/settings.json` in your project root:
+Create `.dhara/config.json` in your project root:
 
 ```json
 {
@@ -116,8 +116,11 @@ Create `.dhara/settings.json` in your project root:
 Configuration precedence (highest to lowest):
 
 1. CLI flags
-2. `.dhara/settings.json` (project)
+2. `.dhara/config.json` (project)
 3. `~/.dhara/config.json` (global)
+
+> **Note:** Legacy `.dhara/settings.json` files are still loaded for backward
+> compatibility if `config.json` is not found.
 
 ## Global Directory (`~/.dhara/`)
 
@@ -129,7 +132,7 @@ Configuration precedence (highest to lowest):
 │   └── <name>/
 │       ├── manifest.json
 │       └── ...
-└── context.md               # Global context file
+└── AGENTS.md / CLAUDE.md    # Global context files
 ```
 
 ## Skills Discovery
