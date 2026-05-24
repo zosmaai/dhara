@@ -15,6 +15,7 @@ import { createEventBus } from "../core/events.js";
 import type { Provider, ToolRegistration } from "../core/provider.js";
 import { createSandbox, type Sandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
+import { formatUpdateMessage, type UpdateInfo } from "../core/update-check.js";
 import { getSelectListTheme } from "../std/renderers/tui/dhara-theme.js";
 import { DharaApp, ProcessTerminal, TUI } from "../std/renderers/tui/index.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
@@ -43,6 +44,8 @@ export interface TuiConfig {
   onReload?: () => { systemPrompt: string; maxIterations: number };
   /** Called when user changes theme via /settings. Return false to reject. */
   onThemeChange?: (newTheme: string) => boolean;
+  /** If a newer dhara version is available on npm, this contains the info. */
+  updateInfo?: UpdateInfo;
 }
 
 export async function runTui(config: TuiConfig): Promise<void> {
@@ -648,6 +651,16 @@ export async function runTui(config: TuiConfig): Promise<void> {
         `  Run /login and choose API Key, then select your provider and enter your API key.`,
         `  Your API key is stored in ~/.dhara/config.json.`,
       ].join("\n"),
+    });
+    tui.requestRender();
+  }
+
+  // Show update notification if a newer version is available
+  const updateInfo = config.updateInfo;
+  if (updateInfo) {
+    chat.addMessage({
+      role: "system",
+      content: formatUpdateMessage(updateInfo),
     });
     tui.requestRender();
   }
