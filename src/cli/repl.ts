@@ -10,6 +10,7 @@ import type { Provider, ToolRegistration } from "../core/provider.js";
 import { createSandbox, type Sandbox } from "../core/sandbox.js";
 import type { SessionManager } from "../core/session-manager.js";
 import type { Skill } from "../core/skills.js";
+import { formatUpdateMessage, type UpdateInfo } from "../core/update-check.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { ANSI, subscribePromptEvents, tag, useColor } from "./output-utils.js";
 
@@ -79,6 +80,8 @@ export interface ReplConfig {
    * These take precedence over standard tools on name collision.
    */
   toolOverrides?: ToolRegistration[];
+  /** If a newer dhara version is available on npm, this contains the info. */
+  updateInfo?: UpdateInfo;
 }
 
 /**
@@ -208,6 +211,12 @@ export async function runRepl(config: ReplConfig): Promise<void> {
   }
   output.write(`  ${tb(bl + h.repeat(boxWidth - 2) + br)}\n`);
   output.write("\n");
+
+  // Show update notification if a newer version is available
+  if (config.updateInfo) {
+    const updateMsg = formatUpdateMessage(config.updateInfo);
+    output.write(`  ${tag(ANSI.yellow, "\u26a0", colorEnabled)} ${dim(updateMsg)}\n\n`);
+  }
 
   // ── SIGINT (Ctrl+C) handler ────────────────────────────────────────
   const sigintHandler = () => {
