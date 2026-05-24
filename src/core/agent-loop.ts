@@ -80,6 +80,44 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
     return false;
   }
 
+  /** Default timeout per provider call: 5 minutes. Prevents indefinite hangs. */
+  const PROVIDER_TIMEOUT_MS = 300_000;
+
+  /**
+   * Create an AbortController that aborts when EITHER the caller's signal
+   * aborts OR the timeout fires. This prevents provider.complete() from
+   * hanging indefinitely when the provider is unresponsive.
+   */
+  function withTimeout(signal?: AbortSignal): AbortController {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(new Error("Provider timeout")),
+      PROVIDER_TIMEOUT_MS,
+    );
+
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timeout);
+        controller.abort(signal.reason);
+        return controller;
+      }
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timeout);
+          controller.abort(signal.reason);
+        },
+        { once: true },
+      );
+    }
+
+    // Clean up timeout if the merged signal is aborted by the timeout itself
+    const onAbort = () => clearTimeout(timeout);
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+
+    return controller;
+  }
+
   async function run(
     userPrompt: string,
     signal?: AbortSignal,
@@ -128,6 +166,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       // Call LLM
       let response: AssistantMessage | undefined;
       try {
+        const timeoutController = withTimeout(signal);
         response = await provider.complete(
           {
             systemPrompt,
@@ -136,10 +175,10 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
             model: session.meta.model ?? { id: "unknown", provider: "unknown" },
             eventBus: eb,
           },
-          signal,
+          timeoutController.signal,
         );
       } catch (err) {
-        // Check if cancellation caused the error
+        // Check if cancellation (timeout or user) caused the error
         if (signal?.aborted) {
           eb?.emit("agent:cancelled", { reason: signal.reason });
           eb?.emit("agent:end", { messages: [] });
@@ -387,6 +426,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
 
       let response: AssistantMessage | undefined;
       try {
+        const timeoutController = withTimeout(signal);
         response = await provider.complete(
           {
             systemPrompt,
@@ -395,7 +435,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
             model: session.meta.model ?? { id: "unknown", provider: "unknown" },
             eventBus: eb,
           },
-          signal,
+          timeoutController.signal,
         );
       } catch (err) {
         if (signal?.aborted) {

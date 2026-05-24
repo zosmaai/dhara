@@ -222,6 +222,27 @@ describe("checkForUpdate", () => {
       restore();
     }
   });
+
+  it("passes an AbortSignal to fetch for timeout protection", async () => {
+    const mockFetch = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve(new Response(JSON.stringify({ version: "0.2.0" }), { status: 200 })),
+    );
+
+    const orig = globalThis.fetch;
+    globalThis.fetch = mockFetch;
+
+    try {
+      await checkForUpdate("0.1.0");
+      expect(mockFetch).toHaveBeenCalledOnce();
+      const callArgs = mockFetch.mock.calls[0];
+      expect(callArgs).toHaveLength(2);
+      expect(callArgs[1]).toBeDefined();
+      expect(callArgs[1].signal).toBeDefined();
+      expect(callArgs[1].signal.aborted).toBe(false);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
 });
 
 describe("formatUpdateMessage", () => {
