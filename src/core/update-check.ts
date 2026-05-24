@@ -23,6 +23,8 @@ export interface UpdateInfo {
 interface CachedCheck {
   latestVersion: string;
   checkedAt: string; // ISO 8601 timestamp
+  /** The version that was running when this cache entry was written. */
+  currentVersion: string;
 }
 
 // ─── Semver comparison (minimal, no deps) ──────────────────────────────
@@ -65,10 +67,18 @@ function readCachedCheck(): CachedCheck | null {
   }
 }
 
-function writeCachedCheck(info: CachedCheck): void {
+function writeCachedCheck(latestVersion: string, currentVersion: string): void {
   try {
     mkdirSync(join(homedir(), ".dhara"), { recursive: true });
-    writeFileSync(getStoragePath(), JSON.stringify(info), "utf-8");
+    writeFileSync(
+      getStoragePath(),
+      JSON.stringify({
+        latestVersion,
+        currentVersion,
+        checkedAt: new Date().toISOString(),
+      } satisfies CachedCheck),
+      "utf-8",
+    );
   } catch {
     // Best-effort — don't crash startup over a cache write
   }
@@ -102,8 +112,10 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
 
   if (cached) {
     const elapsed = now - new Date(cached.checkedAt).getTime();
-    if (elapsed < CHECK_INTERVAL_MS) {
-      // Cache is still fresh — use it
+    const sameVersion = cached.currentVersion === currentVersion;
+
+    if (elapsed < CHECK_INTERVAL_MS && sameVersion) {
+      // Cache is still fresh and the running version hasn't changed — use it
       if (semverGt(cached.latestVersion, currentVersion)) {
         return { latestVersion: cached.latestVersion, currentVersion };
       }
@@ -133,7 +145,7 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
     if (!latestVersion) return null;
 
     // Persist to cache
-    writeCachedCheck({ latestVersion, checkedAt: new Date().toISOString() });
+    writeCachedCheck(latestVersion, currentVersion);
 
     if (semverGt(latestVersion, currentVersion)) {
       return { latestVersion, currentVersion };
