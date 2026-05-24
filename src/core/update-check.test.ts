@@ -173,7 +173,11 @@ describe("checkForUpdate", () => {
     mkdirSync(dharaDir, { recursive: true });
     writeFileSync(
       join(dharaDir, "update-check.json"),
-      JSON.stringify({ latestVersion: "0.2.0", checkedAt: new Date().toISOString() }),
+      JSON.stringify({
+        latestVersion: "0.2.0",
+        currentVersion: "0.3.0",
+        checkedAt: new Date().toISOString(),
+      }),
       "utf-8",
     );
 
@@ -188,7 +192,11 @@ describe("checkForUpdate", () => {
     mkdirSync(dharaDir, { recursive: true });
     writeFileSync(
       join(dharaDir, "update-check.json"),
-      JSON.stringify({ latestVersion: "0.5.0", checkedAt: new Date().toISOString() }),
+      JSON.stringify({
+        latestVersion: "0.5.0",
+        currentVersion: "0.2.0",
+        checkedAt: new Date().toISOString(),
+      }),
       "utf-8",
     );
 
@@ -206,6 +214,7 @@ describe("checkForUpdate", () => {
       join(dharaDir, "update-check.json"),
       JSON.stringify({
         latestVersion: "0.5.0",
+        currentVersion: "0.2.0",
         checkedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), // 25h old — expired
       }),
       "utf-8",
