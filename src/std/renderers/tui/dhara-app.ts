@@ -87,7 +87,15 @@ export class DharaApp implements Component, Focusable {
   private accumulatedReasoning = "";
   private isAssistantRunning = false;
 
-  // Streaming assistant component (created at startStream, updated incrementally)
+  /**
+   * True when tool calls have been rendered since the last assistant content.
+   * When subsequent message:delta/message:reasoning arrives, a NEW assistant
+   * component is created BELOW all tools so post-tool response appears
+   * naturally below tool executions rather than above them.
+   */
+  private hasToolCallsSinceLastContent = false;
+
+  // Streaming assistant component (created incrementally as content arrives)
   private streamingAssistant: AssistantMessageComponent | null = null;
 
   // Current tool being executed (null when idle)
@@ -284,31 +292,62 @@ export class DharaApp implements Component, Focusable {
   }
 
   // ── Streaming / Accumulation ───────────────────────────────────────
-  // Rather than creating an AssistantMessageComponent mid-stream, we
-  // accumulate content and reasoning during agent execution and only
-  // render the final component at agent:end (below any tool calls).
+  //
+  // Message ordering strategy:
+  //   - During agent execution, content that arrives BEFORE any tool call
+  //     (e.g. "I'll search for X...") is rendered ABOVE tools as a
+  //     "pre-tool" assistant component.
+  //   - When a tool call fires, the pre-tool assistant is finalized and
+  //     stays above. Subsequent content from the next turn (e.g. "Here's
+  //     what I found...") gets a NEW assistant component BELOW all tools.
+  //   - This ensures the user sees tools executing and the AI response
+  //     naturally below them, without needing to scroll up.
 
   startStream(): void {
     this.accumulatedContent = "";
     this.accumulatedReasoning = "";
     this.isAssistantRunning = true;
-
-    // Create a streaming assistant component early so reasoning/content
-    // can be displayed incrementally as it arrives
-    if (!this.streamingAssistant) {
-      this.streamingAssistant = new AssistantMessageComponent("", "", getMarkdownTheme());
-      this.chatContainer.addChild(this.streamingAssistant);
-    }
+    this.hasToolCallsSinceLastContent = false;
+    this.streamingAssistant = null;
 
     this.startWorking();
     this.footer.update({ state: "thinking" });
     this.tui.requestRender();
   }
 
+  /**
+   * Get or create the current streaming assistant.
+   * If tools have been rendered since the last assistant content, a NEW
+   * assistant component is created below all tools (the post-tool response).
+   * Otherwise returns the existing pre-tool assistant or creates a new one
+   * that will appear above future tools.
+   */
+  private getOrCreateStreamingAssistant(): AssistantMessageComponent {
+    if (this.hasToolCallsSinceLastContent) {
+      // Tools executed since last content — start a fresh assistant below tools
+      this.hasToolCallsSinceLastContent = false;
+      this.accumulatedContent = "";
+      this.accumulatedReasoning = "";
+      this.streamingAssistant = new AssistantMessageComponent("", "", getMarkdownTheme());
+      this.chatContainer.addChild(this.streamingAssistant);
+    } else if (!this.streamingAssistant) {
+      // First content, no tools yet — create above future tools
+      this.streamingAssistant = new AssistantMessageComponent("", "", getMarkdownTheme());
+      this.chatContainer.addChild(this.streamingAssistant);
+    }
+    return this.streamingAssistant;
+  }
+
   updateStream(delta: string): void {
     if (!this.isAssistantRunning) return;
+
+    // If tools were called since last content, this is a new turn's response.
+    // getOrCreateStreamingAssistant will create a new component below tools.
+    if (this.hasToolCallsSinceLastContent) {
+      this.getOrCreateStreamingAssistant();
+    }
+
     this.accumulatedContent += delta;
-    // Update streaming component incrementally
     if (this.streamingAssistant) {
       this.streamingAssistant.setContent(this.accumulatedContent);
     }
@@ -318,8 +357,13 @@ export class DharaApp implements Component, Focusable {
 
   updateReasoning(text: string): void {
     if (!this.isAssistantRunning) return;
+
+    // If tools were called since last content, this is a new turn's thinking.
+    if (this.hasToolCallsSinceLastContent) {
+      this.getOrCreateStreamingAssistant();
+    }
+
     this.accumulatedReasoning += text;
-    // Update streaming component incrementally (shows thinking in real-time)
     if (this.streamingAssistant) {
       this.streamingAssistant.setReasoning(this.accumulatedReasoning);
     }
@@ -331,7 +375,7 @@ export class DharaApp implements Component, Focusable {
       this.accumulatedContent = result;
     }
 
-    // If streaming assistant exists, update it with final content
+    // Finalize the active streaming assistant (pre-tool or post-tool)
     if (this.streamingAssistant) {
       this.streamingAssistant.updateContent(
         this.accumulatedContent,
@@ -339,7 +383,7 @@ export class DharaApp implements Component, Focusable {
       );
       this.streamingAssistant = null;
     } else if (this.accumulatedContent || this.accumulatedReasoning) {
-      // Fallback: create the final AssistantMessageComponent
+      // Fallback: create the final AssistantMessageComponent below any tools
       const assistantMsg = new AssistantMessageComponent(
         this.accumulatedContent,
         this.accumulatedReasoning || undefined,
@@ -351,6 +395,7 @@ export class DharaApp implements Component, Focusable {
     this.accumulatedContent = "";
     this.accumulatedReasoning = "";
     this.isAssistantRunning = false;
+    this.hasToolCallsSinceLastContent = false;
     this.stopWorking();
     this.footer.update({ state: "idle" });
     this.tui.requestRender();
@@ -417,6 +462,14 @@ export class DharaApp implements Component, Focusable {
   }
 
   setToolCall(toolName: string, args: string): void {
+    // Mark that tools have been rendered. Next content/reasoning event will
+    // create a new assistant component BELOW all tools (post-tool response).
+    this.hasToolCallsSinceLastContent = true;
+
+    // If there's a pre-tool assistant with content streaming in, finalize it
+    // as pre-tool content (it stays above tools permanently).
+    this.streamingAssistant = null;
+
     this.currentToolArgs = this.formatToolArgs(args);
     // Show the tool name with formatted args in the title, empty content during execution
     this.currentTool = new ToolExecutionComponent(toolName, "", false, this.currentToolArgs);
@@ -467,6 +520,7 @@ export class DharaApp implements Component, Focusable {
     this.accumulatedReasoning = "";
     this.isAssistantRunning = false;
     this.streamingAssistant = null;
+    this.hasToolCallsSinceLastContent = false;
     this.currentTool = null;
     this.toolComponents = [];
     this.stopWorking();
