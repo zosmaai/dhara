@@ -14,7 +14,6 @@ import { createSandbox } from "../core/sandbox.js";
 import { createSession } from "../core/session.js";
 import { SessionManager } from "../core/session-manager.js";
 import { discoverSkills, reloadSkills, type Skill } from "../core/skills.js";
-import { checkForUpdate } from "../core/update-check.js";
 import { createStandardToolMap, mergeExtensionTools } from "../std/tools/index.js";
 import { generateCompletion } from "./completions.js";
 import { handleConfigSubcommand } from "./config-commands.js";
@@ -370,9 +369,6 @@ async function main(): Promise<void> {
 
   // ── No prompt → interactive mode (TUI or REPL) ────────────────────
   if (!prompt) {
-    // Fire update check early (non-blocking) so it resolves while we set up
-    const updatePromise = checkForUpdate(getVersion());
-
     const cfg = resolveConfig(args);
     const sessionManager = new SessionManager();
     const ctxState = createContextState(cfg.cwd, disableContextFiles);
@@ -394,7 +390,6 @@ async function main(): Promise<void> {
     const replProvider = cfg.provider as import("../core/provider.js").Provider;
     if (args.includes("--repl")) {
       try {
-        const updateInfo = await updatePromise;
         await runRepl({
           input: process.stdin,
           output: process.stdout,
@@ -421,7 +416,6 @@ async function main(): Promise<void> {
               maxIterations: resolveMaxIterations(newProjectConfig?.settings),
             };
           },
-          updateInfo: updateInfo ?? undefined,
         });
       } finally {
         await extManager.shutdownAll();
@@ -431,7 +425,6 @@ async function main(): Promise<void> {
 
     // ── TUI mode (default) ────────────────────────────────────────
     try {
-      const updateInfo = await updatePromise;
       await runTui({
         sessionManager,
         configManager: new ConfigManager(),
@@ -456,7 +449,6 @@ async function main(): Promise<void> {
             maxIterations: resolveMaxIterations(newProjectConfig?.settings),
           };
         },
-        updateInfo: updateInfo ?? undefined,
       });
     } finally {
       await extManager.shutdownAll();
