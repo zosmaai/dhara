@@ -78,7 +78,7 @@ Options:
   --theme <name|path>      TUI theme (built-in: dhara-default, dracula, nord, catppuccin)
   --repl                   Use line-based REPL instead of TUI
   --no-context-files       Disable AGENTS.md / CLAUDE.md loading
-  --no-project-config      Disable .dhara/settings.json loading
+  --no-project-config      Disable .dhara/config.json loading
   --version                Show version and exit
   --help                   Show this help message
 
@@ -143,6 +143,24 @@ interface ResolvedConfig {
   apiKey: string | undefined;
   provider: Provider | null;
   projectSettings?: ProjectSettings;
+  /** Resolved maxIterations: project → global config → default. */
+  maxIterations: number;
+}
+
+/**
+ * Resolve the effective maxIterations from the configuration chain:
+ * project-level `.dhara/config.json` → global `~/.dhara/config.json` → hardcoded default.
+ */
+function resolveMaxIterations(projectSettings?: ProjectSettings): number {
+  if (projectSettings?.session?.maxIterations !== undefined) {
+    return projectSettings.session.maxIterations;
+  }
+  try {
+    const mgr = new ConfigManager();
+    return mgr.config.session.maxIterations;
+  } catch {
+    return 100;
+  }
 }
 
 function resolveConfig(args: string[]): ResolvedConfig {
@@ -199,6 +217,7 @@ function resolveConfig(args: string[]): ResolvedConfig {
     apiKey,
     provider,
     projectSettings: projectConfig?.settings,
+    maxIterations: resolveMaxIterations(projectConfig?.settings),
   };
 }
 
@@ -380,7 +399,7 @@ async function main(): Promise<void> {
           modelId: cfg.modelId,
           providerName: cfg.providerName,
           systemPrompt: initialSystemPrompt,
-          maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+          maxIterations: cfg.maxIterations,
           resumeSessionId,
           contextFiles: ctxState.getFiles(),
           skills: ctxState.getSkills(),
@@ -394,7 +413,7 @@ async function main(): Promise<void> {
               contextFiles: ctxState.getFiles(),
               skills: ctxState.getSkills(),
               projectConfigDir: newProjectConfig?.configDir,
-              maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+              maxIterations: resolveMaxIterations(newProjectConfig?.settings),
             };
           },
         });
@@ -415,7 +434,7 @@ async function main(): Promise<void> {
         providerName: cfg.providerName,
         theme: getArg(args, "theme") ?? "dhara-default",
         systemPrompt: initialSystemPrompt,
-        maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+        maxIterations: cfg.maxIterations,
         resumeSessionId,
         toolOverrides: extensionTools,
         onThemeChange: (_newTheme: string) => {
@@ -427,7 +446,7 @@ async function main(): Promise<void> {
           const newProjectConfig = loadProjectConfig(cfg.cwd);
           return {
             systemPrompt: newPrompt,
-            maxIterations: newProjectConfig?.settings.maxIterations ?? 10,
+            maxIterations: resolveMaxIterations(newProjectConfig?.settings),
           };
         },
       });
@@ -476,7 +495,7 @@ async function main(): Promise<void> {
     session,
     tools,
     systemPrompt: ctxState.build(),
-    maxIterations: cfg.projectSettings?.maxIterations ?? 10,
+    maxIterations: cfg.maxIterations,
   });
 
   // Create event bus for streaming

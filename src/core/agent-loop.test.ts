@@ -283,7 +283,7 @@ describe("Agent Loop", () => {
   });
 
   describe("iteration limits", () => {
-    it("stops after maxIterations to prevent infinite loops", async () => {
+    it("stops after maxIterations and synthesizes a final response", async () => {
       const provider = mockProvider([
         {
           content: [],
@@ -294,8 +294,7 @@ describe("Agent Loop", () => {
           toolCalls: [{ id: "tc2", name: "noop", input: {} }],
         },
         {
-          content: [],
-          toolCalls: [{ id: "tc3", name: "noop", input: {} }],
+          content: [{ type: "text", text: "Here is my synthesis after tool results." }],
         },
       ]);
 
@@ -317,9 +316,20 @@ describe("Agent Loop", () => {
       const loop = createAgentLoop({ provider, session, tools, maxIterations: 2 });
       await loop.run("Loop");
 
-      // user + assistant(tc1) + tool_result + assistant(tc2) + tool_result
-      // maxIterations=2 means 2 LLM calls
-      expect(provider.calls).toHaveLength(2);
+      // maxIterations=2 means 2 tool-calling LLM calls, then
+      // a 3rd synthesis call (without tools) feeds results back
+      expect(provider.calls).toHaveLength(3);
+
+      // The last (synthesis) call should NOT include tool definitions
+      const lastCall = provider.calls[2];
+      expect(lastCall.tools).toBeUndefined();
+
+      // The synthesis response should appear in the session
+      const path = session.getPath();
+      const lastEntry = session.getEntry(path[path.length - 1]);
+      expect(lastEntry).toBeDefined();
+      expect(lastEntry?.role).toBe("assistant");
+      expect(lastEntry?.content?.[0]?.text).toBe("Here is my synthesis after tool results.");
     });
   });
 

@@ -33,7 +33,7 @@ describe("ConfigManager", () => {
       expect(manager.config.providers).toEqual([]);
       expect(manager.config.session).toEqual({
         autoSave: true,
-        maxIterations: 10,
+        maxIterations: 100,
       });
     });
   });

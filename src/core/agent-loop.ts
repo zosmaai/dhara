@@ -57,7 +57,7 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
     session,
     tools = new Map(),
     systemPrompt,
-    maxIterations = 10,
+    maxIterations = 100,
     eventBus: defaultEventBus,
   } = config;
 
@@ -102,8 +102,9 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
     eb?.emit("message:end", { entry: userEntry });
     eb?.emit("agent:prompt", { prompt: userPrompt, entryId: userEntry.id });
 
-    // Track last response for agent:end event
+    // Track state for agent:end and synthesis
     let lastUsage: { input: number; output: number } | undefined;
+    let lastResponseHadToolCalls = false;
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       if (isCancelled(signal, eb)) {
@@ -214,8 +215,11 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
         usage: response.usage,
       });
 
+      // Track whether this response had tool calls
+      lastResponseHadToolCalls = response.toolCalls !== undefined && response.toolCalls.length > 0;
+
       // If no tool calls, this turn is complete
-      if (!response.toolCalls || response.toolCalls.length === 0) {
+      if (!lastResponseHadToolCalls) {
         eb?.emit("turn:end", {
           iteration,
           message: assistantEntry,
@@ -227,7 +231,9 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
       // Execute tool calls
       const toolResults: Array<{ entry: unknown; toolName: string; toolCallId: string }> = [];
 
-      for (const toolCall of response.toolCalls) {
+      // lastResponseHadToolCalls is true, so toolCalls is guaranteed defined
+      const toolCalls = response.toolCalls ?? [];
+      for (const toolCall of toolCalls) {
         if (isCancelled(signal, eb)) break;
 
         eb?.emit("tool:call_start", {
@@ -355,6 +361,115 @@ export function createAgentLoop(config: AgentLoopConfig): AgentLoop {
         iteration,
         message: assistantEntry,
         toolResults,
+      });
+    }
+
+    // ── Synthesis pass ────────────────────────────────────────────────
+    // If the last LLM response produced tool calls, those tools executed
+    // and their results are now in the session, but the LLM never got a
+    // chance to synthesize a final answer. Make one more call WITHOUT
+    // tools so the LLM must respond in text.
+    if (lastResponseHadToolCalls) {
+      if (isCancelled(signal, eb)) {
+        eb?.emit("agent:end", { messages: [], result: { tokens: lastUsage } });
+        return;
+      }
+
+      eb?.emit("turn:start", { iteration: maxIterations, label: "synthesis" });
+
+      const messages = buildMessages(session);
+
+      let hadDeltas = false;
+      const unsubDelta = eb?.subscribe("message:delta", () => {
+        hadDeltas = true;
+        return { action: "allow" };
+      });
+
+      let response: AssistantMessage | undefined;
+      try {
+        response = await provider.complete(
+          {
+            systemPrompt,
+            messages,
+            tools: undefined, // No tools — forces a text-only response
+            model: session.meta.model ?? { id: "unknown", provider: "unknown" },
+            eventBus: eb,
+          },
+          signal,
+        );
+      } catch (err) {
+        if (signal?.aborted) {
+          eb?.emit("agent:cancelled", { reason: signal.reason });
+          eb?.emit("agent:end", { messages: [], result: { tokens: lastUsage } });
+          return;
+        }
+        eb?.emit("agent:error", {
+          error: err instanceof Error ? err.message : String(err),
+          iteration: maxIterations,
+        });
+        eb?.emit("agent:end", { messages: [], result: { tokens: lastUsage } });
+        return;
+      }
+
+      if (isCancelled(signal, eb)) {
+        eb?.emit("agent:end", { messages: [], result: { tokens: lastUsage } });
+        return;
+      }
+
+      // Append synthesis response to session
+      const synthesisEntry = session.append({
+        role: "assistant",
+        content: response.content,
+        reasoningContent: response.reasoningContent,
+        metadata: response.usage
+          ? {
+              tokenCount: {
+                input: response.usage.input,
+                output: response.usage.output,
+              },
+            }
+          : undefined,
+      });
+
+      eb?.emit("message:start", { entry: synthesisEntry, content: response.content });
+
+      if (response.reasoningContent) {
+        eb?.emit("message:reasoning", {
+          entry: synthesisEntry,
+          text: response.reasoningContent,
+        });
+      }
+
+      if (response.content.length > 0 && !hadDeltas) {
+        const deltaText = response.content
+          .filter((c: { type: string; text?: string }) => c.type === "text")
+          .map((c: { text?: string }) => c.text ?? "")
+          .join("");
+        eb?.emit("message:delta", {
+          entry: synthesisEntry,
+          content: response.content,
+          type: "text",
+          delta: deltaText,
+        });
+      }
+      unsubDelta?.();
+
+      eb?.emit("message:end", { entry: synthesisEntry });
+
+      if (response.usage) {
+        lastUsage = response.usage;
+      }
+
+      eb?.emit("agent:response", {
+        entryId: synthesisEntry.id,
+        content: response.content,
+        usage: response.usage,
+      });
+
+      eb?.emit("turn:end", {
+        iteration: maxIterations,
+        message: synthesisEntry,
+        toolResults: [],
       });
     }
 

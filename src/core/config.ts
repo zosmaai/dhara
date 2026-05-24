@@ -80,7 +80,7 @@ export const DEFAULT_CONFIG: DharaConfigData = {
   providers: [],
   session: {
     autoSave: true,
-    maxIterations: 10,
+    maxIterations: 100,
   },
 };
 
