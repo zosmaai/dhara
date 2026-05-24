@@ -333,7 +333,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
         output.write(`  Max iterations: ${currentMaxIterations}\n`);
 
         if (currentProjectConfigDir) {
-          output.write(`  Project config: ${currentProjectConfigDir}/settings.json\n`);
+          output.write(`  Project config: ${currentProjectConfigDir}/config.json\n`);
         } else {
           output.write(`  Project config: ${dim("none")}\n`);
         }
@@ -411,7 +411,7 @@ export async function runRepl(config: ReplConfig): Promise<void> {
           `  ${tag(ANSI.yellow, "/name", colorEnabled)}      Set session display name\n`,
         );
         output.write(
-          `  ${tag(ANSI.yellow, "/reload", colorEnabled)}    Reload AGENTS.md, CLAUDE.md, .dhara/settings.json, and skills\n`,
+          `  ${tag(ANSI.yellow, "/reload", colorEnabled)}    Reload AGENTS.md, CLAUDE.md, .dhara/config.json, and skills\n`,
         );
         output.write(`  ${tag(ANSI.yellow, "/skills", colorEnabled)}    List available skills\n`);
         output.write(

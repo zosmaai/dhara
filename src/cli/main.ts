@@ -78,7 +78,7 @@ Options:
   --theme <name|path>      TUI theme (built-in: dhara-default, dracula, nord, catppuccin)
   --repl                   Use line-based REPL instead of TUI
   --no-context-files       Disable AGENTS.md / CLAUDE.md loading
-  --no-project-config      Disable .dhara/settings.json loading
+  --no-project-config      Disable .dhara/config.json loading
   --version                Show version and exit
   --help                   Show this help message
 
@@ -149,11 +149,11 @@ interface ResolvedConfig {
 
 /**
  * Resolve the effective maxIterations from the configuration chain:
- * project-level `.dhara/settings.json` → global `~/.dhara/config.json` → hardcoded default.
+ * project-level `.dhara/config.json` → global `~/.dhara/config.json` → hardcoded default.
  */
 function resolveMaxIterations(projectSettings?: ProjectSettings): number {
-  if (projectSettings?.maxIterations !== undefined) {
-    return projectSettings.maxIterations;
+  if (projectSettings?.session?.maxIterations !== undefined) {
+    return projectSettings.session.maxIterations;
   }
   try {
     const mgr = new ConfigManager();
