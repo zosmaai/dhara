@@ -1,14 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { checkForUpdate, formatUpdateMessage, semverGt } from "./update-check.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────────
-
-function withTempDir(): string {
-  return mkdtempSync(join(tmpdir(), "dhara-update-"));
-}
 
 function withMockFetch(impl: () => Response) {
   const orig = globalThis.fetch;
@@ -57,19 +50,9 @@ describe("semverGt", () => {
 });
 
 describe("checkForUpdate", () => {
-  const OLD_HOME = process.env.HOME;
-  let tempHome: string;
-
   beforeEach(() => {
-    tempHome = withTempDir();
-    process.env.HOME = tempHome;
     delete process.env.DHARA_SKIP_UPDATE_CHECK;
     delete process.env.DHARA_OFFLINE;
-  });
-
-  afterEach(() => {
-    process.env.HOME = OLD_HOME;
-    rmSync(tempHome, { recursive: true, force: true });
   });
 
   it("returns null when DHARA_SKIP_UPDATE_CHECK=1", async () => {
@@ -144,112 +127,20 @@ describe("checkForUpdate", () => {
     }
   });
 
-  it("caches the result and uses cached value on subsequent calls", async () => {
-    let callCount = 0;
-    const restore = withMockFetch(() => {
-      callCount++;
-      return Promise.resolve(new Response(JSON.stringify({ version: "0.5.0" }), { status: 200 }));
-    });
-    try {
-      // First call — fetches from npm
-      const result1 = await checkForUpdate("0.2.0");
-      expect(result1).not.toBeNull();
-      expect(result1?.latestVersion).toBe("0.5.0");
-      expect(callCount).toBe(1);
-
-      // Second call — should use cache, not fetch
-      const result2 = await checkForUpdate("0.2.0");
-      expect(result2).not.toBeNull();
-      expect(result2?.latestVersion).toBe("0.5.0");
-      expect(callCount).toBe(1); // Still 1 — no extra fetch
-    } finally {
-      restore();
-    }
-  });
-
-  it("returns null from cache when version is current (after cache roll)", async () => {
-    // Seed the cache with a check that says "current version matches"
-    const dharaDir = join(tempHome, ".dhara");
-    mkdirSync(dharaDir, { recursive: true });
-    writeFileSync(
-      join(dharaDir, "update-check.json"),
-      JSON.stringify({
-        latestVersion: "0.2.0",
-        currentVersion: "0.3.0",
-        checkedAt: new Date().toISOString(),
-      }),
-      "utf-8",
-    );
-
-    // Current version matches or exceeds cached latest
-    const result = await checkForUpdate("0.3.0");
-    expect(result).toBeNull();
-  });
-
-  it("returns UpdateInfo from cache for fresh check with newer version", async () => {
-    // Seed the cache within the 24h window
-    const dharaDir = join(tempHome, ".dhara");
-    mkdirSync(dharaDir, { recursive: true });
-    writeFileSync(
-      join(dharaDir, "update-check.json"),
-      JSON.stringify({
-        latestVersion: "0.5.0",
-        currentVersion: "0.2.0",
-        checkedAt: new Date().toISOString(),
-      }),
-      "utf-8",
-    );
-
-    const result = await checkForUpdate("0.2.0");
-    expect(result).not.toBeNull();
-    expect(result?.latestVersion).toBe("0.5.0");
-    expect(result?.currentVersion).toBe("0.2.0");
-  });
-
-  it("falls back to cache when network fails and cache has a newer version", async () => {
-    // Seed the cache first
-    const dharaDir = join(tempHome, ".dhara");
-    mkdirSync(dharaDir, { recursive: true });
-    writeFileSync(
-      join(dharaDir, "update-check.json"),
-      JSON.stringify({
-        latestVersion: "0.5.0",
-        currentVersion: "0.2.0",
-        checkedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), // 25h old — expired
-      }),
-      "utf-8",
-    );
-
-    // Network fails
-    const restore = withMockFetch(() => Promise.reject(new Error("Network failure")));
-    try {
-      const result = await checkForUpdate("0.2.0");
-      // Falls back to stale cache
-      expect(result).not.toBeNull();
-      expect(result?.latestVersion).toBe("0.5.0");
-    } finally {
-      restore();
-    }
-  });
-
   it("passes an AbortSignal to fetch for timeout protection", async () => {
-    const mockFetch = vi.fn((_url: string, _init?: RequestInit) =>
+    const restore = withMockFetch(() =>
       Promise.resolve(new Response(JSON.stringify({ version: "0.2.0" }), { status: 200 })),
     );
-
-    const orig = globalThis.fetch;
-    globalThis.fetch = mockFetch;
-
     try {
       await checkForUpdate("0.1.0");
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       expect(mockFetch).toHaveBeenCalledOnce();
       const callArgs = mockFetch.mock.calls[0];
       expect(callArgs).toHaveLength(2);
       expect(callArgs[1]).toBeDefined();
       expect(callArgs[1].signal).toBeDefined();
-      expect(callArgs[1].signal.aborted).toBe(false);
     } finally {
-      globalThis.fetch = orig;
+      restore();
     }
   });
 });

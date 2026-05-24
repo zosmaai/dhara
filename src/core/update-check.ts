@@ -1,12 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-
 // ─── Constants ─────────────────────────────────────────────────────────
 
 const NPM_REGISTRY_URL = "https://registry.npmjs.org/@zosmaai/dhara/latest";
-const UPDATE_CHECK_FILE = "update-check.json";
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // Once per day
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -17,13 +11,6 @@ export interface UpdateInfo {
   /** Latest version published on npm. */
   latestVersion: string;
   /** Currently installed version. */
-  currentVersion: string;
-}
-
-interface CachedCheck {
-  latestVersion: string;
-  checkedAt: string; // ISO 8601 timestamp
-  /** The version that was running when this cache entry was written. */
   currentVersion: string;
 }
 
@@ -52,38 +39,6 @@ export function semverGt(a: string, b: string): boolean {
   return false;
 }
 
-// ─── Cache helpers (private) ───────────────────────────────────────────
-
-function getStoragePath(): string {
-  return join(homedir(), ".dhara", UPDATE_CHECK_FILE);
-}
-
-function readCachedCheck(): CachedCheck | null {
-  try {
-    const raw = readFileSync(getStoragePath(), "utf-8");
-    return JSON.parse(raw) as CachedCheck;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedCheck(latestVersion: string, currentVersion: string): void {
-  try {
-    mkdirSync(join(homedir(), ".dhara"), { recursive: true });
-    writeFileSync(
-      getStoragePath(),
-      JSON.stringify({
-        latestVersion,
-        currentVersion,
-        checkedAt: new Date().toISOString(),
-      } satisfies CachedCheck),
-      "utf-8",
-    );
-  } catch {
-    // Best-effort — don't crash startup over a cache write
-  }
-}
-
 // ─── Public API ────────────────────────────────────────────────────────
 
 /**
@@ -91,11 +46,9 @@ function writeCachedCheck(latestVersion: string, currentVersion: string): void {
  *
  * **Design:**
  * - Non-critical — never throws, always resolves.
- * - Caches the result for 24 hours (stored in `~/.dhara/update-check.json`).
+ * - Runs every time dhara starts (no cache — it's a tiny 200-byte CDN request).
  * - Respects `DHARA_SKIP_UPDATE_CHECK=1` to disable all network I/O.
  * - `DHARA_OFFLINE=1` also disables the check.
- * - Uses the cached result even if the 24h window hasn't expired,
- *   so a previously-detected update keeps showing until the cache rolls.
  *
  * @param currentVersion The currently installed dhara version.
  * @returns `UpdateInfo` if a newer version exists, `null` otherwise.
@@ -106,46 +59,19 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
     return null;
   }
 
-  // ── Check cache ──────────────────────────────────────────────────
-  const cached = readCachedCheck();
-  const now = Date.now();
-
-  if (cached) {
-    const elapsed = now - new Date(cached.checkedAt).getTime();
-    const sameVersion = cached.currentVersion === currentVersion;
-
-    if (elapsed < CHECK_INTERVAL_MS && sameVersion) {
-      // Cache is still fresh and the running version hasn't changed — use it
-      if (semverGt(cached.latestVersion, currentVersion)) {
-        return { latestVersion: cached.latestVersion, currentVersion };
-      }
-      return null;
-    }
-  }
-
-  // ── Fetch from npm registry ──────────────────────────────────────
-
-  // 5-second timeout to prevent startup hanging on slow / missing networks
+  // 5-second timeout to prevent hanging on slow / missing networks
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5_000);
 
   try {
     const response = await fetch(NPM_REGISTRY_URL, { signal: controller.signal });
     clearTimeout(timeout);
-    if (!response.ok) {
-      // npm returned an error — fall back to cache if available
-      if (cached && semverGt(cached.latestVersion, currentVersion)) {
-        return { latestVersion: cached.latestVersion, currentVersion };
-      }
-      return null;
-    }
+
+    if (!response.ok) return null;
 
     const data = (await response.json()) as { version?: string };
     const latestVersion = data.version;
     if (!latestVersion) return null;
-
-    // Persist to cache
-    writeCachedCheck(latestVersion, currentVersion);
 
     if (semverGt(latestVersion, currentVersion)) {
       return { latestVersion, currentVersion };
@@ -153,11 +79,7 @@ export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo
 
     return null;
   } catch {
-    // Network failure or timeout — gracefully fall back to cache
     clearTimeout(timeout);
-    if (cached && semverGt(cached.latestVersion, currentVersion)) {
-      return { latestVersion: cached.latestVersion, currentVersion };
-    }
     return null;
   }
 }
