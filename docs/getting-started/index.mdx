@@ -8,10 +8,13 @@ description: Install, configure, and run Dhara for the first time.
 ## Installation
 
 ```bash
-# Install globally
+# Install globally (recommended)
 npm install -g @zosmaai/dhara
 
-# Or run directly with npx
+# Or with pnpm
+pnpm install -g @zosmaai/dhara
+
+# Or run directly without installing
 npx @zosmaai/dhara "List files in this project"
 ```
 
@@ -41,8 +44,25 @@ dhara --repl
 
 ## Configure a Provider
 
-Dhara needs an LLM provider to function. Set the corresponding
-environment variable and use `--provider`:
+Dhara needs an LLM provider to function. The easiest way is to use `/login`
+inside the TUI:
+
+```bash
+# Start the TUI
+dhara
+
+# Then type:
+/login
+```
+
+The interactive wizard will guide you through:
+
+1. Choose **API Key** as the auth type
+2. Select your provider (OpenAI, Anthropic, Google, etc.)
+3. Enter your API key (masked on screen)
+4. Your key is stored in `~/.dhara/config.json`
+
+You can also use environment variables and `--provider` flags:
 
 <Tabs
   items={["OpenAI", "Anthropic", "Google Gemini", "Mistral", "Groq"]}
@@ -112,7 +132,7 @@ All pi-ai providers use their standard environment variables:
 
 ## Project Configuration
 
-Create a `.dhara/settings.json` in your project root:
+Create a `.dhara/config.json` in your project root:
 
 ```json
 {
@@ -122,6 +142,13 @@ Create a `.dhara/settings.json` in your project root:
   "autoSave": true
 }
 ```
+
+Configuration is discovered by walking up from the current working directory.
+The closest `.dhara/config.json` found wins. Global defaults come from
+`~/.dhara/config.json`.
+
+Note: Legacy `.dhara/settings.json` is still loaded for backward compatibility,
+but `.dhara/config.json` is the recommended name.
 
 ## Context Files
 

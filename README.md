@@ -29,7 +29,7 @@
 <p align="center">
   <a href="https://dhara.zosma.ai">📖 Docs</a>
   ·
-  <a href="docs/getting-started.md">🚀 Getting Started</a>
+  <a href="docs/getting-started/index.mdx">🚀 Getting Started</a>
   ·
   <a href="spec/roadmap.md">🗺️ Roadmap</a>
 </p>
@@ -40,7 +40,15 @@ protocol — without being tied to any LLM provider, UI framework, or programmin
 language.
 
 ```bash
-npx @zosmaai/dhara "List the files in this project"
+# Install globally (recommended)
+npm install -g @zosmaai/dhara
+
+# Then use directly
+dhara "List the files in this project"
+
+# Or with pnpm
+pnpm install -g @zosmaai/dhara
+dhara "List the files in this project"
 ```
 
 ## Features
@@ -57,20 +65,57 @@ npx @zosmaai/dhara "List the files in this project"
 ## Quick Start
 
 ```bash
-# Run with a prompt (auto-detects opencode-go, or use --provider)
-npx @zosmaai/dhara "List the files in this project"
+# Install globally (recommended)
+npm install -g @zosmaai/dhara
 
-# Interactive mode (TUI)
-npx @zosmaai/dhara
+# One-shot: pass a prompt as an argument
+dhara "List the files in this project"
 
-# Choose a provider
+# Interactive mode (TUI) — just run dhara
+dhara
+
+# Choose a provider and model
 export GOOGLE_API_KEY="..."
-npx @zosmaai/dhara --provider google --model gemini-2.5-flash
+dhara --provider google --model gemini-2.5-flash
+
+# Or run directly with npx
+npx @zosmaai/dhara "List the files in this project"
+```
+
+## Configure a Provider
+
+Dhara needs an LLM provider to function. There are two ways:
+
+### Option 1: Interactive setup (recommended)
+
+Run `/login` inside the TUI to configure a provider interactively:
+
+1. Launch `dhara` to enter the TUI
+2. Type `/login`
+3. Choose **API Key** as the auth type
+4. Select your provider from the list
+5. Enter your API key (masked with bullet characters)
+
+Your API key is stored securely in `~/.dhara/config.json`.
+
+### Option 2: CLI flags / environment variables
+
+Set the corresponding environment variable and use `--provider`:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+dhara --provider openai --model gpt-4o
+
+export ANTHROPIC_API_KEY="sk-ant-..."
+dhara --provider anthropic --model claude-sonnet-4-20250514
 ```
 
 ## Providers
 
-Dhara supports 20+ LLM providers through the [pi-ai](https://github.com/earendil-works/pi-mono) integration.
+Dhara supports 20+ LLM providers. Built-in providers (no extra deps):
+`openai`, `anthropic`, `opencode-go`.
+
+Additional providers through the [pi-ai](https://github.com/earendil-works/pi-mono) integration.
 Set the corresponding environment variable and use `--provider`:
 
 | Provider | Env Var | `--provider` |
@@ -88,8 +133,9 @@ Set the corresponding environment variable and use `--provider`:
 | xAI | `XAI_API_KEY` | `xai` |
 | Hugging Face | `HUGGINGFACE_API_KEY` | `huggingface` |
 | Cloudflare | `CLOUDFLARE_API_KEY` | `cloudflare-workers-ai` |
-
-Built-in providers (no pi-ai needed): `openai`, `anthropic`, `opencode-go`.
+| Cerebras | `CEREBRAS_API_KEY` | `cerebras` |
+| Together AI | `TOGETHER_API_KEY` | `together` |
+| Google Vertex | GCP credentials | `vertex` |
 
 ## Standard Tools
 
@@ -130,6 +176,40 @@ for line in sys.stdin:
 ```
 
 Install: copy to `~/.dhara/extensions/my-extension/` with a `manifest.json`.
+
+## Configuration
+
+Dhara uses a two-tier config system:
+
+- **Global**: `~/.dhara/config.json` — settings for all projects
+- **Project**: `.dhara/config.json` in your project root — overrides global
+
+Project config takes precedence over global. CLI flags override both.
+
+```json
+// ~/.dhara/config.json (global defaults)
+{
+  "activeProvider": "openai",
+  "providers": [
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "authType": "api_key",
+      "auth": { "type": "api_key", "apiKey": "sk-..." },
+      "defaultModel": "gpt-4o",
+      "enabled": true
+    }
+  ],
+  "session": {
+    "autoSave": true,
+    "maxIterations": 100
+  }
+}
+```
+
+> **Note**: Legacy `.dhara/settings.json` files are still loaded for backward
+> compatibility, but `.dhara/config.json` is the recommended project-level
+> config file.
 
 ## Documentation
 

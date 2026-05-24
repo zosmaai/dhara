@@ -161,7 +161,7 @@ Capability enforcement. See [capability-model.md](./capability-model.md).
 | Package management | Registry is a service, not agent logic | `registry/` |
 | System prompt | User-controlled, project-specific | Configuration |
 | Context files | Project instructions, loaded at startup | AGENTS.md / CLAUDE.md walk-up |
-| Project config | Per-project settings (model, tools) | `.dhara/settings.json` |
+| Project config | Per-project settings (model, tools) | `.dhara/config.json` |
 | Compaction | Strategy varies by use case | Extension hook |
 
 ## The Extension Layer
@@ -304,17 +304,17 @@ implementations that support cascading config.
 ```
 project/
 └── .dhara/
-    ├── settings.json       Required: Project configuration (see schema below)
+    ├── config.json       Required: Project configuration (see schema below)
     ├── skills/             Optional: Project-level skills (SKILL.md files)
     ├── sessions/           Optional: Project-local session storage
     └── extensions/         Optional: Project-level extensions (manifest.yaml)
 ```
 
-### `settings.json` Schema
+### `config.json` Schema
 
 ```json
 {
-  "$schema": "dhara://schemas/settings.json",
+  "$schema": "dhara://schemas/config.json",
   "type": "object",
   "properties": {
     "provider": {
@@ -358,7 +358,7 @@ project/
 ### Precedence (highest to lowest)
 
 1. CLI flags (`--model`, `--provider`, `--base-url`, etc.)
-2. `.dhara/settings.json`
+2. `.dhara/config.json`
 3. Global `~/.dhara/config.json`
 4. Built-in defaults
 

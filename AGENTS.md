@@ -46,7 +46,7 @@ src/
 
 AGENTS.md                        — This file. Project context for coding agents.
 .dhara/                          — Project-level Dhara config (optional)
-  settings.json                    Project overrides for model, tools, etc.
+  config.json                    Project overrides for model, tools, etc.
   skills/                          Project-level skills
   sessions/                        Project-level sessions
 ```

@@ -13,7 +13,7 @@
 - [ ] A4: Theme discovery from ~/.dhara/themes/ directory
 - [ ] A5: Theme listing command (dhara theme list)
 - [ ] A6: Theme preview command (dhara theme preview <name>)
-- [ ] A7: Theme overrides via .dhara/settings.json
+- [ ] A7: Theme overrides via .dhara/config.json
 - [ ] A8: Theme validation schema
 - [ ] A9: Theme test suite
 - [ ] A10: Custom theme example in docs

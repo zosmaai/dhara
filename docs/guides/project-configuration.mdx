@@ -1,6 +1,6 @@
 ---
 title: Project Configuration
-description: Configure Dhara per-project with .dhara/settings.json.
+description: Configure Dhara per-project with .dhara/config.json.
 ---
 
 # Project Configuration
@@ -8,12 +8,12 @@ description: Configure Dhara per-project with .dhara/settings.json.
 Dhara reads configuration from three sources, applied in order of precedence:
 
 1. **CLI flags** (highest priority)
-2. **`.dhara/settings.json`** (project-level)
+2. **`.dhara/config.json`** (project-level)
 3. **`~/.dhara/config.json`** (global, lowest priority)
 
 ## Project Settings
 
-Create `.dhara/settings.json` in your project root:
+Create `.dhara/config.json` in your project root:
 
 ```json
 {
@@ -42,23 +42,18 @@ Create `.dhara/settings.json` in your project root:
 
 ## Discovery
 
-Dhara walks up from the current working directory looking for `.dhara/settings.json`. The first match wins. This means:
+Dhara walks up from the current working directory looking for `.dhara/config.json`. The first match wins. This means:
 
-- `/home/user/projects/my-app/.dhara/settings.json` applies when running in `my-app/` or any subdirectory
+- `/home/user/projects/my-app/.dhara/config.json` applies when running in `my-app/` or any subdirectory
 - `/home/user/.dhara/config.json` is the global fallback
+
+**Note:** Legacy `.dhara/settings.json` files are still loaded for backward
+compatibility if `config.json` is not found, but `.dhara/config.json` is
+the recommended name.
 
 ## Global Configuration
 
-The global config at `~/.dhara/config.json` sets defaults for all projects:
-
-```json
-{
-  "provider": "openai",
-  "model": "gpt-4o",
-  "autoSave": true,
-  "theme": "catppuccin"
-}
-```
+The global config at `~/.dhara/config.json` sets defaults for all projects.
 
 ## Per-Project Security
 
@@ -85,17 +80,17 @@ Different projects can have different security levels:
 
 ## Ignoring .dhara/
 
-Add `.dhara/` to your `.gitignore` if it contains API keys or sensitive config:
+If your `.dhara/config.json` contains API keys, add `.dhara/` to your `.gitignore`:
 
 ```
 # .gitignore
-.dhara/settings.json
+.dhara/config.json
 ```
 
 Share only non-sensitive settings via a template:
 
 ```json
-// .dhara/settings.template.json (safe to commit)
+// .dhara/config.template.json (safe to commit)
 {
   "maxIterations": 15,
   "security": {

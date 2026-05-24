@@ -1,16 +1,20 @@
 ---
-title: Settings Reference
-description: Complete schema for .dhara/settings.json and ~/.dhara/config.json.
+title: Configuration Reference
+description: Complete schema for .dhara/config.json and ~/.dhara/config.json.
 ---
 
-# Settings Reference
+# Configuration Reference
 
 Dhara reads configuration from two JSON files:
 
 - **`~/.dhara/config.json`** — Global settings (all projects)
-- **`.dhara/settings.json`** — Project-specific settings
+- **`.dhara/config.json`** — Project-specific settings (overrides global)
 
 Project settings override global settings. CLI flags override both.
+
+> **Note:** Legacy `.dhara/settings.json` files are still loaded for backward
+> compatibility if `config.json` is not found. The recommended name is
+> `config.json` for both global and project-level config.
 
 ## Full Schema
 
