@@ -5,6 +5,10 @@
 <h1 align="center">Dhara</h1>
 
 <p align="center">
+  [English](./README.md) | [中文](./README.zh.md) | [Español](./README.es.md) | [日本語](./README.ja.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [Português](./README.pt.md) | [Русский](./README.ru.md) | [한국어](./README.ko.md) | [हिंदी](./README.hi.md)
+</p>
+
+<p align="center">
   <strong>A minimal, secure, language-agnostic coding agent harness.</strong>
 </p>
 
@@ -24,6 +28,9 @@
   <a href="https://nodejs.org">
     <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node">
   </a>
+  <a href="https://github.com/zosmaai/dhara/stargazers">
+    <img src="https://img.shields.io/github/stars/zosmaai/dhara?style=social" alt="GitHub Stars">
+  </a>
 </p>
 
 <p align="center">
@@ -33,6 +40,22 @@
   ·
   <a href="spec/roadmap.md">🗺️ Roadmap</a>
 </p>
+
+<br>
+
+<p align="center">
+  <a href="https://github.com/zosmaai/dhara/stargazers">
+    <img src="assets/thank-you-for-the-star.png" alt="Thank you for the star!" width="400">
+  </a>
+</p>
+
+<p align="center">
+  If you find Dhara useful,
+  <a href="https://github.com/zosmaai/dhara/stargazers">star the repo</a>
+  — it tells us we're building something you care about!
+</p>
+
+<br>
 
 Dhara (धारा, "flow" in Sanskrit) is the engine that powers AI coding agents.
 It provides the agent loop, tool management, session persistence, and extension
