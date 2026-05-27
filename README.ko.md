@@ -5,7 +5,7 @@
 <h1 align="center">Dhara</h1>
 
 <p align="center">
-  [English](./README.md) | [中文](./README.zh.md) | [Español](./README.es.md) | [日本語](./README.ja.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [Português](./README.pt.md) | [Русский](./README.ru.md) | **한국어** | [हिंदी](./README.hi.md)
+  <a href="./README.md">English</a> | <a href="./README.zh.md">中文</a> | <a href="./README.es.md">Español</a> | <a href="./README.ja.md">日本語</a> | <a href="./README.de.md">Deutsch</a> | <a href="./README.fr.md">Français</a> | <a href="./README.pt.md">Português</a> | <a href="./README.ru.md">Русский</a> | **한국어** | [हिंदी](./README.hi.md)
 </p>
 
 <p align="center">
@@ -45,7 +45,7 @@
 
 <p align="center">
   <a href="https://github.com/zosmaai/dhara/stargazers">
-    <img src="assets/thank-you-for-the-star.png" alt="Thank you for the star!" width="400">
+    <img src="assets/thank-you-for-the-star.png" alt="Thank you for the star!" width="600">
   </a>
 </p>
 
