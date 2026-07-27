@@ -69,7 +69,7 @@
     "vitest": "^4.1.6"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.75.1",
+    "@earendil-works/pi-ai": "^0.82.1",
     "@earendil-works/pi-tui": "^0.75.3",
 
     "chalk": "^5.6.2",
